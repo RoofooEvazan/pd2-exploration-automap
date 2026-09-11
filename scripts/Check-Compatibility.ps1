@@ -1,3 +1,17 @@
+<#
+.SYNOPSIS
+Checks whether a PD2 installation matches the tested game and renderer files.
+.DESCRIPTION
+Reads four DLLs and compares their SHA-256 hashes with compatibility.json.
+Prints MATCH, DIFFERENT, or MISSING for each file without modifying the game.
+Returns exit code 0 when all four match, or 2 for different or missing files.
+Invalid paths and read errors stop the script with an error.
+.PARAMETER GamePath
+The PD2 game folder containing D2Client.dll, D2gfx.dll, D2Glide.dll, and glide3x.dll.
+.EXAMPLE
+.\Check-Compatibility.ps1 -GamePath "D:\Games\Diablo II\ProjectD2"
+#>
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
