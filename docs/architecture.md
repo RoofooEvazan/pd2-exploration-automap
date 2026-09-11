@@ -1,0 +1,80 @@
+# How the automap works
+
+## Rendering flow
+
+```text
+automap begin callback
+  -> read fractional player position and area identity
+  -> grow the independent exploration mask outside towns
+  -> periodically copy new loaded collision grids
+  -> submit a replaceable snapshot to the geometry worker
+
+native terrain cell callback
+  -> styled result available: draw shaded floors and outlines once per pass
+  -> otherwise: clip the normal cell's prepared textured primitives
+
+automap end callback
+  -> emit artwork-contact frontier accents in fallback mode
+  -> finish timing and restore per-pass state
+```
+
+Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a disk of 80 fine cells (20 world subtiles). The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This is a distance mask, not native exploration state or visibility through doors and walls.
+
+Town IDs `1`, `40`, `75`, `103`, and `109` bypass both the custom mask and styled replacement. Native rendering decides what those towns display.
+
+## Styled map
+
+The render thread reads only already-loaded room collision grids, copying them into owned immutable room records. Static wall (`0x0001`) and blank (`0x0020`) flags exclude cells from floor shading. Transient actor/item/object flags do not turn floor into holes. Connectivity selects components reached by the player, limiting isolated collision artifacts.
+
+The worker combines connected floor with the explored region. Seven shade layers form the reveal band; a known wall edge remains gray, while a frontier continuing over floor is tinted red. The gray wall source is palette entry 29 / RGB 132. The renderer's minimap opacity handling makes source RGB especially important; the edge is layered geometry, not a continuous alpha blur.
+
+`StyledChunks.hpp` caches 64-by-64 fine-cell regions (16-by-16 world subtiles). Snapshot differences invalidate affected regions with 14 fine cells of filter padding. Half-open ownership prevents repeated shade and wall coverage at cache boundaries. Adjacent matching quads are compacted before publication. Projection quickly accepts contained quads, rejects off-screen quads, and clips only viewport crossings.
+
+One background worker owns the derived floor/geometry cache. It has one replaceable pending request and one completed result. Requests contain owned data and shared immutable room copies, never borrowed game pointers. Results include session and area identifiers. The render thread uses the last completed drawing while work continues. Submission is limited to once per 40 ms; room capture is sampled at 250 ms intervals.
+
+## Native artwork fallback
+
+When styled output is unavailable, the original cell preparation runs once. The final axis-aligned textured quad is clipped into disjoint visible strips before the original draw call; position and texture coordinates are interpolated together. This avoids repeatedly asking the game to prepare or crop its texture-cache entry.
+
+Fallback frontier accents appear only where the frontier intersects opaque artwork, with a small extension at either end. DC6 silhouette data is copied into a bounded owned cache. Game texture-cache allocation or eviction metadata is never modified. Fractional lines are submitted through the existing renderer path after substituting the final vertex coordinates.
+
+## Source layout
+
+| File | Responsibility |
+| --- | --- |
+| `src/ExplorationRuntime.cpp` | DLL export, signatures, memory hooks, player/session state, render submissions and logging |
+| `src/ExplorationMask.hpp` | Sparse explored grid, disk reveal, session masks and reference primitive clipping |
+| `src/ProjectedMask.hpp` | Cached mask projection and native raster clipping support |
+| `src/FrontierContacts.hpp` | DC6 silhouette decoding and frontier/artwork contact spans |
+| `src/NativeFloorReader.hpp` | Guarded reads of loaded native room collision data |
+| `src/StyledMap.hpp` | Floor connectivity, shading, red frontier classification and reference full rebuild |
+| `src/StyledChunks.hpp` | Incremental region invalidation, ownership and geometry reuse |
+| `src/StyledProjection.hpp` | World-space quad/stroke projection helpers and viewport clipping |
+| `src/StyledWorker.hpp` | Owned snapshots, asynchronous builds and result publication |
+
+## Tested interception points
+
+These are module-relative offsets for the binary hashes in [compatibility.json](../compatibility.json), not portable addresses.
+
+| Module + offset | Purpose |
+| --- | --- |
+| `D2Client.dll + 0x6269E` | Automap begin call |
+| `D2Client.dll + 0xC3AA1` | Automap end call |
+| `D2Client.dll + 0x604EA` | Native automap terrain cell call |
+| `D2Glide.dll + 0xA33F` | Prepared textured quad submission |
+| `D2Glide.dll + 0x94BA` | Floating-point line submission |
+| `D2Glide.dll + 0x944C` | Floating-point point submission |
+
+Styled drawing also depends on `glide3x.dll` exports `_grDrawVertexArray@12` at `+0xB4020` and `_grConstantColorValue@4` at `+0xB4210`. The x86 vertex ABI is 28 bytes. `D2gfx.dll` ordinal 10010 supplies the native line path. Begin/end chaining tolerates the inspected D2GL wrapper hooks and preserves their targets.
+
+The initializer checks selected call opcodes and targets, prepares all affected pages before editing any calls, and changes process memory only. Other offsets and layouts in the readers are equally build-specific. Do not treat these narrow signature guards as complete executable validation.
+
+## Lifetime and resource limits
+
+The worker's derived area cache retains up to 32 entries. Each area's room-copy capture accepts up to 2,048 rooms and 2,000,000 collision cells, with room dimensions capped at 512 per axis. The fallback silhouette cache clears around 4 MiB or 4,096 entries. These limits bound particular caches, not the complete process memory footprint: session exploration masks and render-thread area data can still accumulate until reset. A capture limit can leave later terrain unavailable for styled output.
+
+Player identity changes or a tracked pass gap over two seconds conservatively reset the session. Nothing is persisted across process restarts. The runtime keeps the worker alive for process lifetime; unloading the DLL while the game runs is unsupported.
+
+## Porting checklist
+
+For another build, verify the player/path/room/level structures, room collision buffers, projection globals, every call site's ABI and target, wrapper export layout, and rendering state behavior. Run the synthetic tests, validate installation guards against the new binary set, then test offline across movement, area transitions, town bypass, minimap modes, large maps, and long sessions. Publish a separate compatibility profile rather than weakening the existing checks.

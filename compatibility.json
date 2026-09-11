@@ -1,0 +1,13 @@
+{
+  "activationArgument": "-exploration-test",
+  "architecture": "x86",
+  "testedModuleSha256": "3076F300E39D5D438DB55BCC3784AB5C61841D0983B9FD561C8650DB314ACA5E",
+  "engineSha256": {
+    "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
+    "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
+    "glide3x.dll": "59599f7409a4c6ee7c8af97988e8d02d29c9177c3907a154a2b30ac7f076fba8",
+    "D2Glide.dll": "7cf5907e9eb19b783b73fa45a5a7aa4491cb750e0d83df8c59b12d089310db6a"
+  },
+  "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
+  "profile": "Tested PD2/D2GL binary set"
+}
