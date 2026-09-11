@@ -1,3 +1,7 @@
+// Game integration: initialize the DLL, validate the supported hook chain, read
+// player movement, bypass towns, and submit styled or clipped native automap
+// geometry. Related components and the drawing flow are indexed in README.md.
+
 // Experimental, build-specific, offline-test runtime. Original implementation.
 // No game artwork or engine DLL on disk is modified.
 #define WIN32_LEAN_AND_MEAN
