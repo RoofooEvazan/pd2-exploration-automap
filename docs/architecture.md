@@ -22,7 +22,11 @@ automap end callback
 
 Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a disk of 80 fine cells (20 world subtiles). The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This is a distance mask, not native exploration state or visibility through doors and walls.
 
-Town IDs `1`, `40`, `75`, `103`, and `109` bypass both the custom mask and styled replacement. Native rendering decides what those towns display.
+Town IDs `1`, `40`, `75`, `103`, and `109` retain native artwork within their level rectangle. The exemption follows the terrain footprint instead of applying to every native cell while the player is in town. Nearby outdoor terrain can therefore use the styled map before the player's area ID changes.
+
+Near a town exit, the game thread samples already-loaded outdoor floor grids every 250 ms. The nearest walkable outdoor cell supplies the connectivity seed, while exploration still grows around the actual player position. This preview selects the same seeded outdoor area mask and geometry cache used after crossing the gate, preserving exploration when walking out and back. Only one neighboring area is previewed at a time; no room loading or native reveal calls are added.
+
+Town bounds come from guarded level reads, are converted from DRLG tiles to world subtiles, and must enclose the current room's collision grid. The cached footprint is scoped to the session, act, seed, and automap layer. A projected rectangle clips native town pixels; fallback drawing unions that coverage with explored coverage without drawing overlapping pixels twice. An off-screen town is rejected before inspecting native frame data. If the outdoor styled result is not ready while the player is in town, outside artwork stays hidden until that result arrives.
 
 ## Styled map
 
@@ -46,9 +50,9 @@ Fallback frontier accents appear only where the frontier intersects opaque artwo
 | --- | --- |
 | `src/ExplorationRuntime.cpp` | DLL export, signatures, memory hooks, player/session state, render submissions and logging |
 | `src/ExplorationMask.hpp` | Sparse explored grid, disk reveal, session masks and reference primitive clipping |
-| `src/ProjectedMask.hpp` | Cached mask projection and native raster clipping support |
+| `src/ProjectedMask.hpp` | Cached exploration and town rectangle projection for native raster clipping |
 | `src/FrontierContacts.hpp` | DC6 silhouette decoding and frontier/artwork contact spans |
-| `src/NativeFloorReader.hpp` | Guarded reads of loaded native room collision data |
+| `src/NativeFloorReader.hpp` | Guarded reads of loaded room collision data and current area bounds |
 | `src/StyledMap.hpp` | Floor connectivity, shading, red frontier classification and reference full rebuild |
 | `src/StyledChunks.hpp` | Incremental region invalidation, ownership and geometry reuse |
 | `src/StyledProjection.hpp` | World-space quad/stroke projection helpers and viewport clipping |

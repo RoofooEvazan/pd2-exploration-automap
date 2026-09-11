@@ -160,6 +160,119 @@ static void testStyledBatches() {
     styledCurrent=nullptr;client=nullptr;
     std::cout<<"PASS: styled gray/red vertex batches, constant-color restoration, exception cleanup, once-per-pass submission, five town bypasses and renderer fallback\n";
 }
+static void testTownProjection() {
+    for(int divisor:{10,20})for(Rect quarter:std::vector<Rect>{{-13,-11,9,17},{0,0,1,1},{20000,40000,20800,40400}}) {
+        exploration::ProjectedMask raster;
+        raster.revealQuarterRect(quarter.left,quarter.top,quarter.right,quarter.bottom,divisor);
+        int left=4*(quarter.left-quarter.top)/divisor-30,top=2*(quarter.left+quarter.top)/divisor-30;
+        std::vector<int> coverage(10000);
+        raster.clip(left,top,left+100,top+100,[&](int l,int y,int r,int b){
+            require(b==y+1 && l>=left && r<=left+100 && y>=top && y<top+100);
+            for(int x=l;x<r;++x)++coverage[(y-top)*100+x-left];
+        });
+        for(int y=top;y<top+100;++y)for(int x=left;x<left+100;++x) {
+            double wx=(x+.5)*divisor/8+(y+.5)*divisor/4;
+            double wy=(y+.5)*divisor/4-(x+.5)*divisor/8;
+            require(coverage[(y-top)*100+x-left]==int(wx>=quarter.left && wx<quarter.right && wy>=quarter.top && wy<quarter.bottom));
+        }
+    }
+}
+static int townPixels[400]{},townArrayCalls=0;
+static void __stdcall captureTownQuad(DWORD mode,DWORD count,const void* data,DWORD stride) {
+    captureQuad(mode,count,data,stride);
+    const auto* v=static_cast<const GlideVertex*>(data);
+    for(int y=int(v[0].y);y<int(v[2].y);++y)for(int x=int(v[0].x);x<int(v[2].x);++x)++townPixels[(y-20)*20+x-10];
+}
+static void __stdcall captureTownArray(DWORD mode,DWORD count,const void* data) {
+    require(mode==5 && count==4 && data);++townArrayCalls;
+}
+static void __stdcall townLine(int x1,int y1,int x2,int y2,DWORD,DWORD) {
+    GlideVertex a{float(x1),float(y1),0,1,0,0,0},b{float(x2),float(y2),0,1,0,0,0};
+    floatLineHook(&a,&b);
+}
+template<class T> static void put(std::vector<unsigned char>& data,size_t offset,T value) {
+    require(offset+sizeof(T)<=data.size());memcpy(data.data()+offset,&value,sizeof(T));
+}
+static void testTownBoundary() {
+    testTownProjection();
+    std::vector<unsigned char> memory(0x11c210),unit(0x40),path(0x40),act(0x50),townRoom(0x80),outRoom(0x80);
+    std::vector<unsigned char> townRoom2(0x60),outRoom2(0x60),townLevel(0x1d4),outLevel(0x1d4),townGrid(0x24),outGrid(0x24);
+    std::vector<std::uint16_t> townFlags(55*50),outFlags(20*20);
+    DWORD layer=5;client=memory.data();
+    put(memory,0x11bbfc,unit.data());put(memory,0x11c1c4,&layer);
+    put(memory,0xf16b0,10);put(memory,0x11c1f8,36);put(memory,0x11c1fc,106);
+    put(memory,0xdbc48,100);put(memory,0xdbc4c,100);
+    put(unit,0x1c,act.data());put(unit,0x2c,path.data());put(unit,0xc,DWORD(777));
+    put(path,0x1c,townRoom.data());put(act,0x10,townRoom.data());put(act,0xc,DWORD(444));
+    put(townRoom,0x10,townRoom2.data());put(townRoom,0x20,townGrid.data());put(townRoom,0x7c,outRoom.data());
+    put(outRoom,0x10,outRoom2.data());put(outRoom,0x20,outGrid.data());
+    put(townRoom2,0x58,townLevel.data());put(outRoom2,0x58,outLevel.data());
+    put(townLevel,0x1d0,DWORD(109));put(outLevel,0x1d0,DWORD(110));
+    put(townLevel,0x1c,10);put(townLevel,0x20,10);put(townLevel,0x24,11);put(townLevel,0x28,10);
+    put(townGrid,0,50);put(townGrid,4,50);put(townGrid,8,55);put(townGrid,12,50);put(townGrid,0x20,townFlags.data());
+    put(outGrid,0,105);put(outGrid,4,65);put(outGrid,8,20);put(outGrid,12,20);put(outGrid,0x20,outFlags.data());
+    floor_reader::AreaBounds checked;
+    require(floor_reader::currentAreaBounds(client,&checked) && checked.x==50 && checked.width==55);
+    put(townLevel,0x1c,50);require(!floor_reader::currentAreaBounds(client,&checked));put(townLevel,0x1c,10);
+    styled_map::Worker worker;styledWorker=&worker;styledArray=captureTownArray;styledColor=captureColor;
+    originalLine=townLine;originalQuad=captureTownQuad;originalCell=prepareAndDrawCell;
+    enabled=true;townBoundary=TownBoundary{};
+    PlayerState player{100.125,75.125,109,444,777,reinterpret_cast<uintptr_t>(act.data())};
+    updateForPlayer(player,5000);
+    auto outdoor=updateTownBoundary(player,5000);
+    require(nativeTownActive && maskActive && outdoor.level==110 && townBoundary.outside==110);
+    require(outdoor.x>=105 && outdoor.x<125 && outdoor.y>=65 && outdoor.y<85);
+    auto* previewMask=explored;auto previewSize=explored->size();require(previewSize>0);
+    const auto key=(std::uint64_t(player.seed)<<32)|110;
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+    do {
+        updateStyled(outdoor,key);if(styledActive)break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while(std::chrono::steady_clock::now()<deadline);
+    require(styledActive && styledCurrent && styledCurrent->floorCells==400);
+    player.level=110;player.x=105.125;
+    updateForPlayer(player,5100);outdoor=updateTownBoundary(player,5100);updateStyled(outdoor,key);
+    require(nativeTownActive && styledActive && explored==previewMask && explored->size()>=previewSize);
+    player.level=109;player.x=100.125;
+    updateForPlayer(player,5200);outdoor=updateTownBoundary(player,5200);
+    require(nativeTownActive && explored==previewMask && outdoor.level==110);
+    // While an outdoor build is pending, every native pixel must belong to town.
+    std::vector<DWORD> frame(8),file(7),ctx(14);
+    frame[1]=20;frame[2]=20;file[5]=1;file[6]=reinterpret_cast<DWORD>(frame.data());ctx[13]=reinterpret_cast<DWORD>(file.data());
+    NativeRect viewport{0,100,0,99};Transform t{10,36,106};
+    styledActive=false;haveViewport=false;inPass=true;memset(townPixels,0,sizeof(townPixels));
+    cellHook(ctx.data(),10,40,&viewport,0);
+    int inside=0,outside=0;
+    for(int y=20;y<40;++y)for(int x=10;x<30;++x) {
+        bool expected=inTownBounds(inverse({x+.5,y+.5},t));
+        require(townPixels[(y-20)*20+x-10]==int(expected));expected?++inside:++outside;
+    }
+    require(inside>0 && outside>0);
+    // Native fallback combines town and explored outdoor spans without overlap.
+    Mask small(.25);small.revealAround({105.5,75.5},8);explored=&small;
+    observedLevel=110;maskActive=true;haveViewport=false;memset(townPixels,0,sizeof(townPixels));
+    cellHook(ctx.data(),10,40,&viewport,0);
+    for(int y=20;y<40;++y)for(int x=10;x<30;++x) {
+        auto world=inverse({x+.5,y+.5},t);
+        require(townPixels[(y-20)*20+x-10]==int(inTownBounds(world)||small.contains(world)));
+    }
+    // A finished outdoor drawing is submitted once, with only town art forwarded.
+    StyledState drawing;drawing.drawing.layers[0].quads.push_back({{105,75},{110,75},{110,80},{105,80}});
+    drawing.drawing.quads=1;styledCurrent=&drawing;styledActive=true;haveViewport=false;
+    townArrayCalls=0;cellHook(ctx.data(),10,40,&viewport,0);cellHook(ctx.data(),10,40,&viewport,0);
+    require(townArrayCalls==1 && haveViewport);
+    // Far from town, reject its viewport bounds before touching native frames.
+    put(memory,0x11c1f8,10000);haveViewport=false;auto forwardedBefore=forwardedCells;
+    cellHook(nullptr,10,40,&viewport,0);
+    require(!townInViewport && enabled && forwardedCells==forwardedBefore);
+    put(memory,0x11c1f8,36);
+    layer=6;updateForPlayer(player,5300);updateTownBoundary(player,5300);require(!nativeTownActive);
+    layer=5;player.level=110;player.act+=16;updateForPlayer(player,5400);updateTownBoundary(player,5400);
+    require(!nativeTownActive && !townBoundary.ready);
+    styledWorker=nullptr;styledCurrent=nullptr;styledActive=false;nativeTownActive=false;inPass=false;client=nullptr;
+    explored=&emptyMask;townBoundary=TownBoundary{};
+    std::cout<<"PASS: town rectangle rasterization at both zooms, guarded level bounds, outdoor preview, crossing/reentry persistence, exact town-only coverage, duplicate-free fallback union, once-per-pass mixed drawing and layer/act isolation\n";
+}
 int main() {
     testContacts();testInstalledArtwork();
     originalQuad=captureQuad;
@@ -215,5 +328,6 @@ int main() {
     state.level=0;updateForPlayer(state,1050);require(!maskActive);
     std::cout<<"PASS: artwork-contact accents, transparency, padding across segments, duplicate union, malformed data, cache reset, one native preparation, exact-once coverage, UVs/flips, fractional lines, town bypass/persistence\n";
     testStyledBatches();
+    testTownBoundary();
     return 0;
 }

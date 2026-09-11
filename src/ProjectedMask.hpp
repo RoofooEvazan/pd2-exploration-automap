@@ -29,6 +29,20 @@ class ProjectedMask {
         first=row.erase(first,last);row.insert(first,{l,r});
     }
 public:
+    // Rasterize a whole quarter-cell rectangle without expanding each row.
+    // Town footprints use this to retain native art without rebuilding a mask.
+    void revealQuarterRect(int left,int top,int right,int bottom,int divisor) {
+        if(left>=right || top>=bottom)return;
+        const std::int64_t d=divisor,l=left,r=right,t=top,b=bottom;
+        int firstY=int(ceilDiv(4*(l+t)-d,2*d));
+        int lastY=int(ceilDiv(4*(r+b)-d,2*d));
+        for(int j=firstY;j<lastY;++j) {
+            const std::int64_t row=j;
+            auto low=std::max(ceilDiv(16*l-d*(4*row+3),2*d),floorDiv(d*(4*row+1)-16*b,2*d)+1);
+            auto high=std::min(ceilDiv(16*r-d*(4*row+3),2*d),floorDiv(d*(4*row+1)-16*t,2*d)+1);
+            add(j,int(low),int(high));
+        }
+    }
     // Exact rational rasterization for quarter-subtile world spans and D2's
     // divisors 10/20. Pixel centers and exclusive world edges match contains().
     void revealQuarterSpan(int left,int right,int y,int divisor) {

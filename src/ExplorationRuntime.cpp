@@ -9,6 +9,7 @@
 #include <windows.h>
 #include <intrin.h>
 #include <cstdio>
+#include <climits>
 #include <share.h>
 #include <vector>
 #include <string>
@@ -98,12 +99,26 @@ static unsigned long mapSamples=0;
 static void* expectedBeginTarget=nullptr;
 static void* expectedEndTarget=nullptr;
 static FILE* logfile=nullptr;
+struct TownBoundary {
+    std::uint64_t session=0;
+    uintptr_t act=0;
+    DWORD seed=0,level=0,layer=0,outside=0,sampled=0;
+    Rect bounds{};
+    exploration::ProjectedMask raster[2];
+    Point connection{};
+    bool ready=false,nearOutside=false;
+    int revealX=INT_MIN,revealY=INT_MIN;
+};
+static TownBoundary townBoundary;
+static bool nativeTownActive=false;
+static bool townInViewport=true;
+static unsigned long townClippedCells=0,townPreviewPasses=0;
 static void log(const char* msg) { if(logfile) {fprintf(logfile,"%s\n",msg);fflush(logfile);} }
 template<class T> T read(const void* p,size_t offset=0) {
     return *reinterpret_cast<const T*>(static_cast<const unsigned char*>(p)+offset);
 }
 // SEH contains optional metadata reads; no exception crosses game callbacks.
-struct PlayerState { double x,y;DWORD level,seed,id; };
+struct PlayerState { double x,y;DWORD level,seed,id;uintptr_t act=0; };
 static bool playerState(PlayerState* s) {
     __try {
         void* unit=read<void*>(client,0x11bbfc);
@@ -116,14 +131,87 @@ static bool playerState(PlayerState* s) {
         // Path offsets 0/4 contain unsigned 16.16 positions (fraction + tile).
         s->x=read<DWORD>(path,0)/65536.0;s->y=read<DWORD>(path,4)/65536.0;
         s->level=read<DWORD>(level,0x1d0);s->seed=read<DWORD>(act,0xc);
-        s->id=read<DWORD>(unit,0xc);return s->level<10000;
+        s->id=read<DWORD>(unit,0xc);s->act=reinterpret_cast<uintptr_t>(act);return s->level<10000;
     } __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
 }
 static bool isTown(DWORD level) {
     // Verified against local Levels.txt and BH's IsTown helper.
     return level==1 || level==40 || level==75 || level==103 || level==109;
 }
+static DWORD automapLayer() {
+    __try {
+        auto layer=read<void*>(client,0x11c1c4);
+        return layer?read<DWORD>(layer):0xffffffffu;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return 0xffffffffu;}
+}
+static bool inTownBounds(Point p) {
+    const auto& r=townBoundary.bounds;
+    return p.x>=r.left && p.x<r.right && p.y>=r.top && p.y<r.bottom;
+}
+static void setTownBounds(const PlayerState& p,DWORD layer,const floor_reader::AreaBounds& r) {
+    townBoundary.level=p.level;townBoundary.layer=layer;
+    townBoundary.bounds={r.x,r.y,r.x+r.width,r.y+r.height};
+    for(int i=0;i<2;++i) {
+        townBoundary.raster[i]=exploration::ProjectedMask{};
+        townBoundary.raster[i].revealQuarterRect(r.x*4,r.y*4,(r.x+r.width)*4,(r.y+r.height)*4,i?20:10);
+    }
+    townBoundary.ready=true;
+}
+// Return the outdoor state to build while the player is still inside town.
+// Only owned collision copies are inspected; no neighboring rooms are loaded.
+static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
+    if(townBoundary.session!=gameSerial || townBoundary.act!=p.act || townBoundary.seed!=p.seed ||
+       (isTown(p.level) && townBoundary.ready && townBoundary.level!=p.level)) {
+        townBoundary=TownBoundary{};townBoundary.session=gameSerial;townBoundary.act=p.act;townBoundary.seed=p.seed;
+    }
+    DWORD layer=automapLayer();const bool town=isTown(p.level);
+    if(town && !townBoundary.ready && layer<10000) {
+        floor_reader::AreaBounds bounds;
+        if(floor_reader::currentAreaBounds(client,&bounds) && p.x>=bounds.x && p.y>=bounds.y &&
+           p.x<bounds.x+bounds.width && p.y<bounds.y+bounds.height) {
+            setTownBounds(p,layer,bounds);
+            if(logfile){fprintf(logfile,"TOWN footprint level=%lu layer=%lu x=%d y=%d w=%d h=%d\n",p.level,layer,bounds.x,bounds.y,bounds.width,bounds.height);fflush(logfile);}
+        }
+    }
+    nativeTownActive=enabled && townBoundary.ready && townBoundary.layer==layer &&
+        (p.level==townBoundary.level || p.level==townBoundary.outside);
+    if(!nativeTownActive || !town || !styledWorker || !styledArray || !styledColor || targetLevel!=0 ||
+       strstr(GetCommandLineA(),"-exploration-floor-probe"))return p;
+    constexpr double radius=revealRadius*maskCellSize;
+    if(!townBoundary.sampled || now-townBoundary.sampled>=250) {
+        townBoundary.sampled=now;townBoundary.nearOutside=false;
+        double nearest=radius*radius;DWORD outside=0;Point connection{};
+        floor_reader::capture(client,0,[&](const floor_reader::Room& r){
+            return !isTown(r.level) && r.x<p.x+radius && r.x+r.width>p.x-radius &&
+                r.y<p.y+radius && r.y+r.height>p.y-radius;
+        },[&](const floor_reader::Room& r,const std::vector<std::uint16_t>& flags){
+            int left=std::max(r.x,int(floor(p.x-radius))),right=std::min(r.x+r.width,int(ceil(p.x+radius)));
+            int top=std::max(r.y,int(floor(p.y-radius))),bottom=std::min(r.y+r.height,int(ceil(p.y+radius)));
+            for(int y=top;y<bottom;++y)for(int x=left;x<right;++x) {
+                Point candidate{x+.5,y+.5};
+                if((flags[std::size_t(y-r.y)*r.width+x-r.x]&0x0021) || inTownBounds(candidate))continue;
+                double distance=(candidate.x-p.x)*(candidate.x-p.x)+(candidate.y-p.y)*(candidate.y-p.y);
+                if(distance<nearest){nearest=distance;outside=r.level;connection=candidate;}
+            }
+        });
+        if(outside) {
+            if(townBoundary.outside!=outside){townBoundary.revealX=townBoundary.revealY=INT_MIN;}
+            townBoundary.outside=outside;townBoundary.connection=connection;townBoundary.nearOutside=true;
+        }
+    }
+    if(!townBoundary.outside)return p;
+    auto key=(std::uint64_t(p.seed)<<32)|townBoundary.outside;
+    explored=&explorationSession.select(gameSerial,key);maskActive=true;
+    int x=int(floor(p.x/maskCellSize)),y=int(floor(p.y/maskCellSize));
+    if(townBoundary.nearOutside && (x!=townBoundary.revealX || y!=townBoundary.revealY)) {
+        explored->revealAround({p.x,p.y},revealRadius);townBoundary.revealX=x;townBoundary.revealY=y;
+    }
+    PlayerState outdoor=p;outdoor.level=townBoundary.outside;
+    outdoor.x=townBoundary.connection.x;outdoor.y=townBoundary.connection.y;
+    ++townPreviewPasses;return outdoor;
+}
 static void updateForPlayer(const PlayerState& p,DWORD now) {
+    nativeTownActive=false;
     InterlockedExchange(&observedLevel,static_cast<LONG>(p.level));
     // A long gap (menus/reload) resets conservatively, even with reused addresses.
     if(p.id!=lastPlayerId || (lastFrame && now-lastFrame>2000)) {
@@ -161,14 +249,15 @@ static void probeFloors(DWORD level) {
             if(logfile){fprintf(logfile,"FLOOR level=%lu x=%d y=%d w=%d h=%d samples=%zu\n",r.level,r.x,r.y,r.width,r.height,grid.size());fflush(logfile);}
         });
 }
-static void updateStyled(const PlayerState& p) {
+static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
+    if(!levelKey)levelKey=lastLevelKey;
     styledActive=false;
     if(!maskActive || !styledWorker || !styledArray || !styledColor || strstr(GetCommandLineA(),"-exploration-floor-probe"))return;
     try {
         static std::uint64_t serial=0,selected=0;static DWORD sampled=0;
         if(serial!=gameSerial){styledLevels.clear();styledCurrent=nullptr;serial=gameSerial;selected=0;}
-        const bool changedArea=selected!=lastLevelKey;
-        if(changedArea){sampled=0;selected=lastLevelKey;}
+        const bool changedArea=selected!=levelKey;
+        if(changedArea){sampled=0;selected=levelKey;}
         if(auto result=styledWorker->take()) {
             auto it=styledLevels.find(result->level);
             if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
@@ -177,7 +266,7 @@ static void updateStyled(const PlayerState& p) {
                 styledLatencyMs=result->latencyMilliseconds;styledRebuiltChunks=result->rebuiltChunks;styledTotalChunks=result->totalChunks;
             }
         }
-        auto& state=styledLevels[lastLevelKey];styledCurrent=&state;
+        auto& state=styledLevels[levelKey];styledCurrent=&state;
         if(changedArea){state.queuedMask=0;state.submitted=0;}
         if(GetTickCount()-sampled>=250) {
             sampled=GetTickCount();
@@ -186,7 +275,7 @@ static void updateStyled(const PlayerState& p) {
         }
         if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size()) && GetTickCount()-state.submitted>=40) {
             auto request=std::make_unique<styled_map::BuildRequest>();
-            request->session=gameSerial;request->level=lastLevelKey;request->maskSize=explored->size();request->player={p.x,p.y};
+            request->session=gameSerial;request->level=levelKey;request->maskSize=explored->size();request->player={p.x,p.y};
             request->visible.spans=explored->rows();request->rooms=state.floor.rooms;
             styledWorker->submit(std::move(request));
             state.queuedRooms=state.floor.rooms.size();state.queuedMask=explored->size();state.submitted=GetTickCount();
@@ -196,10 +285,11 @@ static void updateStyled(const PlayerState& p) {
 }
 static void update() {
     PlayerState p{};
-    if(!playerState(&p)) {InterlockedIncrement(&stateFailure);maskActive=false;sawTarget=false;return;}
-    updateForPlayer(p,GetTickCount());
+    if(!playerState(&p)) {InterlockedIncrement(&stateFailure);maskActive=false;nativeTownActive=false;sawTarget=false;return;}
+    DWORD now=GetTickCount();updateForPlayer(p,now);
     if(maskActive)probeFloors(p.level);
-    updateStyled(p);
+    auto drawingPlayer=updateTownBoundary(p,now);
+    updateStyled(drawingPlayer,(std::uint64_t(p.seed)<<32)|drawingPlayer.level);
 }
 struct Transform { double divisor,ox,oy; };
 static bool transform(Transform& t) {
@@ -216,6 +306,12 @@ static bool transform(Transform& t) {
 static Point project(Point p,const Transform& t) {
     return {16*(p.x-p.y)/t.divisor-t.ox+(t.divisor==20?7:8),
              8*(p.x+p.y)/t.divisor-t.oy+(t.divisor==20?-3:-8)};
+}
+static bool townIntersectsViewport(const Transform& t,Rect view) {
+    const auto& r=townBoundary.bounds;
+    Point left=project({double(r.left),double(r.bottom)},t),right=project({double(r.right),double(r.top)},t);
+    Point top=project({double(r.left),double(r.top)},t),bottom=project({double(r.right),double(r.bottom)},t);
+    return left.x<view.right && right.x>view.left && top.y<view.bottom && bottom.y>view.top;
 }
 static bool frameBounds(void* ctx,int x,int y,Rect* r) {
     __try {
@@ -326,7 +422,7 @@ static void drawPreparedCell(void* ctx,int x,int y,NativeRect* native,int mode,c
 static void drawStyled(const Transform& t,Rect viewport);
 static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode) {
     InterlockedIncrement(&cellCount);
-    if(!inPass || !maskActive || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
+    if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
     try {
         if(styledActive && styledCurrent) {
             if(!haveViewport) {
@@ -335,11 +431,13 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                 if(!transform(t) || w<1 || w>10000 || h<1 || h>10000){styledActive=false;}
                 else {
                     passViewport=exploration::intersect({std::max(0,native->left),std::max(0,native->top+1),native->right,native->bottom+1},{0,0,w,h});
+                    townInViewport=nativeTownActive && townIntersectsViewport(t,passViewport);
                     drawStyled(t,passViewport);haveViewport=true;++styledPasses;
                 }
             }
-            if(styledActive){++suppressed;return;}
+            if(styledActive && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
+        const bool townOnly=nativeTownActive && (isTown(observedLevel) || styledActive);
         Transform t{};Rect bounds{};
         if(!transform(t) || !frameBounds(ctx,x,y,&bounds)) {
             maskActive=false;enabled=false;log("Mask disabled: unrecognized frame/transform.");originalCell(ctx,x,y,native,mode);return;
@@ -352,20 +450,38 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             int w=read<int>(client,0xdbc48),h=read<int>(client,0xdbc4c);
             Rect view=w>0 && w<10000 && h>0 && h<10000?exploration::intersect(viewport,{0,0,w,h}):Rect{};
             contactFrontier.begin(view);
-            explored->frontier([&](Point a,Point b){contactFrontier.add(project(a,t),project(b,t));});
+            if(!townOnly)explored->frontier([&](Point a,Point b){contactFrontier.add(project(a,t),project(b,t));});
         }
         Rect assetBounds=bounds;
         bounds=exploration::intersect(bounds,viewport);
         if(bounds.left>=bounds.right || bounds.top>=bounds.bottom){++suppressed;return;}
         std::vector<Rect> clips;
         int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
-        explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,[&](Rect r){
+        auto appendClip=[&](Rect r){
             if(!clips.empty() && clips.back().left==r.left && clips.back().right==r.right && clips.back().bottom==r.top)
                 clips.back().bottom=r.bottom;
             else clips.push_back(r);
-        });
+        };
+        if(nativeTownActive && !townOnly) {
+            // Native fallback outside the gate may overlap town coverage. Union
+            // each raster row before drawing, so shared pixels are never doubled.
+            std::vector<Rect> rows;
+            explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,[&](Rect r){rows.push_back(r);});
+            townBoundary.raster[t.divisor==20?1:0].clip(bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY,
+                [&](int l,int top,int r,int b){rows.push_back({l-shiftX,top-shiftY,r-shiftX,b-shiftY});});
+            std::sort(rows.begin(),rows.end(),[](Rect a,Rect b){return std::tie(a.top,a.left,a.right)<std::tie(b.top,b.left,b.right);});
+            Rect run{};bool have=false;
+            for(auto row:rows) {
+                if(have && run.top==row.top && row.left<=run.right)run.right=std::max(run.right,row.right);
+                else {if(have)appendClip(run);run=row;have=true;}
+            }
+            if(have)appendClip(run);
+        } else if(townOnly) {
+            townBoundary.raster[t.divisor==20?1:0].clip(bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY,
+                [&](int l,int top,int r,int b){appendClip({l-shiftX,top-shiftY,r-shiftX,b-shiftY});});
+        } else explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,appendClip);
         if(clips.empty()){++suppressed;return;}
-        recordAssetContact(ctx,assetBounds);
+        if(nativeTownActive)++townClippedCells;else recordAssetContact(ctx,assetBounds);
         if(clips.size()==1 && clips[0].left==bounds.left && clips[0].right==bounds.right &&
            clips[0].top==bounds.top && clips[0].bottom==bounds.bottom) {
             drawPreparedCell(ctx,x,y,native,mode);++drawn;return;
@@ -444,7 +560,7 @@ static void drawStyled(const Transform& t,Rect viewport) {
 static void endPass() {
     InterlockedIncrement(&endCount);
     try {
-        if(inPass && maskActive && haveViewport && !styledActive) {
+        if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
             std::vector<std::pair<Point,Point>> lines;
             contactFrontier.emit([&](Point a,Point b){lines.push_back({a,b});InterlockedIncrement(&frontierCount);});
             if(!lines.empty()) {
@@ -459,7 +575,7 @@ static void endPass() {
         if(drawn+suppressed+partial && GetTickCount()-lastReport>=1000 && logfile){
             lastReport=GetTickCount();
             double ms=counterFrequency.QuadPart && mapSamples?1000.0*mapTicks/counterFrequency.QuadPart/mapSamples:0;
-            fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks);fflush(logfile);
+            fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu townNativeCells=%lu townPreviewPasses=%lu previewLevel=%lu townClipActive=%d\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks,townClippedCells,townPreviewPasses,townBoundary.outside,nativeTownActive);fflush(logfile);
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }
@@ -558,7 +674,7 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
             memcpy(patch.site+1,&delta,4);FlushInstructionCache(GetCurrentProcess(),patch.site,5);
         }
         installed=true;expectedBeginTarget=reinterpret_cast<void*>(beginStub);expectedEndTarget=reinterpret_cast<void*>(endStub);
-        log("Installed memory hooks. Styled map: incremental cached regions and floor connectivity on one background worker; gray walls, red open unexplored edges; normal artwork fallback. Scope=outside towns, cell=0.25 subtile, radius=20 subtiles, muted gray=132.");
+        log("Installed memory hooks. Styled map: incremental cached regions and floor connectivity on one background worker; gray walls, red open unexplored edges; normal artwork fallback; native town footprints and outdoor approach previews. Scope=outside towns, cell=0.25 subtile, radius=20 subtiles, muted gray=132.");
     }
     for(int i=ready-1;i>=0;--i){DWORD ignored;VirtualProtect(patches[i].site,5,protections[i],&ignored);}
     if(!installed)log("Not installed: could not prepare code pages; no hooks changed.");

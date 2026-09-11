@@ -4,6 +4,8 @@ A community experiment that gives **Project Diablo 2** an expanding exploration 
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
+[Download v0.1.1](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.1.1) includes the town-gate fix: nearby outdoor terrain uses the new style as you approach the exit, without briefly appearing in the original style.
+
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
 ## Repository guide
@@ -47,7 +49,7 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
 - A 20-subtile reveal radius around the player's movement, retained while visiting other areas in the same tracked session.
-- Normal automap behavior in all five towns.
+- Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
 - Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
 - Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
 
@@ -116,7 +118,7 @@ For Visual Studio 2019, use `-G "Visual Studio 16 2019"`. CMake must be on your 
 
 The resulting module is `build/Release/ExplorationMask.dll`. CMake uses C++17, the static MSVC runtime, and warnings as errors. A fresh build is not expected to have the same hash as the supplied tested DLL.
 
-The three test executables cover the mask, native primitive clipping, fractional rendering, town bypasses, shading and red-frontier coverage, cached-versus-full geometry equivalence, and worker snapshot handling. They use synthetic data and mocked renderer calls; they do not establish compatibility with a running game. Optional local integration checks are described in [testing.md](docs/testing.md).
+The three test executables cover the mask, native primitive clipping, fractional rendering, town footprints and gate transitions, shading and red-frontier coverage, cached-versus-full geometry equivalence, and worker snapshot handling. They use synthetic data and mocked renderer calls; they do not establish compatibility with a running game. Optional local integration checks are described in [testing.md](docs/testing.md).
 
 ## Performance
 
@@ -127,7 +129,7 @@ These are observations from one setup, not a performance guarantee. See [perform
 ## Limitations
 
 - Exploration is distance-based, not the game's native revealed state or a line-of-sight simulation. It can reveal through nearby walls.
-- Towns bypass this plugin's mask; it does not force the game to load or reveal every town room.
+- Native town artwork is retained within the town's level rectangle. Outdoor previews use already-loaded floor data for one neighboring area at a time; the plugin does not force room loading or reveal every town room. Irregular town footprints may need a more detailed boundary.
 - Exploration is not saved to disk. A player change or a gap of more than two seconds between tracked automap passes can reset the session, including some pauses, map toggles, or minimized windows.
 - The soft edge uses discrete shade bands, not a continuous blur. Renderer behavior still affects the final color and smoothness.
 - Collision-derived outlines can include small obstacles. Water and other terrain materials do not receive individual styles. Some native cell-based feature artwork is replaced in styled mode; separately drawn plugin markers and text are not all covered by the mask.

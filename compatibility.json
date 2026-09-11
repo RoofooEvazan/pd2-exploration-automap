@@ -2,7 +2,7 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "3076F300E39D5D438DB55BCC3784AB5C61841D0983B9FD561C8650DB314ACA5E",
+  "testedModuleSha256": "F65EE8FFA12FBE2459522C5C2A6818599A55FE9C1AA195B44F3850B403C93F49",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
