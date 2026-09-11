@@ -1,9 +1,11 @@
+# Normalize text; keep source and documentation in LF format.
 * text=auto
 *.cpp text eol=lf
 *.hpp text eol=lf
 *.md text eol=lf
 *.json text eol=lf
 *.yml text eol=lf
+# Windows command and PowerShell scripts use CRLF on checkout.
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
 CMakeLists.txt text eol=lf
