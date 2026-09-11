@@ -8,6 +8,8 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 ## Repository guide
 
+Each folder has its own guide to the files inside. The [screenshot gallery](docs/screenshots/) also includes captions and full-size previews of every map view.
+
 | File or folder | What's inside |
 | --- | --- |
 | [docs](docs/) | Design notes, performance results, testing instructions, and gameplay screenshots. |
