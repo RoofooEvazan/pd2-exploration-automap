@@ -1,4 +1,5 @@
 {
+  "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
   "testedModuleSha256": "3076F300E39D5D438DB55BCC3784AB5C61841D0983B9FD561C8650DB314ACA5E",
