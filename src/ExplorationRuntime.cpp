@@ -13,11 +13,18 @@
 #include <share.h>
 #include <vector>
 #include <string>
+#include <fstream>
 #include "ExplorationMask.hpp"
 #include "FrontierContacts.hpp"
 #include "NativeFloorReader.hpp"
 #include "StyledProjection.hpp"
 #include "StyledWorker.hpp"
+#include "SessionIdentity.hpp"
+#include "HybridArtwork.hpp"
+#include "CampaignLayers.hpp"
+#include "NativeWallTrace.hpp"
+#include "SewerWater.hpp"
+#include "RasterClipCache.hpp"
 #include <unordered_map>
 using exploration::Point;
 using exploration::Rect;
@@ -44,6 +51,9 @@ static VertexArrayDraw styledArray=nullptr;
 static ConstantColor styledColor=nullptr;
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
+static unsigned overlayOpacity=80;
+static DWORD overlayAlpha(DWORD alpha){return (alpha*overlayOpacity+50)/100;}
+static DWORD overlayColor(DWORD color){return (color&0xffffff00u)|overlayAlpha(color&255);}
 struct StyledState {
     styled_map::FloorCopies floor;
     styled_map::Drawing drawing;
@@ -66,6 +76,28 @@ static LineDraw originalLine=nullptr;
 static void* originalBegin=nullptr;
 static void* originalEnd=nullptr;
 static bool inPass=false,maskActive=false,enabled=true,installed=false;
+enum class MapStyle { Original, Native, Styled, Hybrid };
+static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Styled,activeStyle=MapStyle::Styled;
+static exploration::HybridArtwork hybridArtwork;
+static exploration::CampaignLayers campaignLayers;
+static unsigned long layerWaits=0;
+static unsigned long hybridWallsReplaced=0,hybridDetails=0,hybridWater=0;
+static std::vector<GlideVertex> sewerCasing,sewerCore;
+static unsigned long sewerTraced=0,sewerFallbacks=0;
+struct CachedWallTrace {DWORD length=0;exploration::NativeWallTrace shape;};
+static std::map<std::tuple<DWORD,int,int>,CachedWallTrace> sewerWallTraces;
+static constexpr std::size_t sewerVertexLimit=65536;
+static exploration::SewerWater sewerWater;
+static std::vector<GlideVertex> sewerWaterFill;
+static unsigned long sewerWaterCells=0;
+static bool nativeArtwork() {return activeStyle==MapStyle::Native || activeStyle==MapStyle::Hybrid;}
+static const char* styleName(MapStyle style) {
+    switch(style){case MapStyle::Original:return "original";case MapStyle::Native:return "native";
+        case MapStyle::Hybrid:return "hybrid";default:return "styled";}
+}
+// Verified local Levels.txt: the five-act campaign ends at Worldstone Chamber
+// (132); special/endgame areas use the independent maps setting.
+static MapStyle styleForLevel(DWORD level) {return level>=1 && level<=132?campaignStyle:mapsStyle;}
 static constexpr DWORD targetLevel=0; // Zero applies to every area in the opt-in test.
 // Neutral RGB 132/132/132; minimap capture forces high opacity, so keep the
 // source gray muted instead of using a near-white pale palette entry.
@@ -87,6 +119,9 @@ static Mask emptyMask(maskCellSize);
 static Mask* explored=&emptyMask;
 static std::uint64_t gameSerial=1,lastLevelKey=0;
 static DWORD lastPlayerId=0,lastFrame=0,lastReport=0;
+static exploration::SessionIdentity sessionIdentity;
+static volatile LONG menuEpoch=0;
+static void** firstMenuControl=nullptr;
 static int lastX=-1,lastY=-1;
 static bool sawTarget=false;
 static unsigned long drawn=0,suppressed=0,partial=0;
@@ -113,12 +148,46 @@ static TownBoundary townBoundary;
 static bool nativeTownActive=false;
 static bool townInViewport=true;
 static unsigned long townClippedCells=0,townPreviewPasses=0;
+static exploration::RasterClipCache rasterClips;
+// Reuse exact clipping in stable automap coordinates. Exploration is monotonic
+// within a session/layer; size changes invalidate coverage immediately.
+static void prepareRasterCache(int divisor) {
+    auto context=std::make_tuple(gameSerial,lastLevelKey,explored,explored->size(),divisor,nativeTownActive,
+        townBoundary.session,townBoundary.act,townBoundary.seed,townBoundary.level,townBoundary.layer,
+        townBoundary.bounds.left,townBoundary.bounds.top,townBoundary.bounds.right,townBoundary.bounds.bottom);
+    static decltype(context) previous{};
+    if(context!=previous){rasterClips.invalidate();previous=context;}
+}
+template<class Emit> static void cachedRasterClips(Rect bounds,int divisor,int shiftX,int shiftY,int coverage,Emit emit) {
+    // All drawing paths share both the cache and its invalidation context.
+    // Keeping previous inside this template would give each emitter its own.
+    prepareRasterCache(divisor);
+    Rect stable{bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY};
+    rasterClips.query({stable.left,stable.top,stable.right,stable.bottom,coverage},[&](auto append){
+        auto town=[&](auto add){townBoundary.raster[divisor==20?1:0].clip(stable.left,stable.top,stable.right,stable.bottom,
+            [&](int l,int t,int r,int b){add(Rect{l,t,r,b});});};
+        if(coverage==0)explored->clipProjected(stable,divisor,0,0,append);
+        else if(coverage==1)town(append);
+        else {
+            static std::vector<Rect> rows;rows.clear();
+            auto collect=[&](Rect r){rows.push_back(r);};
+            explored->clipProjected(stable,divisor,0,0,collect);town(collect);
+            std::sort(rows.begin(),rows.end(),[](Rect a,Rect b){return std::tie(a.top,a.left,a.right)<std::tie(b.top,b.left,b.right);});
+            Rect run{};bool have=false;
+            for(auto row:rows){
+                if(have && run.top==row.top && row.left<=run.right)run.right=std::max(run.right,row.right);
+                else {if(have)append(run);run=row;have=true;}
+            }
+            if(have)append(run);
+        }
+    },[&](Rect r){emit(Rect{r.left-shiftX,r.top-shiftY,r.right-shiftX,r.bottom-shiftY});});
+}
 static void log(const char* msg) { if(logfile) {fprintf(logfile,"%s\n",msg);fflush(logfile);} }
 template<class T> T read(const void* p,size_t offset=0) {
     return *reinterpret_cast<const T*>(static_cast<const unsigned char*>(p)+offset);
 }
 // SEH contains optional metadata reads; no exception crosses game callbacks.
-struct PlayerState { double x,y;DWORD level,seed,id;uintptr_t act=0; };
+struct PlayerState { double x,y;DWORD level,seed,id;uintptr_t act=0;DWORD actNumber=0; };
 static bool playerState(PlayerState* s) {
     __try {
         void* unit=read<void*>(client,0x11bbfc);
@@ -131,7 +200,8 @@ static bool playerState(PlayerState* s) {
         // Path offsets 0/4 contain unsigned 16.16 positions (fraction + tile).
         s->x=read<DWORD>(path,0)/65536.0;s->y=read<DWORD>(path,4)/65536.0;
         s->level=read<DWORD>(level,0x1d0);s->seed=read<DWORD>(act,0xc);
-        s->id=read<DWORD>(unit,0xc);s->act=reinterpret_cast<uintptr_t>(act);return s->level<10000;
+        s->id=read<DWORD>(unit,0xc);s->act=reinterpret_cast<uintptr_t>(act);s->actNumber=read<DWORD>(act,0x14);
+        return s->level>0 && s->level<10000 && s->actNumber<5;
     } __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
 }
 static bool isTown(DWORD level) {
@@ -143,6 +213,18 @@ static DWORD automapLayer() {
         auto layer=read<void*>(client,0x11c1c4);
         return layer?read<DWORD>(layer):0xffffffffu;
     } __except(EXCEPTION_EXECUTE_HANDLER){return 0xffffffffu;}
+}
+static std::uint64_t mapKey(const PlayerState& p) {
+    DWORD id=p.level;
+    unsigned layer=0;
+    // Native campaign automap layers already group adjoining areas in one
+    // coordinate space. Share their mask AND geometry cache, so crossing a
+    // zone label does not discard the visible part of the previous area.
+    // Keep acts/seeds separate, and retain per-level keys for endgame maps,
+    // towns, targeted diagnostics and unavailable native layer metadata.
+    if(!isTown(p.level) && targetLevel==0 && campaignLayers.lookup(p.level,p.actNumber,layer) && automapLayer()==layer)
+        id=0x80000000u|(p.actNumber<<24)|layer;
+    return (std::uint64_t(p.seed)<<32)|id;
 }
 static bool inTownBounds(Point p) {
     const auto& r=townBoundary.bounds;
@@ -160,6 +242,7 @@ static void setTownBounds(const PlayerState& p,DWORD layer,const floor_reader::A
 // Return the outdoor state to build while the player is still inside town.
 // Only owned collision copies are inspected; no neighboring rooms are loaded.
 static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
+    if(styleForLevel(p.level)==MapStyle::Original)return p;
     if(townBoundary.session!=gameSerial || townBoundary.act!=p.act || townBoundary.seed!=p.seed ||
        (isTown(p.level) && townBoundary.ready && townBoundary.level!=p.level)) {
         townBoundary=TownBoundary{};townBoundary.session=gameSerial;townBoundary.act=p.act;townBoundary.seed=p.seed;
@@ -173,8 +256,9 @@ static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
             if(logfile){fprintf(logfile,"TOWN footprint level=%lu layer=%lu x=%d y=%d w=%d h=%d\n",p.level,layer,bounds.x,bounds.y,bounds.width,bounds.height);fflush(logfile);}
         }
     }
+    const bool sharedCampaign=p.level>=1 && p.level<=132 && !town && targetLevel==0;
     nativeTownActive=enabled && townBoundary.ready && townBoundary.layer==layer &&
-        (p.level==townBoundary.level || p.level==townBoundary.outside);
+        (p.level==townBoundary.level || p.level==townBoundary.outside || sharedCampaign);
     if(!nativeTownActive || !town || !styledWorker || !styledArray || !styledColor || targetLevel!=0 ||
        strstr(GetCommandLineA(),"-exploration-floor-probe"))return p;
     constexpr double radius=revealRadius*maskCellSize;
@@ -200,39 +284,56 @@ static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
         }
     }
     if(!townBoundary.outside)return p;
-    auto key=(std::uint64_t(p.seed)<<32)|townBoundary.outside;
+    PlayerState outdoor=p;outdoor.level=townBoundary.outside;
+    auto key=mapKey(outdoor);
     explored=&explorationSession.select(gameSerial,key);maskActive=true;
     int x=int(floor(p.x/maskCellSize)),y=int(floor(p.y/maskCellSize));
     if(townBoundary.nearOutside && (x!=townBoundary.revealX || y!=townBoundary.revealY)) {
         explored->revealAround({p.x,p.y},revealRadius);townBoundary.revealX=x;townBoundary.revealY=y;
     }
-    PlayerState outdoor=p;outdoor.level=townBoundary.outside;
+    activeStyle=styleForLevel(outdoor.level);
+    if(activeStyle==MapStyle::Original){maskActive=false;nativeTownActive=false;return outdoor;}
     outdoor.x=townBoundary.connection.x;outdoor.y=townBoundary.connection.y;
     ++townPreviewPasses;return outdoor;
 }
-static void updateForPlayer(const PlayerState& p,DWORD now) {
+static bool updateForPlayer(const PlayerState& p,DWORD now) {
     nativeTownActive=false;
+    unsigned expectedLayer=0;
+    if(campaignLayers.lookup(p.level,p.actNumber,expectedLayer) && automapLayer()!=expectedLayer) {
+        // Loading can expose the new player area before the automap switches.
+        // Do not reveal or ingest it into the previous layer's shared cache.
+        maskActive=false;styledActive=false;++layerWaits;return false;
+    }
+    const bool changedArea=observedLevel!=static_cast<LONG>(p.level);
     InterlockedExchange(&observedLevel,static_cast<LONG>(p.level));
-    // A long gap (menus/reload) resets conservatively, even with reused addresses.
-    if(p.id!=lastPlayerId || (lastFrame && now-lastFrame>2000)) {
+    auto change=sessionIdentity.observe(p.id,p.actNumber,p.seed,DWORD(InterlockedCompareExchange(&menuEpoch,0,0)));
+    if(change!=exploration::SessionChange::None) {
         explorationSession.leave();++gameSerial;lastLevelKey=0;lastX=lastY=-1;sawTarget=false;
+        styledLevels.clear();styledCurrent=nullptr;styledActive=false;townBoundary=TownBoundary{};
+        silhouetteCache.clear();silhouetteBytes=0;
+        sewerWallTraces.clear();
+        if(logfile){fprintf(logfile,"SESSION reset serial=%llu reason=%s menuEpoch=%ld\n",
+            static_cast<unsigned long long>(gameSerial),exploration::sessionReason(change),InterlockedCompareExchange(&menuEpoch,0,0));fflush(logfile);}
     }
     lastFrame=now;lastPlayerId=p.id;
-    auto levelKey=(std::uint64_t(p.seed)<<32)|p.level;
-    if(levelKey!=lastLevelKey){
+    auto levelKey=mapKey(p);
+    if(levelKey!=lastLevelKey || changedArea){
         lastLevelKey=levelKey;lastX=lastY=-1;sawTarget=false;
         // No borrowed frame memory survives an area/session change.
         silhouetteCache.clear();silhouetteBytes=0;
     }
     const bool town=isTown(p.level);
+    activeStyle=styleForLevel(p.level);
     const bool selected=p.level>0 && !town && (targetLevel==0 || p.level==targetLevel);
-    maskActive=enabled && selected;
+    maskActive=enabled && selected && activeStyle!=MapStyle::Original;
     explored=selected?&explorationSession.select(gameSerial,levelKey):&emptyMask;
     if(maskActive) {
         int x=static_cast<int>(floor(p.x/maskCellSize)),y=static_cast<int>(floor(p.y/maskCellSize));
         if(x!=lastX || y!=lastY) {explored->revealAround({p.x,p.y},revealRadius);lastX=x;lastY=y;}
     }
-    if(!sawTarget) {if(logfile){fprintf(logfile,"Area detected: level=%lu; town=%d; maskEnabled=%d.\n",p.level,town,maskActive);fflush(logfile);}sawTarget=true;}
+    if(!sawTarget) {if(logfile){fprintf(logfile,"Area detected: level=%lu; town=%d; maskEnabled=%d; style=%s; mapKey=%llu; layer=%lu.\n",p.level,town,maskActive,
+        styleName(activeStyle),static_cast<unsigned long long>(levelKey),automapLayer());fflush(logfile);}sawTarget=true;}
+    return true;
 }
 static void probeFloors(DWORD level) {
     static DWORD sampled=0;static std::set<std::tuple<DWORD,int,int,int,int>> rooms;
@@ -286,10 +387,10 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
 static void update() {
     PlayerState p{};
     if(!playerState(&p)) {InterlockedIncrement(&stateFailure);maskActive=false;nativeTownActive=false;sawTarget=false;return;}
-    DWORD now=GetTickCount();updateForPlayer(p,now);
+    DWORD now=GetTickCount();if(!updateForPlayer(p,now))return;
     if(maskActive)probeFloors(p.level);
     auto drawingPlayer=updateTownBoundary(p,now);
-    updateStyled(drawingPlayer,(std::uint64_t(p.seed)<<32)|drawingPlayer.level);
+    updateStyled(drawingPlayer,mapKey(drawingPlayer));
 }
 struct Transform { double divisor,ox,oy; };
 static bool transform(Transform& t) {
@@ -325,6 +426,10 @@ static bool frameBounds(void* ctx,int x,int y,Rect* r) {
         *r={x+dx,y+dy-h,x+dx+w,y+dy};return true;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
+static bool frameIndex(void* ctx,DWORD* id) {
+    __try {if(!ctx)return false;*id=read<DWORD>(ctx);return true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
 struct FrameSource { const void* frame;DWORD length,flags;int width,height; };
 static bool frameSource(void* ctx,FrameSource* source) {
     __try {
@@ -340,6 +445,42 @@ static bool frameSource(void* ctx,FrameSource* source) {
 static bool copyFrameBytes(const FrameSource& source,unsigned char* bytes) {
     __try {memcpy(bytes,static_cast<const unsigned char*>(source.frame)+0x20,source.length);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static bool queueTraceLines(const std::vector<std::pair<Point,Point>>& lines,Point offset,const std::vector<Rect>& clips);
+static bool queueSewerWall(void* ctx,DWORD id,Rect asset,const std::vector<Rect>& clips) {
+    FrameSource source{};if(!frameSource(ctx,&source))return false;
+    auto key=std::make_tuple(id,source.width,source.height);
+    auto found=sewerWallTraces.find(key);
+    if(found==sewerWallTraces.end() || found->second.length!=source.length) {
+        std::vector<unsigned char> bytes(source.length);exploration::Silhouette silhouette;
+        CachedWallTrace item;item.length=source.length;
+        if(!copyFrameBytes(source,bytes.data()) || !silhouette.decode(bytes.data(),bytes.size(),source.width,source.height) ||
+           !item.shape.buildSewer(silhouette,source.width,source.height,hybridArtwork.sewerShape(id)))return false;
+        if(sewerWallTraces.size()>=24)sewerWallTraces.clear();
+        found=sewerWallTraces.insert_or_assign(key,std::move(item)).first;
+    }
+    return queueTraceLines(found->second.shape.lines,{double(asset.left),double(asset.top)},clips);
+}
+static bool queueTraceLines(const std::vector<std::pair<Point,Point>>& lines,Point offset,const std::vector<Rect>& clips) {
+    static std::vector<GlideVertex> outerVertices,innerVertices;
+    outerVertices.clear();innerVertices.clear();bool overflow=false;
+    auto append=[&](const styled_map::Quad& q,std::vector<GlideVertex>& into) {
+        for(auto clip:clips)styled_map::clipQuad(q,clip,[&](const styled_map::Quad& part){
+            if(into.size()+4>sewerVertexLimit){overflow=true;return;}
+            for(auto p:{part.a,part.b,part.c,part.d})into.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+        });
+    };
+    for(auto line:lines) {
+        Point a{line.first.x+offset.x,line.first.y+offset.y},b{line.second.x+offset.x,line.second.y+offset.y};
+        styled_map::Quad outer{},inner{};
+        if(styled_map::strokeQuad(a,b,2.5,outer) && styled_map::strokeQuad(a,b,1.0,inner)){
+            append(outer,outerVertices);append(inner,innerVertices);
+        }
+    }
+    if(overflow || sewerCasing.size()+outerVertices.size()>sewerVertexLimit || sewerCore.size()+innerVertices.size()>sewerVertexLimit)return false;
+    sewerCasing.insert(sewerCasing.end(),outerVertices.begin(),outerVertices.end());
+    sewerCore.insert(sewerCore.end(),innerVertices.begin(),innerVertices.end());
+    return true;
 }
 static void recordAssetContact(void* ctx,Rect bounds) {
     if(!contactFrontier.crosses(bounds))return;
@@ -435,9 +576,20 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                     drawStyled(t,passViewport);haveViewport=true;++styledPasses;
                 }
             }
-            if(styledActive && (!nativeTownActive || !townInViewport)){++suppressed;return;}
+            if(styledActive && !nativeArtwork() && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
-        const bool townOnly=nativeTownActive && (isTown(observedLevel) || styledActive);
+        const bool townOnly=nativeTownActive && !nativeArtwork() && (isTown(observedLevel) || styledActive);
+        const bool hybrid=activeStyle==MapStyle::Hybrid && styledActive && hybridArtwork.loaded();
+        bool replaceWall=false,traceSewer=false,traceWater=false;DWORD id=0;
+        if(hybrid) {
+            // frameBounds below validates the complete context before any draw.
+            auto role=frameIndex(ctx,&id)?hybridArtwork.role(id):exploration::HybridArtwork::Role::Detail;
+            traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
+            traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
+            replaceWall=role==exploration::HybridArtwork::Role::Wall;
+            if(replaceWall){++hybridWallsReplaced;if(!nativeTownActive || !townInViewport){++suppressed;return;}}
+            else if(role==exploration::HybridArtwork::Role::Water || traceWater)++hybridWater;else ++hybridDetails;
+        }
         Transform t{};Rect bounds{};
         if(!transform(t) || !frameBounds(ctx,x,y,&bounds)) {
             maskActive=false;enabled=false;log("Mask disabled: unrecognized frame/transform.");originalCell(ctx,x,y,native,mode);return;
@@ -453,35 +605,27 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             if(!townOnly)explored->frontier([&](Point a,Point b){contactFrontier.add(project(a,t),project(b,t));});
         }
         Rect assetBounds=bounds;
+        if(traceSewer){bounds.left-=2;bounds.top-=2;bounds.right+=2;bounds.bottom+=2;}
         bounds=exploration::intersect(bounds,viewport);
         if(bounds.left>=bounds.right || bounds.top>=bounds.bottom){++suppressed;return;}
-        std::vector<Rect> clips;
+        // Record all visible native water tiles before mask clipping so shared
+        // internal edges cancel even when a neighboring tile is unexplored.
         int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+        if(traceWater && sewerWater.add({assetBounds.left+shiftX,assetBounds.top+shiftY,assetBounds.right+shiftX,assetBounds.bottom+shiftY}))++sewerWaterCells;
+        static std::vector<Rect> clips;clips.clear();
         auto appendClip=[&](Rect r){
             if(!clips.empty() && clips.back().left==r.left && clips.back().right==r.right && clips.back().bottom==r.top)
                 clips.back().bottom=r.bottom;
             else clips.push_back(r);
         };
-        if(nativeTownActive && !townOnly) {
-            // Native fallback outside the gate may overlap town coverage. Union
-            // each raster row before drawing, so shared pixels are never doubled.
-            std::vector<Rect> rows;
-            explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,[&](Rect r){rows.push_back(r);});
-            townBoundary.raster[t.divisor==20?1:0].clip(bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY,
-                [&](int l,int top,int r,int b){rows.push_back({l-shiftX,top-shiftY,r-shiftX,b-shiftY});});
-            std::sort(rows.begin(),rows.end(),[](Rect a,Rect b){return std::tie(a.top,a.left,a.right)<std::tie(b.top,b.left,b.right);});
-            Rect run{};bool have=false;
-            for(auto row:rows) {
-                if(have && run.top==row.top && row.left<=run.right)run.right=std::max(run.right,row.right);
-                else {if(have)appendClip(run);run=row;have=true;}
-            }
-            if(have)appendClip(run);
-        } else if(townOnly) {
-            townBoundary.raster[t.divisor==20?1:0].clip(bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY,
-                [&](int l,int top,int r,int b){appendClip({l-shiftX,top-shiftY,r-shiftX,b-shiftY});});
-        } else explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,appendClip);
+        const int coverage=nativeTownActive && !townOnly && !replaceWall?2:(townOnly || replaceWall?1:0);
+        cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,coverage,appendClip);
         if(clips.empty()){++suppressed;return;}
-        if(nativeTownActive)++townClippedCells;else recordAssetContact(ctx,assetBounds);
+        if(traceSewer) {
+            if(queueSewerWall(ctx,id,assetBounds,clips)){++sewerTraced;++suppressed;return;}
+            ++sewerFallbacks; // Unsupported artwork/budget: preserve the native wall.
+        }
+        if(nativeTownActive)++townClippedCells;else if(!styledActive)recordAssetContact(ctx,assetBounds);
         if(clips.size()==1 && clips[0].left==bounds.left && clips[0].right==bounds.right &&
            clips[0].top==bounds.top && clips[0].bottom==bounds.bottom) {
             drawPreparedCell(ctx,x,y,native,mode);++drawn;return;
@@ -492,6 +636,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
 }
 static void beginPass() {
     InterlockedIncrement(&beginCount);
+    sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
     QueryPerformanceCounter(&passStarted);
     try {update();if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
 }
@@ -508,21 +653,60 @@ static void submitFractionalLine() {
 }
 static void __stdcall floatLineHook(const void* a,const void* b) {
     if(styledBatch) {
-        styledColor(styledBatchColor);styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
+        styledColor(overlayColor(styledBatchColor));styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatLine(a,b);
 }
 static void __stdcall floatPointHook(const void* a) {
     // A short segment may round to one pixel in D2gfx; preserve it as a line.
     if(styledBatch) {
-        styledColor(styledBatchColor);styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
+        styledColor(overlayColor(styledBatchColor));styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatPoint(a);
 }
 static void drawFrontier(Point a,Point b) {
     frontierA=a;frontierB=b;fractionalFrontier=true;
     // The native path sets/restores its own color and blend state. Replace only
     // its final vertex positions, after integer conversion, with fractional ones.
-    originalLine(int(lround(a.x)),int(lround(a.y)),int(lround(b.x)),int(lround(b.y)),frontierColor,255);
+    originalLine(int(lround(a.x)),int(lround(a.y)),int(lround(b.x)),int(lround(b.y)),frontierColor,overlayAlpha(255));
     fractionalFrontier=false;
+}
+static void drawHybridWalls(const Transform& t,Rect viewport) {
+    static std::vector<GlideVertex> casing,core;
+    static std::vector<const void*> pointers;
+    static std::vector<Rect> clips;
+    casing.clear();core.clear();
+    const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+    for(const auto& wall:styledCurrent->drawing.walls) {
+        const auto a=project(wall.a,t),b=project(wall.b,t);
+        styled_map::Quad outer{},inner{};
+        if(!styled_map::strokeQuad(a,b,2.5,outer) || !styled_map::strokeQuad(a,b,1.0,inner))continue;
+        Rect bounds{int(floor(std::min({outer.a.x,outer.b.x,outer.c.x,outer.d.x}))),
+            int(floor(std::min({outer.a.y,outer.b.y,outer.c.y,outer.d.y}))),
+            int(ceil(std::max({outer.a.x,outer.b.x,outer.c.x,outer.d.x}))),
+            int(ceil(std::max({outer.a.y,outer.b.y,outer.c.y,outer.d.y})))};
+        bounds=exploration::intersect(bounds,viewport);
+        if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)continue;
+        // Clip the full width, including the dark casing, to explored pixels.
+        // Vertically merge runs before clipping polygons to keep submissions small.
+        clips.clear();
+        cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,0,[&](Rect r){
+            if(!clips.empty() && clips.back().left==r.left && clips.back().right==r.right && clips.back().bottom==r.top)
+                clips.back().bottom=r.bottom;else clips.push_back(r);
+        });
+        auto append=[&](const styled_map::Quad& q,std::vector<GlideVertex>& into){
+            for(auto clip:clips)styled_map::clipQuad(q,clip,[&](const styled_map::Quad& part){
+                for(auto p:{part.a,part.b,part.c,part.d})into.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+            });
+        };
+        append(outer,casing);append(inner,core);
+    }
+    auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
+        if(vertices.empty())return;pointers.clear();
+        for(const auto& vertex:vertices)pointers.push_back(&vertex);
+        styledBatchColor=color;styledRestoreColor=0x84848400u|(color&255);styledBatch=&pointers;
+        originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,color&255);
+        styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
+    };
+    submit(casing,0x181818c0);submit(core,0x949494e0);
 }
 static void drawStyled(const Transform& t,Rect viewport) {
     if(viewport.left>=viewport.right || viewport.top>=viewport.bottom)return;
@@ -548,6 +732,16 @@ static void drawStyled(const Transform& t,Rect viewport) {
         originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,layer.alpha);
         styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     }
+    // Campaign native mode keeps the game's recognizable wall/stair shapes.
+    // The cached floor shading and red reveal bands still draw underneath.
+    if(activeStyle==MapStyle::Hybrid){
+        // Sewer wall faces and floor-edge contours are offset from one another.
+        // Their matching artwork traces are queued by cellHook and batched in
+        // endPass; unsupported frames keep their native wall instead.
+        if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
+        return;
+    }
+    if(nativeArtwork())return;
     std::vector<std::pair<Point,Point>> walls;
     for(const auto& wall:styledCurrent->drawing.walls) {
         Point a=project(wall.a,t),b=project(wall.b,t);
@@ -557,9 +751,48 @@ static void drawStyled(const Transform& t,Rect viewport) {
         frontierBatch=&walls;drawFrontier(walls[0].first,walls[0].second);frontierBatch=nullptr;
     }
 }
+static void queueWaterGeometry(const Transform& t,Rect viewport) {
+    static std::vector<Rect> clips;
+    const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+    auto clipBounds=[&](Rect bounds){
+        clips.clear();bounds=exploration::intersect(bounds,viewport);
+        if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)return;
+        explored->clipProjected(bounds,int(t.divisor),shiftX,shiftY,[&](Rect r){
+            if(!clips.empty() && clips.back().left==r.left && clips.back().right==r.right && clips.back().bottom==r.top)clips.back().bottom=r.bottom;
+            else clips.push_back(r);
+        });
+    };
+    for(auto tile:sewerWater.tiles()) {
+        const int x=tile[0]-shiftX,b=tile[1]-shiftY,w=tile[2];clipBounds({x,b-w/2,x+w,b});
+        styled_map::Quad q{{double(x),b-w*.25},{x+w*.5,b-w*.5},{double(x+w),b-w*.25},{x+w*.5,double(b)}};
+        for(auto clip:clips)styled_map::clipQuad(q,clip,[&](const styled_map::Quad& part){
+            if(sewerWaterFill.size()+4>sewerVertexLimit)return;
+            for(auto p:{part.a,part.b,part.c,part.d})sewerWaterFill.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+        });
+    }
+    static std::vector<std::pair<Point,Point>> line(1);
+    for(auto edge:sewerWater.edges()) {
+        edge[0]-=shiftX;edge[2]-=shiftX;edge[1]-=shiftY;edge[3]-=shiftY;
+        clipBounds({std::min(edge[0],edge[2])-2,std::min(edge[1],edge[3])-2,std::max(edge[0],edge[2])+2,std::max(edge[1],edge[3])+2});
+        line[0]={{double(edge[0]),double(edge[1])},{double(edge[2]),double(edge[3])}};
+        if(!queueTraceLines(line,{0,0},clips))break;
+    }
+}
 static void endPass() {
     InterlockedIncrement(&endCount);
     try {
+        if(inPass && maskActive && haveViewport && styledActive && activeStyle==MapStyle::Hybrid && styledArray && styledColor) {
+            if(!sewerWater.tiles().empty()){Transform t{};if(transform(t))queueWaterGeometry(t,passViewport);}
+            static std::vector<const void*> pointers;
+            auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
+                if(vertices.empty())return;pointers.clear();for(const auto& vertex:vertices)pointers.push_back(&vertex);
+                styledBatch=&pointers;styledBatchColor=color;styledRestoreColor=0x84848400u|(color&255);
+                originalLine(passViewport.left,passViewport.top,passViewport.left+1,passViewport.top,frontierColor,color&255);
+                styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
+            };
+            submit(sewerWaterFill,0x56606438);submit(sewerCasing,0x181818c0);submit(sewerCore,0x949494e0);
+        }
+        sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
         if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
             std::vector<std::pair<Point,Point>> lines;
             contactFrontier.emit([&](Point a,Point b){lines.push_back({a,b});InterlockedIncrement(&frontierCount);});
@@ -576,6 +809,8 @@ static void endPass() {
             lastReport=GetTickCount();
             double ms=counterFrequency.QuadPart && mapSamples?1000.0*mapTicks/counterFrequency.QuadPart/mapSamples:0;
             fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu townNativeCells=%lu townPreviewPasses=%lu previewLevel=%lu townClipActive=%d\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks,townClippedCells,townPreviewPasses,townBoundary.outside,nativeTownActive);fflush(logfile);
+            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
+                hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }
@@ -609,20 +844,89 @@ static bool inModule(void* address,HMODULE mod) {
     return reinterpret_cast<uintptr_t>(address)>=reinterpret_cast<uintptr_t>(base) &&
            reinterpret_cast<uintptr_t>(address)<reinterpret_cast<uintptr_t>(base)+nt->OptionalHeader.SizeOfImage;
 }
+static bool bindMenuState(HMODULE module) {
+    if(!module)return false;
+    __try {
+        auto win=reinterpret_cast<unsigned char*>(module);
+        auto dos=reinterpret_cast<IMAGE_DOS_HEADER*>(win);
+        if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>4096)return false;
+        auto nt=reinterpret_cast<IMAGE_NT_HEADERS*>(win+dos->e_lfanew);
+        if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->OptionalHeader.SizeOfImage!=0xcf000 ||
+           nt->FileHeader.TimeDateStamp!=0x4b95c21d)return false;
+        const auto address=reinterpret_cast<uintptr_t>(win+0x214a0);
+        // Inspected native control-list append paths, checked after relocation.
+        if(win[0x1165d]!=0xa1 || read<uintptr_t>(win,0x1165e)!=address ||
+           win[0x11667]!=0x89 || win[0x11668]!=0x35 || read<uintptr_t>(win,0x11669)!=address ||
+           win[0x9dd2]!=0xa1 || read<uintptr_t>(win,0x9dd3)!=address)return false;
+        firstMenuControl=reinterpret_cast<void**>(address);return true;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static bool menuState(bool* hasPlayer,bool* hasControls) {
+    __try {
+        if(!firstMenuControl || !client)return false;
+        // A missing room/path during a portal load does not mean the player
+        // unit is gone. Only the unit pointer itself participates in this check.
+        *hasPlayer=read<void*>(client,0x11bbfc)!=nullptr;
+        *hasControls=*firstMenuControl!=nullptr;return true;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static MapStyle parseStyle(const char* value,MapStyle fallback) {
+    if(_stricmp(value,"hybrid")==0)return MapStyle::Hybrid;
+    if(_stricmp(value,"native")==0)return MapStyle::Native;
+    if(_stricmp(value,"styled")==0)return MapStyle::Styled;
+    if(_stricmp(value,"original")==0)return MapStyle::Original;
+    return fallback;
+}
+static void loadStyles() {
+    char path[MAX_PATH]{};
+    DWORD length=GetModuleFileNameA(nullptr,path,MAX_PATH);
+    if(!length || length>=MAX_PATH){log("Style settings unavailable; using defaults.");return;}
+    auto slash=strrchr(path,'\\');if(!slash)return;
+    std::string settings(path,slash+1);settings+="ExplorationMask.ini";
+    char campaign[32]{},maps[32]{};
+    GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
+    GetPrivateProfileStringA("Automap","MapsStyle","styled",maps,32,settings.c_str());
+    campaignStyle=parseStyle(campaign,MapStyle::Hybrid);mapsStyle=parseStyle(maps,MapStyle::Styled);
+    auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
+    overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
+    if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
+    std::string data(path,slash+1);data+="data\\global\\excel\\";
+    std::ifstream levels(data+"Levels.txt");
+    if(levels && campaignLayers.load(levels)) {
+        if(logfile){fprintf(logfile,"CAMPAIGN layers=%zu; adjoining areas share state only on the expected native layer.\n",campaignLayers.size());fflush(logfile);}
+    } else log("Campaign layer definitions unavailable; retaining separate per-area exploration caches.");
+    if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid) {
+        std::ifstream definitions(data+"automap.txt"),objects(data+"Objects.txt");
+        bool ready=definitions && objects && hybridArtwork.load(definitions) && hybridArtwork.protectObjects(objects);
+        if(!ready) {
+            if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
+            if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
+            log("Hybrid artwork definitions unavailable; retaining native exploration style.");
+        } else if(logfile){fprintf(logfile,"HYBRID classified %zu ordinary wall artwork IDs; native details/water protected.\n",hybridArtwork.walls());fflush(logfile);}
+    }
+    if(logfile){fprintf(logfile,"STYLE campaign=%d maps=%d (0=original, 1=native exploration, 2=styled, 3=hybrid); no added markers or arrows.\n",
+        int(campaignStyle),int(mapsStyle));fflush(logfile);}
+}
 static DWORD WINAPI diagnosticThread(void*) {
-    // Read-only watcher. Never rewrites a hook replaced by another plugin.
-    for(int i=0;i<120;++i) {
-        Sleep(1000);
+    // Reuse the existing watcher for process-lifetime menu detection. It only
+    // publishes an atomic epoch; all mask/cache changes stay on the draw thread.
+    exploration::MenuObserver menus;unsigned ticks=0,reports=0;
+    for(;;) {
+        Sleep(50);
+        bool hasPlayer=false,hasControls=false;
+        if(menuState(&hasPlayer,&hasControls) && menus.sample(hasPlayer,hasControls))InterlockedIncrement(&menuEpoch);
+        if(++ticks%20 || reports>=120)continue;
+        ++reports;
         PlayerState p{};bool ok=playerState(&p);
         auto b=client+0x6269e,e=client+0xc3aa1;
         if(logfile) {
-            fprintf(logfile,"TRACE begin=%ld end=%ld cell=%ld failed=%ld level=%ld directLevel=%lu readOK=%d frontier=%ld beginChanged=%d endChanged=%d\n",
+            fprintf(logfile,"TRACE begin=%ld end=%ld cell=%ld failed=%ld level=%ld directLevel=%lu readOK=%d frontier=%ld beginChanged=%d endChanged=%d menuEpoch=%ld menuControls=%d playerUnit=%d\n",
                 beginCount,endCount,cellCount,stateFailure,observedLevel,ok?p.level:0,ok,frontierCount,
-                *b!=0xe8 || target(b)!=expectedBeginTarget,*e!=0xe8 || target(e)!=expectedEndTarget);
+                *b!=0xe8 || target(b)!=expectedBeginTarget,*e!=0xe8 || target(e)!=expectedEndTarget,
+                InterlockedCompareExchange(&menuEpoch,0,0),hasControls,hasPlayer);
             fflush(logfile);
         }
     }
-    return 0;
 }
 extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
     if(installed)return;
@@ -635,6 +939,9 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
     auto glide=reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Glide.dll"));
     auto gfx=GetModuleHandleA("D2gfx.dll"),wrapper=GetModuleHandleA("glide3x.dll");
     if(!client || !glide || !gfx || !wrapper){log("Not installed: expected Glide modules unavailable.");return;}
+    if(!bindMenuState(GetModuleHandleA("D2Win.dll"))){log("Not installed: menu/session reader layout differs.");return;}
+    try {loadStyles();}catch(...) {campaignStyle=MapStyle::Native;mapsStyle=MapStyle::Styled;
+        log("Hybrid/style settings unavailable; using native campaign and styled maps.");}
     auto b=client+0x6269e,e=client+0xc3aa1,c=client+0x604ea,q=glide+0xa33f;
     auto l=glide+0x94ba,p=glide+0x944c;
     if(*b!=0xe8 || *e!=0xe8 || *c!=0xe8 || *q!=0xe8 || *l!=0xe8 || *p!=0xe8 ||
@@ -674,9 +981,10 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
             memcpy(patch.site+1,&delta,4);FlushInstructionCache(GetCurrentProcess(),patch.site,5);
         }
         installed=true;expectedBeginTarget=reinterpret_cast<void*>(beginStub);expectedEndTarget=reinterpret_cast<void*>(endStub);
-        log("Installed memory hooks. Styled map: incremental cached regions and floor connectivity on one background worker; gray walls, red open unexplored edges; normal artwork fallback; native town footprints and outdoor approach previews. Scope=outside towns, cell=0.25 subtile, radius=20 subtiles, muted gray=132.");
+        log("Installed memory hooks with the selected INI styles. Hybrid: cased modern wall/shore contours; sewer highlights follow native artwork with fallback, while water/roads/icons remain native. Native town footprints and gate previews retained. Session resets use menu/player/seed identity, never automap timing. No added quest markers or exit arrows.");
     }
     for(int i=ready-1;i>=0;--i){DWORD ignored;VirtualProtect(patches[i].site,5,protections[i],&ignored);}
     if(!installed)log("Not installed: could not prepare code pages; no hooks changed.");
-    else {HANDLE thread=CreateThread(nullptr,0,diagnosticThread,nullptr,0,nullptr);if(thread)CloseHandle(thread);}
+    else {HANDLE thread=CreateThread(nullptr,0,diagnosticThread,nullptr,0,nullptr);
+        if(thread)CloseHandle(thread);else {enabled=false;log("Mask disabled: session watcher could not start.");}}
 }

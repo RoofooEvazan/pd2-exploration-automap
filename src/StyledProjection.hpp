@@ -6,6 +6,14 @@
 #include "StyledMap.hpp"
 
 namespace styled_map {
+// Screen-space butt-ended stroke. Fractional vertices keep its width stable at
+// both automap zooms; the renderer handles the resulting edge antialiasing.
+inline bool strokeQuad(Point a,Point b,double width,Quad& out) {
+    double dx=b.x-a.x,dy=b.y-a.y,length=std::hypot(dx,dy);
+    if(!std::isfinite(length) || length<1e-6 || !std::isfinite(width) || width<=0)return false;
+    const double nx=-dy*width/(2*length),ny=dx*width/(2*length);
+    out={{a.x+nx,a.y+ny},{b.x+nx,b.y+ny},{b.x-nx,b.y-ny},{a.x-nx,a.y-ny}};return true;
+}
 inline bool clipStroke(Point& a,Point& b,exploration::Rect view) {
     double lo=0,hi=1,dx=b.x-a.x,dy=b.y-a.y;
     double p[]={-dx,dx,-dy,dy};

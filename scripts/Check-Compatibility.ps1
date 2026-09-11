@@ -2,12 +2,12 @@
 .SYNOPSIS
 Checks whether a PD2 installation matches the tested game and renderer files.
 .DESCRIPTION
-Reads four DLLs and compares their SHA-256 hashes with compatibility.json.
+Reads the profiled DLLs and compares their SHA-256 hashes with compatibility.json.
 Prints MATCH, DIFFERENT, or MISSING for each file without modifying the game.
-Returns exit code 0 when all four match, or 2 for different or missing files.
+Returns exit code 0 when all match, or 2 for different or missing files.
 Invalid paths and read errors stop the script with an error.
 .PARAMETER GamePath
-The PD2 game folder containing D2Client.dll, D2gfx.dll, D2Glide.dll, and glide3x.dll.
+The PD2 game folder containing the engine DLLs listed in compatibility.json.
 .EXAMPLE
 .\Check-Compatibility.ps1 -GamePath "D:\Games\Diablo II\ProjectD2"
 #>
@@ -43,5 +43,5 @@ if (-not $allMatch) {
     Write-Host 'This installation does not match the tested binary set. Do not install this build.'
     exit 2
 }
-Write-Host 'All four engine files match the tested binary set. Runtime hook checks still apply.'
+Write-Host 'All profiled engine files match the tested binary set. Runtime hook checks still apply.'
 exit 0

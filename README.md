@@ -1,10 +1,12 @@
-# PD2 Exploration Automap
+# PD2 Exploration Automap — BETA
+
+**v0.2.0-beta.1 — BETA.** Modern exploration mapping for the campaign and endgame: shaded floors, gray wall outlines, red unexplored edges, and familiar campaign water, roads and icons. This beta adds connected-area persistence, straight sewer walls and highlighted water channels, faster clipping and water preparation, and adjustable overlay opacity. No quest markers or exit arrows are added.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and muted red edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.1.1](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.1.1) includes the town-gate fix: nearby outdoor terrain uses the new style as you approach the exit, without briefly appearing in the original style.
+[Download v0.2.0-beta.1 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.1). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -18,6 +20,7 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 | [scripts](scripts/) | A read-only checker that compares your game files with the tested build. |
 | [src](src/) | The plugin's exploration mask, floor shading, wall outlines, renderer hooks, and background updates. |
 | [tests](tests/) | Checks for exploration, clipping, drawing behavior, and incremental map updates. |
+| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map appearance and full-screen overlay opacity settings. |
 | [CMakeLists.txt](CMakeLists.txt) | Build settings for the 32-bit Windows DLL and its three test programs. |
 | [compatibility.json](compatibility.json) | Fingerprints of the tested game files and plugin, plus loader and launch settings. |
 | [LICENSE](LICENSE) | The MIT license for this project's original source code. |
@@ -27,25 +30,33 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 
 ## Screenshots
 
-**Overlay view in Poisoned Well.** Gray outlines follow the explored walls; red edges mark unfinished exploration.
+**Spider Forest: campaign overlay.** Gray outlines and red exploration edges sit alongside the familiar blue water patterns, bridges and native symbols. The translucent map leaves the action visible underneath.
 
-![Automap overlay in Poisoned Well showing gray wall outlines and red exploration edges](docs/screenshots/poisoned-well-automap-overlay.png)
+![Spider Forest campaign overlay with gray outlines, blue water artwork, native symbols and red exploration edges](docs/screenshots/spider-forest-automap-overlay.png)
 
-**Corner minimap.** The explored area appears in the upper-right map while gameplay stays visible.
+**Spider Forest: corner minimap.** The explored route follows the river in the upper-right map, leaving the center of the screen clear.
 
-![Poisoned Well with the shaded exploration map in the upper-right corner](docs/screenshots/poisoned-well-corner-minimap.png)
+![Spider Forest gameplay beside a wooden bridge with the explored route in the upper-right minimap](docs/screenshots/spider-forest-corner-minimap.png)
 
-**Minimap close-up.** Shaded floors, thin gray outlines, and red edges at unexplored openings.
+**Poisoned Well: endgame overlay.** Thin gray wall outlines and muted red exploration edges trace the revealed passages over the game world.
 
-![Close-up of the shaded minimap with gray wall outlines and red unexplored edges](docs/screenshots/poisoned-well-reveal-edge-detail.png)
+![Poisoned Well overlay showing a larger explored route with gray walls and muted red unfinished edges](docs/screenshots/poisoned-well-automap-overlay.png)
 
-**Dark Temple overlay.** A larger explored area with connected rooms, gray wall outlines, and red edges marking passages still to explore.
+**Poisoned Well: corner minimap.** Shaded passages, wall outlines and the exploration boundary stay visible in a compact map.
 
-![Expanded Dark Temple automap showing connected rooms, shaded floors, gray walls, and red unexplored passage edges](docs/screenshots/dark-temple-explored-rooms.png)
+![Poisoned Well corner minimap with shaded passages, thin gray walls and red exploration edges](docs/screenshots/poisoned-well-corner-minimap.png)
+
+The [full gallery](docs/screenshots/) also includes earlier Dark Temple and reveal-edge detail views.
 
 ## Features
 
-- Dark gray floor shading and thin gray wall outlines.
+- Hybrid campaign styling: gray contours and shaded floors with native roads, entrances, water patterns and icons.
+- Straight Act 3 sewer wall profiles, highlighted water channels and retained bridge artwork.
+- Independent campaign/endgame styles and adjustable full-screen overlay opacity.
+- Connected campaign areas retain their explored map when crossing zone boundaries.
+- Exploration survives automap pauses, temporary loading and travel within the same tracked session.
+- Reused artwork clipping and water perimeters reduce repeated CPU work.
+- Dark gray floor shading and thin gray wall outlines for endgame maps.
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
 - A 20-subtile reveal radius around the player's movement, retained while visiting other areas in the same tracked session.
@@ -59,7 +70,9 @@ The mask is separate from `Wall1`, `Wall2`, `Wall3`, `Wall4`, and other native a
 
 You need your own installed copy of Diablo II / Project Diablo 2 and the matching D2GL renderer. No game binaries, extracted game assets, saves, or third-party renderer binaries are included here.
 
-Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. These hashes identify the actual tested files more precisely than a season or launcher label.
+Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. This beta also requires the listed `D2Win.dll` for menu/session tracking. These hashes identify the actual tested files more precisely than a season or launcher label.
+
+Hybrid campaign styling reads your installation's loose `data/global/excel/automap.txt` and `Objects.txt`; connected-area sharing also needs matching `Levels.txt`. These game tables are **not included**. Missing/malformed artwork tables select native exploration styling; missing layer definitions keep separate per-area histories. The binary checker below checks engine files only, not these optional tables. See [campaign settings and data requirements](docs/campaign-prototype.md).
 
 From PowerShell in this repository, check an installation without changing it:
 
@@ -73,7 +86,7 @@ The runtime also checks hook instructions and renderer entry points. Those check
 
 1. Close the game. Keep a copy of your current `d2gl.json` before editing it.
 2. Obtain `ExplorationMask.dll` from this repository's release, or [build it below](#build-from-source). Check your engine files against `compatibility.json` first.
-3. Copy only `ExplorationMask.dll` into your PD2 game folder, alongside `Game.exe` and `d2gl.json`.
+3. Copy `ExplorationMask.dll` and `ExplorationMask.ini` into your PD2 game folder, alongside `Game.exe` and `d2gl.json`. If updating an existing INI, merge the settings below to keep your preferences.
 4. In `d2gl.json`, append this entry to the comma-separated string `other.load_dlls_late`, keeping every existing entry:
 
    ```text
@@ -100,7 +113,20 @@ The runtime also checks hook instructions and renderer entry points. Those check
 
 6. Enter an offline game, open the automap, and explore a non-town area. `ExplorationMask.log` in the game folder reports whether initialization and hooks succeeded.
 
-The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll`. Restart the game after any change; live unloading is unsupported.
+### Appearance settings
+
+Settings are read at game startup:
+
+```ini
+[Automap]
+CampaignStyle=hybrid
+MapsStyle=styled
+OverlayOpacity=80
+```
+
+`hybrid` combines modern contours with native campaign details. `native` keeps native artwork with exploration shading, `styled` uses simplified terrain, and `original` disables the exploration effect for that group. Campaign and endgame settings are independent. `OverlayOpacity` accepts 10-100; 80 uses 20% less alpha for custom full-screen drawing, and 100 restores the previous opacity. Native symbols keep their own rendering. The tested D2GL corner minimap uses fixed capture opacity and is unaffected. Restart after edits. See the [campaign guide](docs/campaign-prototype.md) for details.
+
+The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
 
 ## Build from source
 
@@ -122,23 +148,23 @@ The three test executables cover the mask, native primitive clipping, fractional
 
 ## Performance
 
-The current version rebuilds changed regions on a single background worker and draws the latest completed geometry. In one development test with more than 1.4 million explored fine cells, sampled worker builds averaged about **11.4 ms** and automap CPU work averaged about **1.45 ms**, with an observed 240 FPS game display. Earlier full rebuilds in that test had grown to roughly 300 ms.
+The renderer rebuilds changed regions on a single background worker and draws the latest completed geometry. In one development test with more than 1.4 million explored fine cells, sampled worker builds averaged about **11.4 ms** and automap CPU work averaged about **1.45 ms**, with an observed 240 FPS game display. Earlier full rebuilds in that test had grown to roughly 300 ms.
 
-These are observations from one setup, not a performance guarantee. See [performance.md](docs/performance.md) for the measurement scope and remaining costs.
+Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. See [hybrid performance](docs/hybrid-performance.md) and [earlier performance measurements](docs/performance.md) for scope and remaining costs.
 
 ## Limitations
 
 - Exploration is distance-based, not the game's native revealed state or a line-of-sight simulation. It can reveal through nearby walls.
 - Native town artwork is retained within the town's level rectangle. Outdoor previews use already-loaded floor data for one neighboring area at a time; the plugin does not force room loading or reveal every town room. Irregular town footprints may need a more detailed boundary.
-- Exploration is not saved to disk. A player change or a gap of more than two seconds between tracked automap passes can reset the session, including some pauses, map toggles, or minimized windows.
+- Exploration is not saved to disk. Menu returns, changed player identity, or a changed seed in a previously visited act reset the session. Automap pauses and temporary loading do not reset it by themselves.
 - The soft edge uses discrete shade bands, not a continuous blur. Renderer behavior still affects the final color and smoothness.
-- Collision-derived outlines can include small obstacles. Water and other terrain materials do not receive individual styles. Some native cell-based feature artwork is replaced in styled mode; separately drawn plugin markers and text are not all covered by the mask.
+- Collision-derived outlines can include small obstacles. Sewer water receives a specific enhancement, but other decorative water may lack a modern contour. Hybrid styling protects recognized native details; styled mode replaces some cell-based feature artwork. Separately drawn plugin markers and text are not all covered by the mask.
 - New geometry can briefly lag behind movement. Initial area builds, very large maps, and cache eviction can still cost more time.
-- This remains a prototype. Long-session stability is not established. An older test hit a D2Glide texture-cache assertion; its cause was not confirmed, and this release does not claim to resolve that engine failure.
+- This is a BETA. Long-session stability and broad campaign coverage are not established. An older test hit a D2Glide texture-cache assertion; its cause was not confirmed, and this release does not claim to resolve that engine failure.
 
 ## Contributing
 
-Bug reports, performance measurements, and patches are welcome. Include the four engine hashes, renderer configuration, whether the issue occurs offline, and clear reproduction steps. Review logs before sharing them; do not upload saves, proprietary game files, or personal information.
+Bug reports, performance measurements, and patches are welcome. Include the profiled engine hashes, renderer configuration, whether the issue occurs offline, and clear reproduction steps. Review logs before sharing them; do not upload saves, proprietary game files, or personal information.
 
 For a new game build, port and validate the addresses, structures, calling conventions, and render-state assumptions together. Do not simply remove the compatibility guards. The code layout and current interception points are in [architecture.md](docs/architecture.md).
 

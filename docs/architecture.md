@@ -1,5 +1,7 @@
 # How the automap works
 
+The [campaign BETA](campaign-prototype.md) combines modern terrain with native navigation artwork, independent style settings and the session tracking described below.
+
 Follow the path from player movement to explored cells, shaded floors, and the final automap draw calls. This guide also identifies the source components, supported hook locations, and cache limits needed to understand or port the plugin.
 
 ## Rendering flow
@@ -77,10 +79,14 @@ The initializer checks selected call opcodes and targets, prepares all affected 
 
 ## Lifetime and resource limits
 
-The worker's derived area cache retains up to 32 entries. Each area's room-copy capture accepts up to 2,048 rooms and 2,000,000 collision cells, with room dimensions capped at 512 per axis. The fallback silhouette cache clears around 4 MiB or 4,096 entries. These limits bound particular caches, not the complete process memory footprint: session exploration masks and render-thread area data can still accumulate until reset. A capture limit can leave later terrain unavailable for styled output.
+The campaign hybrid mode reuses the styled floor/contour cache. `HybridArtwork.hpp` conservatively classifies native frame IDs from the user's local automap and object tables at startup. Ordinary walls use `drawHybridWalls`' gray core and dark casing, while native navigation details, icons, and town portions remain. Sewer levels 92/93 skip floor-contour walls: `cellHook` instead queues straight isometric profiles from `NativeWallTrace.hpp`, validated against eligible native wall silhouettes. Unsupported or budget-limited walls retain their native sprite. `SewerWater.hpp` collects recognized drain/water diamonds and cancels shared edges; bridges are excluded. Native water stays visible beneath a faint fill and channel border. `endPass` submits at most three batches (fill, casing, core), each capped at 65,536 vertices, clipped to explored pixels and the viewport. The wall cache holds at most 24 owned profiles and water collection at most 8,192 tiles per pass; no native texture memory is modified. Missing artwork table definitions select native exploration mode. `CampaignLayers.hpp` reads expected layers from local `Levels.txt`; a transition callback with a mismatched native layer cannot mutate shared exploration or capture geometry. Missing layer definitions preserve per-level cache keys. See [campaign-prototype.md](campaign-prototype.md) for the exact styling and limits.
 
-Player identity changes or a tracked pass gap over two seconds conservatively reset the session. Nothing is persisted across process restarts. The runtime keeps the worker alive for process lifetime; unloading the DLL while the game runs is unsupported.
+The worker's derived cache retains up to 32 entries. Campaign areas on the same native automap layer share an entry, keyed by seed, act, and layer; endgame areas remain keyed by seed and level. The shared mask, retained room copies, and completed geometry survive crossing an adjoining campaign area's boundary. Each cache entry's room-copy capture accepts up to 2,048 rooms and 2,000,000 collision cells, with room dimensions capped at 512 per axis. The fallback silhouette cache clears around 4 MiB or 4,096 entries. These limits bound particular caches, not the complete process memory footprint: session exploration masks and render-thread area data can still accumulate until reset. A capture limit can leave later terrain unavailable for styled output.
+
+The campaign BETA resets on a confirmed menu return, player identity change, or a changed seed in a previously visited act. It preserves exploration through callback gaps and temporary room/path unavailability. The existing watcher samples a guarded D2Win control-list pointer and the player-unit pointer every 50 ms, publishing only an atomic menu epoch; the draw thread owns mask/cache changes. Nothing is persisted across process restarts. The runtime keeps the worker alive for process lifetime; unloading the DLL while the game runs is unsupported.
 
 ## Porting checklist
 
 For another build, verify the player/path/room/level structures, room collision buffers, projection globals, every call site's ABI and target, wrapper export layout, and rendering state behavior. Run the synthetic tests, validate installation guards against the new binary set, then test offline across movement, area transitions, town bypass, minimap modes, large maps, and long sessions. Publish a separate compatibility profile rather than weakening the existing checks.
+
+The beta performance revision adds a bounded cache of exact clipping rectangles in stable automap coordinates and reuses unchanged sewer-water perimeters. Custom full-screen alpha is configurable independently of the tested D2GL corner-map capture. See [hybrid-performance.md](hybrid-performance.md) for invalidation, bounds, validation and benchmark scope.

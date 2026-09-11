@@ -2,13 +2,22 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "F65EE8FFA12FBE2459522C5C2A6818599A55FE9C1AA195B44F3850B403C93F49",
+  "testedModuleSha256": "3CF823E3362190189BE126E7A2190404B03C8D51ABCB6F6FABC2D86BB313109D",
+  "validation": "All three Win32 Release suites pass with local tables/artwork. Offline testing confirmed connected campaign areas and sewer appearance before the final shared-cache invalidation correction, which has synthetic regression coverage. Clipping/water optimizations preserve synthetic geometry and reduce benchmark CPU time; broader live performance and long-session stability remain unqualified.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
     "glide3x.dll": "59599f7409a4c6ee7c8af97988e8d02d29c9177c3907a154a2b30ac7f076fba8",
-    "D2Glide.dll": "7cf5907e9eb19b783b73fa45a5a7aa4491cb750e0d83df8c59b12d089310db6a"
+    "D2Glide.dll": "7cf5907e9eb19b783b73fa45a5a7aa4491cb750e0d83df8c59b12d089310db6a",
+    "D2Win.dll": "ff5cbb956f1a419e0e76fc2df3be21065bbba894770b8de7cce8bc55ec453736"
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
-  "profile": "Tested PD2/D2GL binary set"
+  "profile": "Tested PD2/D2GL binary set",
+  "hybridTableSha256": {
+    "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",
+    "data/global/excel/Objects.txt": "e8c129055ff894f306a00b39b1e729c9f73f7674add93871c77c617c9722858b",
+    "data/global/excel/Levels.txt": "3382b9ac83d9edc279ca445b217a7c6b1aafae46d2529cc0ef8e6316f0662e45"
+  },
+  "release": "v0.2.0-beta.1",
+  "status": "BETA"
 }
