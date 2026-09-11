@@ -33,7 +33,7 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 **Minimap close-up.** Shaded floors, thin gray outlines, and red edges at unexplored openings.
 
-![Close-up of the shaded minimap with gray wall outlines and red unexplored edges](docs/screenshots/poisoned-well-minimap-detail.png)
+![Close-up of the shaded minimap with gray wall outlines and red unexplored edges](docs/screenshots/poisoned-well-reveal-edge-detail.png)
 
 **Dark Temple overlay.** A larger explored area with connected rooms, gray wall outlines, and red edges marking passages still to explore.
 
