@@ -1,5 +1,7 @@
 # Performance notes
 
+How region caching keeps the reveal edge responsive as exploration grows, with measured development results and the work that still scales with map size.
+
 The original styled implementation rebuilt all explored floor geometry after movement. Around 1.46 million explored quarter-subtile cells, a development trace recorded approximately 276-316 ms per build. Background processing kept gameplay responsive, but the reveal edge updated only a few times per second.
 
 The current implementation caches unchanged regions, incrementally connects newly loaded floor runs, compacts adjacent quads, and skips unnecessary viewport clipping. It keeps the existing single worker and publishes completed snapshots without waiting in the game render callback.
