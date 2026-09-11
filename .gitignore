@@ -1,8 +1,10 @@
+# Local build folders and IDE settings.
 /build/
 /dist/
 /.vs/
 *.user
 *.suo
+# Logs, crash dumps, and compiler or release outputs.
 *.log
 *.dmp
 *.pdb
@@ -12,6 +14,7 @@
 *.dll
 *.exe
 *.zip
+# Local diagnostic fixtures and environment files.
 floor-probe.bin
 styled-preview.txt
 .env
