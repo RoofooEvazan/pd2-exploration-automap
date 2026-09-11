@@ -1,5 +1,7 @@
 # How the automap works
 
+Follow the path from player movement to explored cells, shaded floors, and the final automap draw calls. This guide also identifies the source components, supported hook locations, and cache limits needed to understand or port the plugin.
+
 ## Rendering flow
 
 ```text
