@@ -1,3 +1,7 @@
+// Builds connected floor geometry from room flags and an exploration mask.
+// Produces shade bands, gray wall outlines, and red open exploration edges.
+// Its full rebuild also serves as the reference for incremental-cache tests.
+
 #pragma once
 #include "ExplorationMask.hpp"
 #include <array>
