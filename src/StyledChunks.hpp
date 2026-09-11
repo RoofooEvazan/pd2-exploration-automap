@@ -1,3 +1,7 @@
+// Rebuilds only map regions affected by exploration or newly connected floor.
+// Retains unchanged geometry, assigns seams to one owner, and compacts matching
+// floor quads before publishing a drawing to the render thread.
+
 #pragma once
 #include "StyledMap.hpp"
 
