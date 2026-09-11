@@ -1,3 +1,7 @@
+// Reads collision grids from already-loaded rooms in the supported game build.
+// Captured flags become owned snapshots for floor shading and wall outlines;
+// the background geometry worker never receives these native game pointers.
+
 #pragma once
 #include <windows.h>
 #include <cstdint>
