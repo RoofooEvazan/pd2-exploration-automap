@@ -1,3 +1,7 @@
+// Caches the exploration mask as screen-space row spans for native artwork.
+// Reuses the projected coverage while the viewport pans, so each sprite can
+// obtain visible clipping regions without retesting every explored cell.
+
 #pragma once
 #include <algorithm>
 #include <cstdint>
