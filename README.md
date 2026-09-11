@@ -6,6 +6,21 @@ Unexplored terrain stays blank. As you move, the map opens around you. Towns use
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
+## Repository guide
+
+| File or folder | What's inside |
+| --- | --- |
+| [docs](docs/) | Design notes, performance results, testing instructions, and gameplay screenshots. |
+| [scripts](scripts/) | A read-only checker that compares your game files with the tested build. |
+| [src](src/) | The plugin's exploration mask, floor shading, wall outlines, renderer hooks, and background updates. |
+| [tests](tests/) | Checks for exploration, clipping, drawing behavior, and incremental map updates. |
+| [CMakeLists.txt](CMakeLists.txt) | Build settings for the 32-bit Windows DLL and its three test programs. |
+| [compatibility.json](compatibility.json) | Fingerprints of the tested game files and plugin, plus loader and launch settings. |
+| [LICENSE](LICENSE) | The MIT license for this project's original source code. |
+| [.gitattributes](.gitattributes) | Line-ending rules for source files, documentation, and Windows scripts. |
+| [.gitignore](.gitignore) | Files kept out of version control, including local builds, logs, and credentials. |
+| [README.md](README.md) | Project overview, screenshots, installation, building, and known limitations. |
+
 ## Screenshots
 
 **Overlay view in Poisoned Well.** Gray outlines follow the explored walls; red edges mark unfinished exploration.
