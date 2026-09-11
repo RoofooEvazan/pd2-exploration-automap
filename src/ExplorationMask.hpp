@@ -1,3 +1,7 @@
+// Explored-cell storage, movement-based reveal, and masks for each tracked area.
+// Supplies frontier extraction and reference primitive clipping independently
+// of native wall layers, artwork colors, and the styled floor renderer.
+
 #pragma once
 #include <algorithm>
 #include <cmath>
