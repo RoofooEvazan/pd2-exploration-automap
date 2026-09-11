@@ -1,3 +1,7 @@
+// Synthetic tests for explored cells, reveal boundaries, clipping coverage,
+// movement, and session masks. Run with CTest after a Win32 Release build;
+// this executable does not need game files or a running game.
+
 #include "ExplorationMask.hpp"
 #include <cstdlib>
 #include <iostream>
