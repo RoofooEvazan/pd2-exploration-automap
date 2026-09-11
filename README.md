@@ -29,7 +29,7 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 **Corner minimap.** The explored area appears in the upper-right map while gameplay stays visible.
 
-![Poisoned Well with the shaded exploration map in the upper-right corner](docs/screenshots/poisoned-well-minimap.png)
+![Poisoned Well with the shaded exploration map in the upper-right corner](docs/screenshots/poisoned-well-corner-minimap.png)
 
 **Minimap close-up.** Shaded floors, thin gray outlines, and red edges at unexplored openings.
 
