@@ -1,3 +1,7 @@
+// Decodes opaque artwork spans and intersects them with exploration frontiers.
+// In native-artwork fallback mode, frontier accents appear at asset contacts
+// with a small extension at each end instead of tracing empty space.
+
 #pragma once
 #include "ExplorationMask.hpp"
 
