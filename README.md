@@ -25,7 +25,7 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 **Overlay view in Poisoned Well.** Gray outlines follow the explored walls; red edges mark unfinished exploration.
 
-![Automap overlay in Poisoned Well showing gray wall outlines and red exploration edges](docs/screenshots/poisoned-well-overlay.png)
+![Automap overlay in Poisoned Well showing gray wall outlines and red exploration edges](docs/screenshots/poisoned-well-automap-overlay.png)
 
 **Corner minimap.** The explored area appears in the upper-right map while gameplay stays visible.
 
