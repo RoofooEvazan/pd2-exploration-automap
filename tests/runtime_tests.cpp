@@ -1,3 +1,7 @@
+// Mocked game and renderer calls exercise native artwork clipping, texture
+// coordinates, fractional lines, color restoration, and town bypasses.
+// The optional local artwork check is described in ../docs/testing.md.
+
 #include "ExplorationRuntime.cpp"
 #include <iostream>
 #include <cstdlib>
