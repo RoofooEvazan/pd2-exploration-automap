@@ -1,3 +1,7 @@
+// Runs floor and shade construction on one background worker using owned data.
+// Keeps one replaceable pending snapshot and one finished result, each labeled
+// by session and area, so slow builds do not accumulate a queue of old updates.
+
 #pragma once
 #include "StyledMap.hpp"
 #include "StyledChunks.hpp"
