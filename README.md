@@ -37,7 +37,7 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 **Dark Temple overlay.** A larger explored area with connected rooms, gray wall outlines, and red edges marking passages still to explore.
 
-![Expanded Dark Temple automap showing connected rooms, shaded floors, gray walls, and red unexplored passage edges](docs/screenshots/dark-temple-overlay.png)
+![Expanded Dark Temple automap showing connected rooms, shaded floors, gray walls, and red unexplored passage edges](docs/screenshots/dark-temple-explored-rooms.png)
 
 ## Features
 
