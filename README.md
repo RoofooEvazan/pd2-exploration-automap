@@ -20,6 +20,10 @@ This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set*
 
 ![Close-up of the shaded minimap with gray wall outlines and red unexplored edges](docs/screenshots/poisoned-well-minimap-detail.png)
 
+**Dark Temple overlay.** A larger explored area with connected rooms, gray wall outlines, and red edges marking passages still to explore.
+
+![Expanded Dark Temple automap showing connected rooms, shaded floors, gray walls, and red unexplored passage edges](docs/screenshots/dark-temple-overlay.png)
+
 ## Features
 
 - Dark gray floor shading and thin gray wall outlines.
