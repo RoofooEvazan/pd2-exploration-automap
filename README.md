@@ -6,6 +6,20 @@ Unexplored terrain stays blank. As you move, the map opens around you. Towns use
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
+## Screenshots
+
+**Overlay view in Poisoned Well.** Gray outlines follow the explored walls; red edges mark unfinished exploration.
+
+![Automap overlay in Poisoned Well showing gray wall outlines and red exploration edges](docs/screenshots/poisoned-well-overlay.png)
+
+**Corner minimap.** The explored area appears in the upper-right map while gameplay stays visible.
+
+![Poisoned Well with the shaded exploration map in the upper-right corner](docs/screenshots/poisoned-well-minimap.png)
+
+**Minimap close-up.** Shaded floors, thin gray outlines, and red edges at unexplored openings.
+
+![Close-up of the shaded minimap with gray wall outlines and red unexplored edges](docs/screenshots/poisoned-well-minimap-detail.png)
+
 ## Features
 
 - Dark gray floor shading and thin gray wall outlines.
@@ -20,7 +34,7 @@ The mask is separate from `Wall1`, `Wall2`, `Wall3`, `Wall4`, and other native a
 
 ## Compatibility
 
-You need your own installed copy of Diablo II / Project Diablo 2 and the matching D2GL renderer. No game files, game assets, saves, or third-party renderer binaries are included here.
+You need your own installed copy of Diablo II / Project Diablo 2 and the matching D2GL renderer. No game binaries, extracted game assets, saves, or third-party renderer binaries are included here.
 
 Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. These hashes identify the actual tested files more precisely than a season or launcher label.
 
