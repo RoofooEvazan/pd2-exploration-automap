@@ -1,5 +1,7 @@
 # Building and testing
 
+Use this guide to understand each test suite, enable optional local integration checks, and read the plugin's runtime diagnostics.
+
 The [README](../README.md#build-from-source) gives the CMake commands. All three default tests run without a game installation, external fixture, or network access. Configure a Release **Win32** build with MSVC and run CTest.
 
 | Test | Main checks |
