@@ -3,7 +3,7 @@
   "activationArgument": "-exploration-test",
   "architecture": "x86",
   "testedModuleSha256": "B7DB4FA1657179FC530B86893DC84319DEAEE23C924F94A1D3A37E704DFA1A09",
-  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed 31-subtile circular reveal and approved publication. Ships that exact user-tested DLL. The gallery includes supplied Dark Temple, Act 3 Sewers, menu and five-color screenshots. Screenshots are appearance examples, not sustained FPS benchmarks; broader compatibility and long-session performance remain under test.",
+  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed 31-subtile circular reveal and approved publication. Ships that exact user-tested DLL. The gallery includes supplied endgame map, Act 3 Sewers, menu and five-color screenshots. Screenshots are appearance examples, not sustained FPS benchmarks; broader compatibility and long-session performance remain under test.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",

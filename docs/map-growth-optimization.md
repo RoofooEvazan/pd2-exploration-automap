@@ -4,7 +4,7 @@ Included in v0.2.0-beta.3, following the beta.1 rendering baseline. Both `Campai
 
 ## Why this changed
 
-The latest Dark Temple log reached about 1.65 million explored fine cells. Near the end, automap callback CPU time was roughly 3.9-4.1 ms, enough to consume most of the 4.17 ms budget for 240 FPS. That timing includes the automap callbacks and drawing, not the whole game or GPU work. The user reported a 30-40 FPS loss as exploration grew.
+The latest endgame test-map log reached about 1.65 million explored fine cells. Near the end, automap callback CPU time was roughly 3.9-4.1 ms, enough to consume most of the 4.17 ms budget for 240 FPS. That timing includes the automap callbacks and drawing, not the whole game or GPU work. The user reported a 30-40 FPS loss as exploration grew.
 
 ## Rendering changes
 
@@ -41,10 +41,10 @@ A separate synthetic panning scene uses the installed tables and sampled Poisone
 
 ## In-game check
 
-Use the Test PD2 shortcut. Check Dark Temple and a map containing water in both overlay and corner modes. Confirm native details and icons, gray wall outlines, shaded floors and the red reveal edge. Walk until most of the map is explored and compare FPS while moving and standing still. Also check zoom/pan, a town gate and an adjoining campaign-area transition. The local build was approved for beta.3 publication; broader late-map FPS comparisons remain useful.
+Use the Test PD2 shortcut. Check a large endgame map and a map containing water in both overlay and corner modes. Confirm native details and icons, gray wall outlines, shaded floors and the red reveal edge. Walk until most of the map is explored and compare FPS while moving and standing still. Also check zoom/pan, a town gate and an adjoining campaign-area transition. The local build was approved for beta.3 publication; broader late-map FPS comparisons remain useful.
 
 For this correction, prioritize Poisoned Well: confirm the green duplicate shoreline and thick white native walls disappear while the modern outline remains. Explore most of the map again and compare late-run FPS. Startup should report `289 Poisoned Well contour IDs`, and `HYBRID wallsReplaced` should increase during that area. Keep the log for comparison; these counters alone do not prove correct appearance or restored FPS.
 
 To compare the appearance/performance tradeoff, set `MapsStyle=styled` and restart; the new rendering optimizations still apply. Reverting the DLL requires closing the game and restoring the recorded backup. The compatibility fingerprints and release DLL hash in `compatibility.json` describe the current beta; the optimization measurements here were collected before beta.4's radius adjustment.
 
-The user subsequently confirmed Poisoned Well had virtually no frame drops. Dark Temple required the additional [artwork padding optimization](native-artwork-padding.md), also included in beta.3. These reports do not establish sustained FPS on other systems.
+The user subsequently confirmed Poisoned Well had virtually no frame drops. The endgame test map required the additional [artwork padding optimization](native-artwork-padding.md), also included in beta.3. These reports do not establish sustained FPS on other systems.

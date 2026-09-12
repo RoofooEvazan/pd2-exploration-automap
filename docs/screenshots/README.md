@@ -6,30 +6,30 @@ The beta.4 gallery shows the 31-subtile rounded reveal, hybrid map/campaign artw
 
 | Screenshot | What it shows |
 | --- | --- |
-| [Dark Temple: rounded reveal](dark-temple-rounded-reveal.png) | A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible. |
-| [Dark Temple: corner minimap](dark-temple-hybrid-corner-minimap.png) | The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear. |
-| [Dark Temple: hybrid overlay](dark-temple-hybrid-overlay.png) | Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath. |
+| [Endgame map: rounded reveal](endgame-map-rounded-reveal.png) | A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible. |
+| [Endgame map: corner minimap](endgame-map-hybrid-corner-minimap.png) | The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear. |
+| [Endgame map: hybrid overlay](endgame-map-hybrid-overlay.png) | Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath. |
 | [Act 3 Sewers: corner minimap](act3-sewers-corner-minimap.png) | A compact view of the explored sewer room shows its walls, interior structures and water-channel artwork, with green edges where exploration can continue. |
 | [Act 3 Sewers: hybrid overlay](act3-sewers-hybrid-overlay.png) | Straight wall outlines frame the room while the water channel, bridge detail and native symbols remain visible inside the explored boundary. |
 | [Automap Options: Boundary Color](automap-options-boundary-color.png) | Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green. |
 
-### Dark Temple: rounded reveal
+### Endgame map: rounded reveal
 
 A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
 
-![Dark Temple: rounded reveal](dark-temple-rounded-reveal.png)
+![Endgame map: rounded reveal](endgame-map-rounded-reveal.png)
 
-### Dark Temple: corner minimap
+### Endgame map: corner minimap
 
 The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
 
-![Dark Temple: corner minimap](dark-temple-hybrid-corner-minimap.png)
+![Endgame map: corner minimap](endgame-map-hybrid-corner-minimap.png)
 
-### Dark Temple: hybrid overlay
+### Endgame map: hybrid overlay
 
 Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
 
-![Dark Temple: hybrid overlay](dark-temple-hybrid-overlay.png)
+![Endgame map: hybrid overlay](endgame-map-hybrid-overlay.png)
 
 ### Act 3 Sewers: corner minimap
 
@@ -126,9 +126,9 @@ Shaded passages, wall outlines and the exploration boundary stay visible in a co
 
 ![Poisoned Well corner minimap with shaded passages, thin gray walls and red exploration edges](poisoned-well-corner-minimap.png)
 
-### Earlier example: Dark Temple explored rooms
+### Earlier example: Endgame map explored rooms
 
-![Dark Temple overlay showing connected rooms, gray outlines and red unfinished passage edges](dark-temple-explored-rooms.png)
+![Endgame map overlay showing connected rooms, gray outlines and red unfinished passage edges](endgame-map-explored-rooms.png)
 
 ### Earlier example: Poisoned Well reveal-edge close-up
 

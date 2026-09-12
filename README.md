@@ -30,17 +30,17 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 
 ## Screenshots
 
-**Dark Temple: hybrid overlay.** Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
+**Endgame map: hybrid overlay.** Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
 
-![Dark Temple: hybrid overlay](docs/screenshots/dark-temple-hybrid-overlay.png)
+![Endgame map: hybrid overlay](docs/screenshots/endgame-map-hybrid-overlay.png)
 
-**Dark Temple: corner minimap.** The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
+**Endgame map: corner minimap.** The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
 
-![Dark Temple: corner minimap](docs/screenshots/dark-temple-hybrid-corner-minimap.png)
+![Endgame map: corner minimap](docs/screenshots/endgame-map-hybrid-corner-minimap.png)
 
-**Dark Temple: rounded reveal.** A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
+**Endgame map: rounded reveal.** A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
 
-![Dark Temple: rounded reveal](docs/screenshots/dark-temple-rounded-reveal.png)
+![Endgame map: rounded reveal](docs/screenshots/endgame-map-rounded-reveal.png)
 
 **Automap Options: Boundary Color.** Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green.
 
@@ -161,7 +161,7 @@ The three test executables cover the mask, native primitive clipping, fractional
 
 The renderer rebuilds changed regions on a single background worker and draws the latest completed geometry. In one development test with more than 1.4 million explored fine cells, sampled worker builds averaged about **11.4 ms** and automap CPU work averaged about **1.45 ms**, with an observed 240 FPS game display. Earlier full rebuilds in that test had grown to roughly 300 ms.
 
-Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. Beta.3 additionally reuses prepared floor coordinates, retains fully explored clipping results, removes duplicate Poisoned Well contours, and avoids clipping transparent artwork margins. See [large-map improvements](docs/map-growth-optimization.md), [Dark Temple artwork optimization](docs/native-artwork-padding.md), [hybrid performance](docs/hybrid-performance.md) and [earlier measurements](docs/performance.md) for scope and remaining costs.
+Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. Beta.3 additionally reuses prepared floor coordinates, retains fully explored clipping results, removes duplicate Poisoned Well contours, and avoids clipping transparent artwork margins. See [large-map improvements](docs/map-growth-optimization.md), [Endgame artwork optimization](docs/native-artwork-padding.md), [hybrid performance](docs/hybrid-performance.md) and [earlier measurements](docs/performance.md) for scope and remaining costs.
 
 ## Limitations
 

@@ -30,7 +30,7 @@ Unset means skip that optional check. A supplied directory with missing or malfo
 
 ## Optional development collision fixture
 
-`PD2_FLOOR_PROBE` can point to the original local Dark Temple development capture. This legacy integration check uses fixed seed coordinates from that capture, so an arbitrary room dump is not a substitute. The fixture is not distributed or required; the default synthetic suite covers the same floor/geometry algorithms without game data. The test does not write preview files.
+`PD2_FLOOR_PROBE` can point to the original local endgame-map development capture. This legacy integration check uses fixed seed coordinates from that capture, so an arbitrary room dump is not a substitute. The fixture is not distributed or required; the default synthetic suite covers the same floor/geometry algorithms without game data. The test does not write preview files.
 
 ## Runtime diagnostics
 

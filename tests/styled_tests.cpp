@@ -191,7 +191,7 @@ int main() {
         for(int x=20065;x<20280;x+=5)visible.revealAround({double(x),10470},80);
         auto start=std::chrono::steady_clock::now();auto geometry=actual.build(visible);
         double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-        std::cout<<"Actual Dark Temple: "<<actual.roomCount()<<" rooms, "<<actual.size()<<" connected floor cells, "<<geometry.quads<<" quads, "<<geometry.walls.size()<<" outlines, build "<<ms<<"ms\n";
+        std::cout<<"Actual Endgame map: "<<actual.roomCount()<<" rooms, "<<actual.size()<<" connected floor cells, "<<geometry.quads<<" quads, "<<geometry.walls.size()<<" outlines, build "<<ms<<"ms\n";
     }
     std::cout<<"PASS: independent disk erosion, exact single-band floor coverage, clipped polygon area, red open frontiers versus gray sealed rooms, transient flags, isolated cells, room seams, incremental chunk/full geometry equivalence, negative-coordinate joins, teleports, reset/removal, unchanged-cache reuse, worker coalescing/session isolation and clean shutdown\n";
 }

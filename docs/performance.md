@@ -8,7 +8,7 @@ The current implementation caches unchanged regions, incrementally connects newl
 
 ## Development observations
 
-The v0.1.0 development build was checked in Dark Temple beyond 1.69 million explored fine cells. In 25 logged samples at or above 1.4 million cells:
+The v0.1.0 development build was checked in an endgame test map beyond 1.69 million explored fine cells. In 25 logged samples at or above 1.4 million cells:
 
 | Measurement | Average | Range |
 | --- | --- | --- |
