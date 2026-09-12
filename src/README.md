@@ -6,6 +6,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | --- | --- |
 | [ExplorationRuntime.cpp](ExplorationRuntime.cpp) | Connects the DLL to the game, reads player state, enforces the compiled reveal radius, handles towns, and submits automap drawing. |
 | [GameTables.hpp](GameTables.hpp) | Loads owned, size-limited table data through the verified Storm file resolver, using archives or active direct overrides. |
+| [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
 | [BoundaryColors.hpp](BoundaryColors.hpp) | Defines five frontier colors while preserving the original red shades and opacity. |
 | [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds a guarded color row to the supported native Automap Options menu. |

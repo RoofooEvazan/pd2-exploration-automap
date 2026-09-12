@@ -30,7 +30,9 @@
 #include "ArtworkBounds.hpp"
 #include "BoundaryColors.hpp"
 #include "BoundaryMenu.hpp"
+#include "MapMarkers.hpp"
 #include <unordered_map>
+#include <set>
 using exploration::Point;
 using exploration::Rect;
 using exploration::Mask;
@@ -90,6 +92,12 @@ static bool inPass=false,maskActive=false,enabled=true,installed=false;
 enum class MapStyle { Original, Native, Styled, Hybrid };
 static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Hybrid,activeStyle=MapStyle::Styled;
 static exploration::HybridArtwork hybridArtwork;
+static exploration::MapMarkerDefinitions mapMarkerDefinitions;
+static std::vector<exploration::MapMarker> mapMarkers;
+static std::set<std::tuple<unsigned,int,int>> nativeMarkers;
+static void* markerArtworkFile=nullptr; // Borrowed only within this draw pass.
+static int markerDrawMode=5;
+static unsigned long markersDrawn=0,markersAlreadyNative=0;
 static exploration::CampaignLayers campaignLayers;
 static bool gameTablesPending=false;
 static void ensureGameTables();
@@ -419,6 +427,18 @@ static void update() {
     auto drawingPlayer=updateTownBoundary(p,now);
     updateStyled(drawingPlayer,mapKey(drawingPlayer));
 }
+static bool mapMarkersActive() {
+    return enabled && maskActive && observedLevel>132 && observedLevel<10000 && activeStyle!=MapStyle::Original;
+}
+static void sampleMapMarkers(DWORD now) {
+    static std::uint64_t serial=0,key=0;
+    static DWORD sampled=0;static bool valid=false;
+    if(!mapMarkersActive()){mapMarkers.clear();valid=false;return;}
+    if(!valid || serial!=gameSerial || key!=lastLevelKey || now-sampled>=200) {
+        mapMarkers=exploration::marker_reader::capture(client,observedLevel,mapMarkerDefinitions);
+        serial=gameSerial;key=lastLevelKey;sampled=now;valid=true;
+    }
+}
 struct Transform { double divisor,ox,oy; };
 static bool transform(Transform& t) {
     t.divisor=read<int>(client,0xf16b0);
@@ -601,6 +621,12 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
     InterlockedIncrement(&cellCount);
     if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
     try {
+        DWORD markerId=0;
+        const bool marker=mapMarkersActive() && frameIndex(ctx,&markerId) && mapMarkerDefinitions.artwork(markerId);
+        if(mapMarkersActive() && !markerArtworkFile) {
+            FrameSource source{};if(frameSource(ctx,&source)){markerArtworkFile=const_cast<void*>(source.file);markerDrawMode=mode;}
+        }
+        if(marker)nativeMarkers.emplace(markerId,x,y);
         if(styledActive && styledCurrent) {
             if(!haveViewport) {
                 Transform t{};
@@ -612,7 +638,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                     drawStyled(t,passViewport);haveViewport=true;++styledPasses;
                 }
             }
-            if(styledActive && !nativeArtwork() && (!nativeTownActive || !townInViewport)){++suppressed;return;}
+            if(styledActive && !nativeArtwork() && !marker && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
         const bool townOnly=nativeTownActive && !nativeArtwork() && (isTown(observedLevel) || styledActive);
         const bool hybrid=activeStyle==MapStyle::Hybrid && styledActive && hybridArtwork.loaded();
@@ -622,7 +648,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             auto role=frameIndex(ctx,&id)?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
-            replaceWall=role==exploration::HybridArtwork::Role::Wall;
+            replaceWall=!marker && role==exploration::HybridArtwork::Role::Wall;
             if(replaceWall){++hybridWallsReplaced;if(!nativeTownActive || !townInViewport){++suppressed;return;}}
             else if(role==exploration::HybridArtwork::Role::Water || traceWater)++hybridWater;else ++hybridDetails;
         }
@@ -686,8 +712,9 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
 static void beginPass() {
     InterlockedIncrement(&beginCount);
     sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
+    nativeMarkers.clear();markerArtworkFile=nullptr;
     QueryPerformanceCounter(&passStarted);
-    try {update();if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
+    try {update();sampleMapMarkers(GetTickCount());if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
 }
 static void submitLine(Point start,Point end) {
     if(hypot(end.x-start.x,end.y-start.y)<1e-6)return;
@@ -831,6 +858,24 @@ static void queueWaterGeometry(const Transform& t,Rect viewport) {
         if(!queueTraceLines(line,{0,0},clips))break;
     }
 }
+static void drawMapMarkers() {
+    if(!inPass || !mapMarkersActive() || !haveViewport || !markerArtworkFile)return;
+    Transform t{};if(!transform(t))return;
+    NativeRect viewport{passViewport.left,passViewport.right,passViewport.top-1,passViewport.bottom-1};
+    for(const auto& marker:mapMarkers) {
+        if(!explored->contains({marker.x,marker.y}))continue;
+        const int x=marker.mapX*10/int(t.divisor)-int(t.ox),y=marker.mapY*10/int(t.divisor)-int(t.oy);
+        if(marker.nativeRegistered || nativeMarkers.count({marker.frame,x,y})){++markersAlreadyNative;continue;}
+        // Same zero-initialized 0x48-byte context built by native +0x60250.
+        // The original renderer owns all texture preparation and lifetimes.
+        DWORD context[18]{};context[0]=marker.frame;
+        memcpy(reinterpret_cast<unsigned char*>(context)+0x34,&markerArtworkFile,sizeof(markerArtworkFile));
+        Rect bounds{};if(!frameBounds(context,x,y,&bounds))continue;
+        bounds=exploration::intersect(bounds,passViewport);
+        if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)continue;
+        cellHook(context,x,y,&viewport,markerDrawMode);++markersDrawn;
+    }
+}
 static void endPass() {
     InterlockedIncrement(&endCount);
     try {
@@ -853,6 +898,8 @@ static void endPass() {
                 frontierBatch=&lines;drawFrontier(lines[0].first,lines[0].second);frontierBatch=nullptr;
             }
         }
+        drawMapMarkers();
+        markerArtworkFile=nullptr;
         if(inPass) {
             LARGE_INTEGER finished{};QueryPerformanceCounter(&finished);
             mapTicks+=finished.QuadPart-passStarted.QuadPart;++mapSamples;
@@ -866,6 +913,7 @@ static void endPass() {
                 styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
                 int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
             fprintf(logfile,"DISCOVERY mode=hardcoded radiusSubtiles=%.2f\n",revealRadius*maskCellSize);
+            if(mapMarkersActive())fprintf(logfile,"MARKERS sampled=%zu added=%lu alreadyNative=%lu\n",mapMarkers.size(),markersDrawn,markersAlreadyNative);
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
@@ -985,6 +1033,7 @@ static void loadStyles() {
 }
 static void loadGameTables(const exploration::GameFiles& api) {
     campaignLayers=exploration::CampaignLayers{};
+    mapMarkerDefinitions=exploration::MapMarkerDefinitions{};mapMarkers.clear();
     std::string bytes;
     auto readTable=[&](const char* name) {
         std::string path="data\\global\\excel\\";path+=name;
@@ -1001,14 +1050,26 @@ static void loadGameTables(const exploration::GameFiles& api) {
     if(layersReady) {
         if(logfile){fprintf(logfile,"CAMPAIGN layers=%zu; adjoining areas share state only on the expected native layer.\n",campaignLayers.size());fflush(logfile);}
     } else log("Campaign layer definitions unavailable; retaining separate per-area exploration caches.");
+    std::string objectBytes;
+    const bool objectsReady=readTable("Objects.txt");if(objectsReady)objectBytes=std::move(bytes);
+    if(objectsReady){std::istringstream objects(objectBytes);mapMarkerDefinitions.loadObjects(objects);}
+    if(mapsStyle!=MapStyle::Original) {
+        std::string monsterBytes;
+        if(readTable("MonStats.txt"))monsterBytes=std::move(bytes);
+        if(!monsterBytes.empty() && readTable("MonStats2.txt")) {
+            std::istringstream stats(std::move(monsterBytes)),extra(std::move(bytes));mapMarkerDefinitions.loadMonsters(stats,extra);
+        }
+    }
+    if(logfile){fprintf(logfile,"MARKERS definitions objects=%zu eventActors=%zu; loaded endgame units only, explored locations only.\n",
+        mapMarkerDefinitions.objects(),mapMarkerDefinitions.monsters());fflush(logfile);}
     if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid) {
         bool ready=false;
         if(readTable("automap.txt")) {
             std::istringstream definitions(std::move(bytes));ready=hybridArtwork.load(definitions);
         }
         if(ready) {
-            ready=readTable("Objects.txt");
-            if(ready){std::istringstream objects(std::move(bytes));ready=hybridArtwork.protectObjects(objects);}
+            ready=objectsReady;
+            if(ready){std::istringstream objects(objectBytes);ready=hybridArtwork.protectObjects(objects);}
         }
         if(!ready) {
             if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
@@ -1016,7 +1077,7 @@ static void loadGameTables(const exploration::GameFiles& api) {
             log("Hybrid artwork definitions unavailable; retaining native exploration style.");
         } else if(logfile){fprintf(logfile,"HYBRID classified %zu ordinary wall artwork IDs; %zu Poisoned Well contour IDs; native details/water protected.\n",hybridArtwork.walls(),hybridArtwork.poisonedWellContours());fflush(logfile);}
     }
-    if(logfile){fprintf(logfile,"STYLE campaign=%d maps=%d (0=original, 1=native exploration, 2=styled, 3=hybrid); no added markers or arrows.\n",
+    if(logfile){fprintf(logfile,"STYLE campaign=%d maps=%d (0=original, 1=native exploration, 2=styled, 3=hybrid); native shrine/event icons; no quest or exit arrows.\n",
         int(campaignStyle),int(mapsStyle));fflush(logfile);}
 }
 static void ensureGameTables() {

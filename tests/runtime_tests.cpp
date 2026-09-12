@@ -120,7 +120,7 @@ static void testGameTables() {
     require(campaignLayers.lookup(78,2,layer) && layer==42); // Independent layer success survives artwork failure.
     campaignStyle=MapStyle::Original;mapsStyle=MapStyle::Styled;
     auto readsBefore=gameReads;loadGameTables(api);
-    require(gameReads==readsBefore+1 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
+    require(gameReads==readsBefore+2 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
     gameTablesPending=true;ensureGameTables(); // No supported Storm loaded in the synthetic host.
     require(!gameTablesPending && campaignLayers.size()==0 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
     auto opensBefore=gameOpens;ensureGameTables();require(gameOpens==opensBefore);
@@ -1118,6 +1118,7 @@ static void testWaterReuse() {
 }
 #include "boundary_menu_tests.hpp"
 #include "fixed_distance_tests.hpp"
+#include "map_marker_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
@@ -1188,5 +1189,6 @@ int main() {
     testGameTables();
     testBoundaryMenu();
     testFixedDistance();
+    testMapMarkers();
     return 0;
 }
