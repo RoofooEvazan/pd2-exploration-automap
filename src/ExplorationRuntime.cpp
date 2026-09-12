@@ -30,7 +30,6 @@
 #include "ArtworkBounds.hpp"
 #include "BoundaryColors.hpp"
 #include "BoundaryMenu.hpp"
-#include "NativeRevealDistance.hpp"
 #include <unordered_map>
 using exploration::Point;
 using exploration::Rect;
@@ -120,16 +119,8 @@ static constexpr DWORD targetLevel=0; // Zero applies to every area in the opt-i
 // source gray muted instead of using a near-white pale palette entry.
 static constexpr DWORD frontierColor=29;
 static constexpr double maskCellSize=0.25; // Quarter-subtile: 20x finer per axis.
-static constexpr int legacyRevealRadius=80; // 20 subtiles, retained as an explicit setting.
-static int revealRadius=legacyRevealRadius;
-static bool nativeReveal=true;
-static int fixedRevealRadius=0; // Optional INI override in quarter-subtile cells.
-static const char* revealModeName(){return fixedRevealRadius?"fixed":nativeReveal?"native-average":"circle";}
-static int loadRadiusSetting(const char* path) {
-    const auto subtiles=GetPrivateProfileIntA("Automap","RevealRadiusSubtiles",0,path);
-    return subtiles>=1 && subtiles<=256?int(subtiles)*4:0;
-}
-static exploration::NativeRevealDistance nativeDistance;
+// Compiled policy: 31 world subtiles. No INI, menu or view-size override.
+static constexpr int revealRadius=124; // Quarter-subtile mask cells.
 static Rect passViewport{};
 static bool haveViewport=false;
 static exploration::FrontierContacts contactFrontier;
@@ -333,15 +324,6 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         // Loading can expose the new player area before the automap switches.
         // Do not reveal or ingest it into the previous layer's shared cache.
         maskActive=false;styledActive=false;++layerWaits;return false;
-    }
-    int width=0,height=0;
-    if(nativeReveal && !fixedRevealRadius)exploration::readNativeView(client,&width,&height);
-    const int radius=fixedRevealRadius?fixedRevealRadius:nativeReveal?nativeDistance.update(width,height):legacyRevealRadius;
-    if(radius!=revealRadius) {
-        revealRadius=radius;lastX=lastY=-1;townBoundary.revealX=townBoundary.revealY=INT_MIN;
-        townBoundary.sampled=0;
-        if(logfile){fprintf(logfile,"DISCOVERY circle radius=%.2f subtiles; mode=%s; logical view=%dx%d.\n",
-            radius*maskCellSize,revealModeName(),width,height);fflush(logfile);}
     }
     const bool changedArea=observedLevel!=static_cast<LONG>(p.level);
     InterlockedExchange(&observedLevel,static_cast<LONG>(p.level));
@@ -883,8 +865,7 @@ static void endPass() {
             fprintf(logfile,"DRAW style=%s floorQuads=%zu wallRuns=%zu preparedFloors=%d\n",styleName(activeStyle),
                 styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
                 int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
-            fprintf(logfile,"DISCOVERY mode=%s radiusSubtiles=%.2f logicalView=%dx%d calibrated=%d\n",
-                revealModeName(),revealRadius*maskCellSize,nativeDistance.width(),nativeDistance.height(),int(nativeDistance.ready()));
+            fprintf(logfile,"DISCOVERY mode=hardcoded radiusSubtiles=%.2f\n",revealRadius*maskCellSize);
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
@@ -977,27 +958,11 @@ static void ensureBoundaryMenu() {
     log(ok?"BOUNDARY menu installed in native Automap Options; five colors, red default.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI color remains available.");
 }
-static void loadStyles() {
-    // D2GL initializes us before PD2 finishes mounting its archives. Read the
-    // settings now, but resolve game tables only after a valid player exists.
-    gameTablesPending=true;
-    char path[MAX_PATH]{};
-    DWORD length=GetModuleFileNameA(nullptr,path,MAX_PATH);
-    if(!length || length>=MAX_PATH){log("Style settings unavailable; using defaults.");return;}
-    auto slash=strrchr(path,'\\');if(!slash)return;
-    std::string settings(path,slash+1);settings+="ExplorationMask.ini";
+static void loadAppearanceSettings(const std::string& settings) {
     settingsPath=settings;
     char boundary[32]{};
     GetPrivateProfileStringA("Automap","BoundaryColor","red",boundary,32,settings.c_str());
     boundaryColor=exploration::parseBoundaryColor(boundary);
-    char reveal[32]{};
-    GetPrivateProfileStringA("Automap","RevealMode","native-average",reveal,32,settings.c_str());
-    nativeReveal=_stricmp(reveal,"circle")!=0;
-    fixedRevealRadius=loadRadiusSetting(settings.c_str());
-    if(fixedRevealRadius) {
-        if(logfile){fprintf(logfile,"DISCOVERY mode=fixed; radius=%.2f subtiles; smooth circular reveal.\n",fixedRevealRadius*maskCellSize);fflush(logfile);}
-    } else log(nativeReveal?"DISCOVERY mode=native-average; circular approximation of the native logical view, no tile tracing.":
-        "DISCOVERY mode=circle; legacy custom 20-subtile radius.");
     char campaign[32]{},maps[32]{};
     GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
     GetPrivateProfileStringA("Automap","MapsStyle","hybrid",maps,32,settings.c_str());
@@ -1005,6 +970,18 @@ static void loadStyles() {
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
     if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
+}
+static void loadStyles() {
+    // D2GL initializes us before PD2 finishes mounting its archives. Read the
+    // settings now, but resolve game tables only after a valid player exists.
+    gameTablesPending=true;
+    if(logfile){fprintf(logfile,"DISCOVERY mode=hardcoded; radius=%.2f subtiles; smooth circular reveal.\n",revealRadius*maskCellSize);fflush(logfile);}
+    char path[MAX_PATH]{};
+    DWORD length=GetModuleFileNameA(nullptr,path,MAX_PATH);
+    if(!length || length>=MAX_PATH){log("Style settings unavailable; using defaults.");return;}
+    auto slash=strrchr(path,'\\');if(!slash)return;
+    std::string settings(path,slash+1);settings+="ExplorationMask.ini";
+    loadAppearanceSettings(settings);
 }
 static void loadGameTables(const exploration::GameFiles& api) {
     campaignLayers=exploration::CampaignLayers{};

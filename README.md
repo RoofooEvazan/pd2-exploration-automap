@@ -1,6 +1,8 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.4 — BETA.** The supplied settings now use a **31-subtile circular reveal radius**, keeping the smooth shaded edge. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release includes a new screenshot gallery and retains hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the radius override and native-average option.
+**Unpublished follow-up:** this source now hardcodes the smooth reveal radius at 31 subtiles and ignores the old distance settings. The linked beta.4 download still contains the earlier configurable build; this follow-up is awaiting a local game check.
+
+**v0.2.0-beta.4 — BETA.** The supplied settings now use a **31-subtile circular reveal radius**, keeping the smooth shaded edge. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release includes a new screenshot gallery and retains hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the current fixed-distance behavior.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 
@@ -61,7 +63,7 @@ Compare the same sewer frontier in [Red](docs/screenshots/boundary-color-red.png
 - Dark gray floor shading and thin gray wall outlines for endgame maps.
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
-- A smooth 31-subtile circular reveal in the supplied INI, with optional native-average and legacy 20-subtile modes.
+- A smooth 31-subtile circular reveal fixed in the plugin; INI entries and resolution changes cannot change the distance.
 - Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
 - Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
 - Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
@@ -76,7 +78,7 @@ Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested 
 
 The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
 
-**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.4 release ZIP. Add `RevealRadiusSubtiles=31` under `[Automap]` in your existing INI to get the new radius; replacing only the DLL preserves the previous reveal mode. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if your older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include the compiled DLL; use the Windows x86 BETA download above.
+**Installing the hardcoded follow-up:** close the game and replace `ExplorationMask.dll` with the new locally built/tested DLL. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. This follow-up is not yet in the linked beta.4 download. GitHub's automatic source ZIP does not include a compiled DLL.
 
 From PowerShell in this repository, check an installation without changing it:
 
@@ -126,8 +128,6 @@ Settings are read at game startup:
 CampaignStyle=hybrid
 MapsStyle=hybrid
 OverlayOpacity=80
-RevealMode=native-average
-RevealRadiusSubtiles=31
 BoundaryColor=red
 ```
 
@@ -135,7 +135,7 @@ BoundaryColor=red
 
 Open the automap once in an offline game, then use **Options → Automap Options → Boundary Color** to cycle Red, Neon Green, Magenta, Cyan and Light Blue. Each selection changes the edge immediately and saves the INI. `BoundaryColor` also accepts `red`, `neon-green`, `magenta`, `cyan` or `light-blue` directly; restart after manual INI edits. The menu extension supports the profiled `ProjectDiablo.dll`; on other menu layouts, color selection remains available through the INI. See [boundary settings and compatibility](docs/boundary-settings.md).
 
-`RevealRadiusSubtiles=31` sets a fixed circular radius of 31 world subtiles, independent of display resolution. It accepts whole values from 1 to 256; movement and the mask still use quarter-subtile precision. This overrides `RevealMode`. Set the radius to `0` to use `RevealMode=native-average` (a circular approximation of native logical-view reach) or `RevealMode=circle` (the legacy 20-subtile circle). A missing or invalid radius also follows `RevealMode`. Towns remain fully explored. Restart after editing the radius. This is distance-based exploration, not exact native tile discovery or line of sight.
+The reveal radius is hardcoded at **31 world subtiles**, with quarter-subtile movement precision and the same smooth edge. Neither INI entries, menu options nor display resolution can alter it. Towns remain fully explored. This is distance-based exploration, not exact native tile discovery or line of sight. Hardcoding removes the supported configuration override; it does not prevent modifying the open-source client or establish online compatibility.
 
 The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
 

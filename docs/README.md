@@ -4,7 +4,7 @@ Guides to the automap's design, compatibility requirements, testing, and perform
 
 | Guide | What it explains |
 | --- | --- |
-| [Boundary settings](boundary-settings.md) | Five saved frontier colors, the native menu extension, the 31-subtile circle and optional native-average distance. |
+| [Boundary settings](boundary-settings.md) | Five saved frontier colors, the native menu extension and the hardcoded 31-subtile circle. |
 | [Campaign BETA guide](campaign-prototype.md) | Hybrid contours, preserved native details, settings, game-table requirements, session persistence and known limits. |
 | [Hybrid performance](hybrid-performance.md) | Clipping/water reuse, benchmark scope and overlay opacity. |
 | [Large-map optimization](map-growth-optimization.md) | prepared floors, joined wall runs, growth-aware clipping and hybrid endgame testing. |

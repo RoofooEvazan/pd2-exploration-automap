@@ -569,7 +569,7 @@ static void testJoinedCampaignAreas() {
     styled_map::Worker worker;styledWorker=&worker;styledArray=captureTownArray;styledColor=captureColor;
     campaignStyle=MapStyle::Native;mapsStyle=MapStyle::Styled;enabled=true;
     sessionIdentity=exploration::SessionIdentity{};InterlockedExchange(&menuEpoch,0);
-    PlayerState player{105,110,76,123,456,reinterpret_cast<uintptr_t>(act.data()),2};
+    PlayerState player{100,110,76,123,456,reinterpret_cast<uintptr_t>(act.data()),2};
     updateForPlayer(player,200000);
     const auto key=lastLevelKey;auto* joinedMask=explored;
     auto finish=[&](std::size_t cells) {
@@ -582,16 +582,17 @@ static void testJoinedCampaignAreas() {
         require(false);
     };
     finish(400);auto* joinedDrawing=styledCurrent;
-    require(drawingCovers(styledCurrent->drawing,{105,110}));
+    require(drawingCovers(styledCurrent->drawing,{100,110}));
     // The first area's native room is no longer loaded. Its owned capture and
     // explored geometry must survive crossing to another area on this layer.
     put(act,0x10,roomB.data());player.level=78;player.x=135;
     updateForPlayer(player,201000);
-    require(lastLevelKey==key && explored==joinedMask && explored->contains({105,110}));
+    require(lastLevelKey==key && explored==joinedMask && explored->contains({100,110}));
     finish(800);
     require(styledCurrent==joinedDrawing && styledCurrent->floor.rooms.size()==2);
-    require(drawingCovers(styledCurrent->drawing,{105,110}) && drawingCovers(styledCurrent->drawing,{135,110}));
-    Mask currentOnly(.25);currentOnly.revealAround({135,110},80);require(!currentOnly.contains({105,110}));
+    require(drawingCovers(styledCurrent->drawing,{100,110}) && drawingCovers(styledCurrent->drawing,{135,110}));
+    // The old room sample is farther away than the compiled 31-subtile radius.
+    Mask currentOnly(.25);currentOnly.revealAround({135,110},124);require(!currentOnly.contains({100,110}));
     // Previously explored native details still pass through the joined mask.
     std::vector<DWORD> frame(8),file(7),ctx(14);frame[1]=20;frame[2]=20;file[5]=1;
     file[6]=reinterpret_cast<DWORD>(frame.data());ctx[13]=reinterpret_cast<DWORD>(file.data());
@@ -608,15 +609,15 @@ static void testJoinedCampaignAreas() {
     require(!updateForPlayer(player,201500) && lastLevelKey==key && joinedMask->size()==previousSize);
     require(!joinedMask->contains({500,110}) && !maskActive && !styledActive);
     player.x=135;layer=66;require(updateForPlayer(player,202000));
-    require(lastLevelKey!=key && !explored->contains({105,110}));
+    require(lastLevelKey!=key && !explored->contains({100,110}));
     layer=57;player.level=78;updateForPlayer(player,203000);require(lastLevelKey==key && explored==joinedMask);
     player.actNumber=1;require(mapKey(player)!=key);player.actNumber=2;
     player.level=204;auto map204=mapKey(player);player.level=205;require(mapKey(player)!=map204 && mapKey(player)!=key);
     player.level=78;layer=0xffffffffu;require(mapKey(player)==((std::uint64_t(player.seed)<<32)|78));
-    layer=57;player.level=76;player.x=105;updateForPlayer(player,204000);require(lastLevelKey==key && explored->contains({135,110}));
+    layer=57;player.level=76;player.x=100;updateForPlayer(player,204000);require(lastLevelKey==key && explored->contains({135,110}));
     // A new game still clears the whole shared layer, including the old area.
     player.level=78;player.x=135;InterlockedIncrement(&menuEpoch);updateForPlayer(player,205000);
-    require(!explored->contains({105,110}));
+    require(!explored->contains({100,110}));
     styledWorker=nullptr;styledCurrent=nullptr;styledActive=false;nativeTownActive=false;inPass=false;
     client=nullptr;explored=&emptyMask;townBoundary=TownBoundary{};activeStyle=MapStyle::Styled;
     campaignLayers=exploration::CampaignLayers{};
@@ -1116,9 +1117,8 @@ static void testWaterReuse() {
     std::cout<<"PASS: water perimeter reuse across reordered frames, changed tiles, zooms, duplicates and capacity limits\n";
 }
 #include "boundary_menu_tests.hpp"
-#include "native_distance_tests.hpp"
+#include "fixed_distance_tests.hpp"
 int main() {
-    require(nativeReveal);nativeReveal=false; // Retain explicit legacy-circle regression coverage.
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
     testOverlayOpacity(); // Existing rendering contracts then run at 100%.
@@ -1159,8 +1159,8 @@ int main() {
     require(floatCalls==5 && capturedA.x==6.25f && capturedB.y==9.125f && !fractionalFrontier);
     PlayerState state{100.125,100.125,202,999,77};
     updateForPlayer(state,1000);require(maskActive && explored->cellSize()==0.25);
-    require(explored->contains({120.125,100.125}) && !explored->contains({120.375,100.125}));
-    state.x+=0.25;updateForPlayer(state,1010);require(explored->contains({120.375,100.125}));
+    require(explored->contains({131.125,100.125}) && !explored->contains({131.375,100.125}));
+    state.x+=0.25;updateForPlayer(state,1010);require(explored->contains({131.375,100.125}));
     auto wildernessSize=explored->size();
     originalCell=captureCell;inPass=true;
     for(DWORD level:{1u,40u,75u,103u,109u}) {
@@ -1187,6 +1187,6 @@ int main() {
     testRasterCache();testWaterReuse();
     testGameTables();
     testBoundaryMenu();
-    testNativeDistance();
+    testFixedDistance();
     return 0;
 }
