@@ -22,6 +22,28 @@ struct Drawing {
     std::vector<Stroke> walls;
     std::size_t quads=0;
 };
+// Remove artificial splits in axis-aligned walls without bridging any gap.
+// Runs remain in world coordinates, so both zooms use the same exact endpoints.
+inline void compactWalls(std::vector<Stroke>& walls) {
+    auto vertical=[](const Stroke& w){return w.a.x==w.b.x;};
+    for(auto& w:walls) {
+        if((vertical(w) && w.a.y>w.b.y) || (!vertical(w) && w.a.x>w.b.x))std::swap(w.a,w.b);
+    }
+    auto key=[&](const Stroke& w){return std::make_tuple(vertical(w),vertical(w)?w.a.x:w.a.y,
+        vertical(w)?w.a.y:w.a.x);};
+    std::sort(walls.begin(),walls.end(),[&](const Stroke& a,const Stroke& b){return key(a)<key(b);});
+    std::size_t keep=0;
+    for(auto w:walls) {
+        if(keep) {
+            auto& last=walls[keep-1];
+            const bool straight=(vertical(last) && vertical(w)) ||
+                (last.a.y==last.b.y && w.a.y==w.b.y);
+            if(straight && last.b.x==w.a.x && last.b.y==w.a.y){last.b=w.b;continue;}
+        }
+        walls[keep++]=w;
+    }
+    walls.resize(keep);
+}
 inline Row overlap(const Row& a,const Row& b) {
     Row out;std::size_t i=0,j=0;
     while(i<a.size() && j<b.size()) {

@@ -5,6 +5,7 @@
 #pragma once
 #include "StyledMap.hpp"
 #include "StyledChunks.hpp"
+#include "PreparedFloors.hpp"
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -55,6 +56,7 @@ struct BuildResult {
     double milliseconds=0,latencyMilliseconds=0;
     bool success=false;
     Drawing drawing;
+    std::unique_ptr<PreparedFloors> preparedFloors;
 };
 // One worker, one replaceable pending snapshot, one completed result. A slow
 // rebuild cannot create an unbounded queue or block the game's drawing thread.
@@ -89,6 +91,7 @@ class Worker {
                     floor.ingest(room->x,room->y,room->w,room->h,room->flags);
                 if(floor.connect(request->player)) {
                     result->drawing=map.build(request->visible);
+                    result->preparedFloors=PreparedFloors::build(result->drawing);
                     result->floorCells=floor.size();result->success=true;
                     result->rebuiltChunks=map.rebuiltChunks;result->totalChunks=map.chunkCount();
                 }

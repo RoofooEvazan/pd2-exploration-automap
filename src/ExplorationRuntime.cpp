@@ -27,6 +27,10 @@
 #include "NativeWallTrace.hpp"
 #include "SewerWater.hpp"
 #include "RasterClipCache.hpp"
+#include "ArtworkBounds.hpp"
+#include "BoundaryColors.hpp"
+#include "BoundaryMenu.hpp"
+#include "NativeRevealDistance.hpp"
 #include <unordered_map>
 using exploration::Point;
 using exploration::Rect;
@@ -54,6 +58,8 @@ static ConstantColor styledColor=nullptr;
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
+static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
+static std::string settingsPath;
 static DWORD overlayAlpha(DWORD alpha){return (alpha*overlayOpacity+50)/100;}
 static DWORD overlayColor(DWORD color){return (color&0xffffff00u)|overlayAlpha(color&255);}
 struct StyledState {
@@ -67,6 +73,10 @@ struct StyledState {
 static styled_map::Worker* styledWorker=nullptr;
 static std::map<std::uint64_t,StyledState> styledLevels;
 static StyledState* styledCurrent=nullptr;
+// Keep one prepared floor result, not an extra mesh for every visited area.
+static std::unique_ptr<styled_map::PreparedFloors> preparedFloors;
+static const StyledState* preparedOwner=nullptr;
+static std::uint64_t preparedSerial=0;
 static bool styledActive=false;
 static unsigned long styledPasses=0,styledQuadCount=0;
 static double styledBuildMs=0;
@@ -79,13 +89,16 @@ static void* originalBegin=nullptr;
 static void* originalEnd=nullptr;
 static bool inPass=false,maskActive=false,enabled=true,installed=false;
 enum class MapStyle { Original, Native, Styled, Hybrid };
-static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Styled,activeStyle=MapStyle::Styled;
+static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Hybrid,activeStyle=MapStyle::Styled;
 static exploration::HybridArtwork hybridArtwork;
 static exploration::CampaignLayers campaignLayers;
 static bool gameTablesPending=false;
 static void ensureGameTables();
+static void ensureBoundaryMenu();
 static unsigned long layerWaits=0;
 static unsigned long hybridWallsReplaced=0,hybridDetails=0,hybridWater=0;
+static exploration::ArtworkBounds artworkBounds;
+static unsigned long nativeBoundsTrimmed=0,blankSpritesSkipped=0;
 static std::vector<GlideVertex> sewerCasing,sewerCore;
 static unsigned long sewerTraced=0,sewerFallbacks=0;
 struct CachedWallTrace {DWORD length=0;exploration::NativeWallTrace shape;};
@@ -107,7 +120,10 @@ static constexpr DWORD targetLevel=0; // Zero applies to every area in the opt-i
 // source gray muted instead of using a near-white pale palette entry.
 static constexpr DWORD frontierColor=29;
 static constexpr double maskCellSize=0.25; // Quarter-subtile: 20x finer per axis.
-static constexpr int revealRadius=80; // Preserve the original 20-subtile radius.
+static constexpr int legacyRevealRadius=80; // 20 subtiles, retained as an explicit setting.
+static int revealRadius=legacyRevealRadius;
+static bool nativeReveal=true;
+static exploration::NativeRevealDistance nativeDistance;
 static Rect passViewport{};
 static bool haveViewport=false;
 static exploration::FrontierContacts contactFrontier;
@@ -154,13 +170,17 @@ static bool townInViewport=true;
 static unsigned long townClippedCells=0,townPreviewPasses=0;
 static exploration::RasterClipCache rasterClips;
 // Reuse exact clipping in stable automap coordinates. Exploration is monotonic
-// within a session/layer; size changes invalidate coverage immediately.
+// within a session/layer; growth refreshes partial coverage, retaining full clips.
 static void prepareRasterCache(int divisor) {
-    auto context=std::make_tuple(gameSerial,lastLevelKey,explored,explored->size(),divisor,nativeTownActive,
+    auto context=std::make_tuple(gameSerial,lastLevelKey,explored,divisor,nativeTownActive,
         townBoundary.session,townBoundary.act,townBoundary.seed,townBoundary.level,townBoundary.layer,
         townBoundary.bounds.left,townBoundary.bounds.top,townBoundary.bounds.right,townBoundary.bounds.bottom);
     static decltype(context) previous{};
-    if(context!=previous){rasterClips.invalidate();previous=context;}
+    static std::size_t previousSize=0;
+    const auto size=explored->size();
+    if(context!=previous || size<previousSize){rasterClips.invalidate();previous=context;}
+    else if(size>previousSize)rasterClips.grow();
+    previousSize=size;
 }
 template<class Emit> static void cachedRasterClips(Rect bounds,int divisor,int shiftX,int shiftY,int coverage,Emit emit) {
     // All drawing paths share both the cache and its invalidation context.
@@ -265,7 +285,7 @@ static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
         (p.level==townBoundary.level || p.level==townBoundary.outside || sharedCampaign);
     if(!nativeTownActive || !town || !styledWorker || !styledArray || !styledColor || targetLevel!=0 ||
        strstr(GetCommandLineA(),"-exploration-floor-probe"))return p;
-    constexpr double radius=revealRadius*maskCellSize;
+    const double radius=revealRadius*maskCellSize;
     if(!townBoundary.sampled || now-townBoundary.sampled>=250) {
         townBoundary.sampled=now;townBoundary.nearOutside=false;
         double nearest=radius*radius;DWORD outside=0;Point connection{};
@@ -308,13 +328,24 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         // Do not reveal or ingest it into the previous layer's shared cache.
         maskActive=false;styledActive=false;++layerWaits;return false;
     }
+    int width=0,height=0;
+    if(nativeReveal)exploration::readNativeView(client,&width,&height);
+    const int radius=nativeReveal?nativeDistance.update(width,height):legacyRevealRadius;
+    if(radius!=revealRadius) {
+        revealRadius=radius;lastX=lastY=-1;townBoundary.revealX=townBoundary.revealY=INT_MIN;
+        townBoundary.sampled=0;
+        if(logfile){fprintf(logfile,"DISCOVERY circle radius=%.2f subtiles; native logical view=%dx%d; average reach approximation.\n",
+            radius*maskCellSize,width,height);fflush(logfile);}
+    }
     const bool changedArea=observedLevel!=static_cast<LONG>(p.level);
     InterlockedExchange(&observedLevel,static_cast<LONG>(p.level));
     auto change=sessionIdentity.observe(p.id,p.actNumber,p.seed,DWORD(InterlockedCompareExchange(&menuEpoch,0,0)));
     if(change!=exploration::SessionChange::None) {
         explorationSession.leave();++gameSerial;lastLevelKey=0;lastX=lastY=-1;sawTarget=false;
         styledLevels.clear();styledCurrent=nullptr;styledActive=false;townBoundary=TownBoundary{};
+        preparedFloors.reset();preparedOwner=nullptr;
         silhouetteCache.clear();silhouetteBytes=0;
+        artworkBounds.clear();
         sewerWallTraces.clear();
         if(logfile){fprintf(logfile,"SESSION reset serial=%llu reason=%s menuEpoch=%ld\n",
             static_cast<unsigned long long>(gameSerial),exploration::sessionReason(change),InterlockedCompareExchange(&menuEpoch,0,0));fflush(logfile);}
@@ -325,6 +356,7 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         lastLevelKey=levelKey;lastX=lastY=-1;sawTarget=false;
         // No borrowed frame memory survives an area/session change.
         silhouetteCache.clear();silhouetteBytes=0;
+        artworkBounds.clear();
     }
     const bool town=isTown(p.level);
     activeStyle=styleForLevel(p.level);
@@ -360,13 +392,14 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
     if(!maskActive || !styledWorker || !styledArray || !styledColor || strstr(GetCommandLineA(),"-exploration-floor-probe"))return;
     try {
         static std::uint64_t serial=0,selected=0;static DWORD sampled=0;
-        if(serial!=gameSerial){styledLevels.clear();styledCurrent=nullptr;serial=gameSerial;selected=0;}
+        if(serial!=gameSerial){styledLevels.clear();styledCurrent=nullptr;preparedFloors.reset();preparedOwner=nullptr;serial=gameSerial;selected=0;}
         const bool changedArea=selected!=levelKey;
         if(changedArea){sampled=0;selected=levelKey;}
         if(auto result=styledWorker->take()) {
             auto it=styledLevels.find(result->level);
             if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
                 it->second.drawing=std::move(result->drawing);it->second.floorCells=result->floorCells;
+                preparedFloors=std::move(result->preparedFloors);preparedOwner=&it->second;preparedSerial=gameSerial;
                 styledBuildMs=result->milliseconds;
                 styledLatencyMs=result->latencyMilliseconds;styledRebuiltChunks=result->rebuiltChunks;styledTotalChunks=result->totalChunks;
             }
@@ -392,6 +425,7 @@ static void update() {
     PlayerState p{};
     if(!playerState(&p)) {InterlockedIncrement(&stateFailure);maskActive=false;nativeTownActive=false;sawTarget=false;return;}
     ensureGameTables();
+    ensureBoundaryMenu();
     DWORD now=GetTickCount();if(!updateForPlayer(p,now))return;
     if(maskActive)probeFloors(p.level);
     auto drawingPlayer=updateTownBoundary(p,now);
@@ -435,14 +469,14 @@ static bool frameIndex(void* ctx,DWORD* id) {
     __try {if(!ctx)return false;*id=read<DWORD>(ctx);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
-struct FrameSource { const void* frame;DWORD length,flags;int width,height; };
+struct FrameSource { const void* frame;DWORD length,flags;int width,height;const void* file;DWORD index; };
 static bool frameSource(void* ctx,FrameSource* source) {
     __try {
         auto file=read<void*>(ctx,0x34);if(!file || read<DWORD>(file)!=6 || read<DWORD>(file,8)!=0)return false;
         DWORD index=read<DWORD>(ctx),count=read<DWORD>(file,0x14);
         if(index>=count || count>65536)return false;
         auto frame=read<void*>(file,0x18+index*4);if(!frame)return false;
-        *source={frame,read<DWORD>(frame,0x1c),read<DWORD>(frame),read<int>(frame,4),read<int>(frame,8)};
+        *source={frame,read<DWORD>(frame,0x1c),read<DWORD>(frame),read<int>(frame,4),read<int>(frame,8),file,index};
         return source->width>0 && source->width<=512 && source->height>0 && source->height<=512 &&
             source->length>0 && source->length<=512u*1025u && source->flags==0;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
@@ -450,6 +484,15 @@ static bool frameSource(void* ctx,FrameSource* source) {
 static bool copyFrameBytes(const FrameSource& source,unsigned char* bytes) {
     __try {memcpy(bytes,static_cast<const unsigned char*>(source.frame)+0x20,source.length);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static bool opaqueFrameBounds(void* ctx,Rect asset,Rect* bounds) {
+    FrameSource source{};if(!frameSource(ctx,&source))return false;
+    if(source.width!=asset.right-asset.left || source.height!=asset.bottom-asset.top)return false;
+    Rect local{};
+    exploration::ArtworkBounds::Key key{reinterpret_cast<std::uintptr_t>(source.file),reinterpret_cast<std::uintptr_t>(source.frame),
+        source.index,source.length,source.width,source.height};
+    if(!artworkBounds.query(key,[&](unsigned char* bytes){return copyFrameBytes(source,bytes);},local))return false;
+    *bounds={asset.left+local.left,asset.top+local.top,asset.left+local.right,asset.top+local.bottom};return true;
 }
 static bool queueTraceLines(const std::vector<std::pair<Point,Point>>& lines,Point offset,const std::vector<Rect>& clips);
 static bool queueSewerWall(void* ctx,DWORD id,Rect asset,const std::vector<Rect>& clips) {
@@ -588,7 +631,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         bool replaceWall=false,traceSewer=false,traceWater=false;DWORD id=0;
         if(hybrid) {
             // frameBounds below validates the complete context before any draw.
-            auto role=frameIndex(ctx,&id)?hybridArtwork.role(id):exploration::HybridArtwork::Role::Detail;
+            auto role=frameIndex(ctx,&id)?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
             replaceWall=role==exploration::HybridArtwork::Role::Wall;
@@ -612,6 +655,19 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         Rect assetBounds=bounds;
         if(traceSewer){bounds.left-=2;bounds.top-=2;bounds.right+=2;bounds.bottom+=2;}
         bounds=exploration::intersect(bounds,viewport);
+        if(bounds.left>=bounds.right || bounds.top>=bounds.bottom){++suppressed;return;}
+        // Retained native sprites often occupy only the bottom of their frame.
+        // Ignore transparent padding when querying the mask; the original
+        // textured quad/UVs still draw. Sewer traces need the complete canvas,
+        // and native towns keep their existing route. Invalid metadata falls back.
+        if(hybrid && !nativeTownActive && !traceSewer && !traceWater) {
+            Rect opaque{};
+            if(opaqueFrameBounds(ctx,assetBounds,&opaque)) {
+                if(opaque.left>=opaque.right || opaque.top>=opaque.bottom){++blankSpritesSkipped;++suppressed;return;}
+                if(opaque.left!=assetBounds.left || opaque.top!=assetBounds.top || opaque.right!=assetBounds.right || opaque.bottom!=assetBounds.bottom)++nativeBoundsTrimmed;
+                bounds=exploration::intersect(bounds,opaque);
+            }
+        }
         if(bounds.left>=bounds.right || bounds.top>=bounds.bottom){++suppressed;return;}
         // Record all visible native water tiles before mask clipping so shared
         // internal edges cancel even when a neighboring tile is unexplored.
@@ -720,17 +776,21 @@ static void drawStyled(const Transform& t,Rect viewport) {
     } clearSubmission;
     static std::vector<GlideVertex> vertices;
     static std::vector<const void*> pointers;
-    for(const auto& layer:styledCurrent->drawing.layers)for(int red:{0,1}) {
+    const bool prepared=preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial;
+    for(std::size_t i=0;i<styledCurrent->drawing.layers.size();++i)for(int red:{0,1}) {
+        const auto& layer=styledCurrent->drawing.layers[i];
         vertices.clear();pointers.clear();
-        for(const auto& q:red?layer.redQuads:layer.quads) {
+        auto append=[&](const styled_map::Quad& clipped){
+            for(auto p:{clipped.a,clipped.b,clipped.c,clipped.d})vertices.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+        };
+        if(prepared)preparedFloors->clip(i,red!=0,int(t.divisor),t.ox,t.oy,viewport,append);
+        else for(const auto& q:red?layer.redQuads:layer.quads) {
             styled_map::Quad screen{project(q.a,t),project(q.b,t),project(q.c,t),project(q.d,t)};
-            styled_map::clipQuad(screen,viewport,[&](const styled_map::Quad& clipped){
-                for(auto p:{clipped.a,clipped.b,clipped.c,clipped.d})vertices.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
-            });
+            styled_map::clipQuad(screen,viewport,append);
         }
         if(vertices.empty())continue;
         for(const auto& vertex:vertices)pointers.push_back(&vertex);
-        styledBatchColor=red?((layer.gray*165/100)<<24)|((layer.gray*48/100)<<16)|((layer.gray*40/100)<<8)|layer.alpha:
+        styledBatchColor=red?exploration::boundaryRGBA(boundaryColor,layer.gray,layer.alpha):
             (layer.gray*0x01010100u)|layer.alpha;
         styledRestoreColor=0x84848400u|layer.alpha;
         styledBatch=&pointers;
@@ -814,8 +874,15 @@ static void endPass() {
             lastReport=GetTickCount();
             double ms=counterFrequency.QuadPart && mapSamples?1000.0*mapTicks/counterFrequency.QuadPart/mapSamples:0;
             fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu townNativeCells=%lu townPreviewPasses=%lu previewLevel=%lu townClipActive=%d\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks,townClippedCells,townPreviewPasses,townBoundary.outside,nativeTownActive);fflush(logfile);
+            fprintf(logfile,"DRAW style=%s floorQuads=%zu wallRuns=%zu preparedFloors=%d\n",styleName(activeStyle),
+                styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
+                int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
+            fprintf(logfile,"DISCOVERY mode=%s radiusSubtiles=%.2f logicalView=%dx%d calibrated=%d\n",
+                nativeReveal?"native-average":"circle",revealRadius*maskCellSize,nativeDistance.width(),nativeDistance.height(),int(nativeDistance.ready()));
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
+            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
+                nativeBoundsTrimmed,blankSpritesSkipped,artworkBounds.hits(),artworkBounds.decoded(),artworkBounds.failures());fflush(logfile);}
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }
@@ -882,6 +949,28 @@ static MapStyle parseStyle(const char* value,MapStyle fallback) {
     if(_stricmp(value,"original")==0)return MapStyle::Original;
     return fallback;
 }
+static bool selectBoundaryColor(exploration::BoundaryColor color) {
+    if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
+    if(color==boundaryColor)return true;
+    const auto& preset=exploration::boundaryPreset(color);
+    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap","BoundaryColor",preset.key,settingsPath.c_str())) {
+        log("Boundary color unchanged: unable to save ExplorationMask.ini.");return false;
+    }
+    boundaryColor=color;
+    if(logfile){fprintf(logfile,"BOUNDARY color=%s; saved, geometry unchanged.\n",preset.key);fflush(logfile);}
+    return true;
+}
+static void ensureBoundaryMenu() {
+    static bool attempted=false;
+    if(attempted)return;
+    auto pd=reinterpret_cast<unsigned char*>(GetModuleHandleA("ProjectDiablo.dll"));
+    if(!pd)return;
+    attempted=true;
+    const auto ok=exploration::boundary_menu::install(pd,client,
+        reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,[]{return boundaryColor;});
+    log(ok?"BOUNDARY menu installed in native Automap Options; five colors, red default.":
+        "BOUNDARY menu unavailable: supported menu signatures differ. INI color remains available.");
+}
 static void loadStyles() {
     // D2GL initializes us before PD2 finishes mounting its archives. Read the
     // settings now, but resolve game tables only after a valid player exists.
@@ -891,10 +980,19 @@ static void loadStyles() {
     if(!length || length>=MAX_PATH){log("Style settings unavailable; using defaults.");return;}
     auto slash=strrchr(path,'\\');if(!slash)return;
     std::string settings(path,slash+1);settings+="ExplorationMask.ini";
+    settingsPath=settings;
+    char boundary[32]{};
+    GetPrivateProfileStringA("Automap","BoundaryColor","red",boundary,32,settings.c_str());
+    boundaryColor=exploration::parseBoundaryColor(boundary);
+    char reveal[32]{};
+    GetPrivateProfileStringA("Automap","RevealMode","native-average",reveal,32,settings.c_str());
+    nativeReveal=_stricmp(reveal,"circle")!=0;
+    log(nativeReveal?"DISCOVERY mode=native-average; circular approximation of the native logical view, no tile tracing.":
+        "DISCOVERY mode=circle; legacy custom 20-subtile radius.");
     char campaign[32]{},maps[32]{};
     GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
-    GetPrivateProfileStringA("Automap","MapsStyle","styled",maps,32,settings.c_str());
-    campaignStyle=parseStyle(campaign,MapStyle::Hybrid);mapsStyle=parseStyle(maps,MapStyle::Styled);
+    GetPrivateProfileStringA("Automap","MapsStyle","hybrid",maps,32,settings.c_str());
+    campaignStyle=parseStyle(campaign,MapStyle::Hybrid);mapsStyle=parseStyle(maps,MapStyle::Hybrid);
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
     if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
@@ -930,7 +1028,7 @@ static void loadGameTables(const exploration::GameFiles& api) {
             if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
             if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
             log("Hybrid artwork definitions unavailable; retaining native exploration style.");
-        } else if(logfile){fprintf(logfile,"HYBRID classified %zu ordinary wall artwork IDs; native details/water protected.\n",hybridArtwork.walls());fflush(logfile);}
+        } else if(logfile){fprintf(logfile,"HYBRID classified %zu ordinary wall artwork IDs; %zu Poisoned Well contour IDs; native details/water protected.\n",hybridArtwork.walls(),hybridArtwork.poisonedWellContours());fflush(logfile);}
     }
     if(logfile){fprintf(logfile,"STYLE campaign=%d maps=%d (0=original, 1=native exploration, 2=styled, 3=hybrid); no added markers or arrows.\n",
         int(campaignStyle),int(mapsStyle));fflush(logfile);}
@@ -985,8 +1083,8 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
     auto gfx=GetModuleHandleA("D2gfx.dll"),wrapper=GetModuleHandleA("glide3x.dll");
     if(!client || !glide || !gfx || !wrapper){log("Not installed: expected Glide modules unavailable.");return;}
     if(!bindMenuState(GetModuleHandleA("D2Win.dll"))){log("Not installed: menu/session reader layout differs.");return;}
-    try {loadStyles();}catch(...) {campaignStyle=MapStyle::Native;mapsStyle=MapStyle::Styled;
-        log("Hybrid/style settings unavailable; using native campaign and styled maps.");}
+    try {loadStyles();}catch(...) {campaignStyle=MapStyle::Native;mapsStyle=MapStyle::Native;
+        log("Hybrid/style settings unavailable; using native exploration styling.");}
     auto b=client+0x6269e,e=client+0xc3aa1,c=client+0x604ea,q=glide+0xa33f;
     auto l=glide+0x94ba,p=glide+0x944c;
     if(*b!=0xe8 || *e!=0xe8 || *c!=0xe8 || *q!=0xe8 || *l!=0xe8 || *p!=0xe8 ||

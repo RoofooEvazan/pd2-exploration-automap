@@ -1,12 +1,12 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.2 — BETA.** Fixes missing-table installation failures: hybrid styling and adjoining-area persistence now load definitions automatically from the installed game. No separate `automap.txt`, `Objects.txt` or `Levels.txt` download or extraction is needed for the supported PD2 installation. Existing appearance settings are preserved; no quest markers or exit arrows are added.
+**v0.2.0-beta.3 — BETA.** Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. The soft circular reveal now approximates average native view reach. Maps use the campaign's hybrid style, with performance improvements for large explored maps, corrected Poisoned Well contours and less work on transparent artwork. Automatic game-table loading from beta.2 remains included. No quest markers or exit arrows are added.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and muted red edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.2.0-beta.2 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.2). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+[Download v0.2.0-beta.3 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.3). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -20,7 +20,7 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 | [scripts](scripts/) | A read-only checker that compares your game files with the tested build. |
 | [src](src/) | The plugin's exploration mask, floor shading, wall outlines, renderer hooks, and background updates. |
 | [tests](tests/) | Checks for exploration, clipping, drawing behavior, and incremental map updates. |
-| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map appearance and full-screen overlay opacity settings. |
+| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map style, reveal distance, boundary color and overlay opacity settings. |
 | [CMakeLists.txt](CMakeLists.txt) | Build settings for the 32-bit Windows DLL and its three test programs. |
 | [compatibility.json](compatibility.json) | Fingerprints of the tested game files and plugin, plus loader and launch settings. |
 | [LICENSE](LICENSE) | The MIT license for this project's original source code. |
@@ -52,14 +52,16 @@ The [full gallery](docs/screenshots/) also includes earlier Dark Temple and reve
 
 - Hybrid campaign styling: gray contours and shaded floors with native roads, entrances, water patterns and icons.
 - Straight Act 3 sewer wall profiles, highlighted water channels and retained bridge artwork.
-- Independent campaign/endgame styles and adjustable full-screen overlay opacity.
+- Five boundary colors in the existing Automap Options menu, saved immediately.
+- Hybrid styling for both campaign and maps, independent style settings, and adjustable full-screen overlay opacity.
+- Prepared floor coordinates, reused fully explored clips and occupied artwork bounds reduce repeated drawing work.
 - Connected campaign areas retain their explored map when crossing zone boundaries.
 - Exploration survives automap pauses, temporary loading and travel within the same tracked session.
 - Reused artwork clipping and water perimeters reduce repeated CPU work.
 - Dark gray floor shading and thin gray wall outlines for endgame maps.
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
-- A 20-subtile reveal radius around the player's movement, retained while visiting other areas in the same tracked session.
+- A smooth circular reveal sized to average native logical-view reach; the old fixed 20-subtile radius remains available.
 - Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
 - Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
 - Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
@@ -74,7 +76,7 @@ Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested 
 
 The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
 
-**Upgrading from beta.1:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.2 release ZIP. Keep your INI, loader entry and normal launch flags. Downloading GitHub’s source ZIP does not supply the compiled DLL.
+**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.3 release ZIP. Keep your loader entry and normal launch flags. Merge the [settings below](#appearance-settings) into your existing INI to preserve preferences. Set `MapsStyle=hybrid` to use the new map appearance if your older INI says `styled`. Missing `RevealMode` and `BoundaryColor` keys default to `native-average` and `red`. GitHub's automatic source ZIP does not include the compiled DLL; use the Windows x86 BETA download above.
 
 From PowerShell in this repository, check an installation without changing it:
 
@@ -122,11 +124,17 @@ Settings are read at game startup:
 ```ini
 [Automap]
 CampaignStyle=hybrid
-MapsStyle=styled
+MapsStyle=hybrid
 OverlayOpacity=80
+RevealMode=native-average
+BoundaryColor=red
 ```
 
 `hybrid` combines modern contours with native campaign details. `native` keeps native artwork with exploration shading, `styled` uses simplified terrain, and `original` disables the exploration effect for that group. Campaign and endgame settings are independent. `OverlayOpacity` accepts 10-100; 80 uses 20% less alpha for custom full-screen drawing, and 100 restores the previous opacity. Native symbols keep their own rendering. The tested D2GL corner minimap uses fixed capture opacity and is unaffected. Restart after edits. See the [campaign guide](docs/campaign-prototype.md) for details.
+
+Open the automap once in an offline game, then use **Options → Automap Options → Boundary Color** to cycle Red, Neon Green, Magenta, Cyan and Light Blue. Each selection changes the edge immediately and saves the INI. `BoundaryColor` also accepts `red`, `neon-green`, `magenta`, `cyan` or `light-blue` directly; restart after manual INI edits. The menu extension supports the profiled `ProjectDiablo.dll`; on other menu layouts, color selection remains available through the INI. See [boundary settings and compatibility](docs/boundary-settings.md).
+
+`RevealMode=native-average` keeps the rounded edge and sizes it from the average reach of the game's logical view. It is an approximation, not exact native tile discovery or line of sight. The tested 1068×600 logical view gives a 28-subtile radius, compared with the previous 20. `RevealMode=circle` restores the old fixed radius. Towns remain fully explored. The calculation is cached by logical resolution and does not grow as more of the map is explored.
 
 The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
 
@@ -152,7 +160,7 @@ The three test executables cover the mask, native primitive clipping, fractional
 
 The renderer rebuilds changed regions on a single background worker and draws the latest completed geometry. In one development test with more than 1.4 million explored fine cells, sampled worker builds averaged about **11.4 ms** and automap CPU work averaged about **1.45 ms**, with an observed 240 FPS game display. Earlier full rebuilds in that test had grown to roughly 300 ms.
 
-Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. See [hybrid performance](docs/hybrid-performance.md) and [earlier performance measurements](docs/performance.md) for scope and remaining costs.
+Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. Beta.3 additionally reuses prepared floor coordinates, retains fully explored clipping results, removes duplicate Poisoned Well contours, and avoids clipping transparent artwork margins. See [large-map improvements](docs/map-growth-optimization.md), [Dark Temple artwork optimization](docs/native-artwork-padding.md), [hybrid performance](docs/hybrid-performance.md) and [earlier measurements](docs/performance.md) for scope and remaining costs.
 
 ## Limitations
 

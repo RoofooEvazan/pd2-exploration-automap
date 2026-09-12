@@ -2,7 +2,7 @@
 
 The campaign now defaults to a hybrid appearance: shaded floors and the red exploration edge from the modern map, gray wall/shore contours with a subtle dark border, and the original water patterns, roads, stairs, entrances, and icons. Ordinary wall artwork is selectively replaced; uncertain or mixed-purpose artwork stays native. No new quest markers, exit arrows, destination labels, or room-reveal calls are added.
 
-This guide covers v0.2.0-beta.2, including automatic game-table loading. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
+This guide covers v0.2.0-beta.3, including automatic game-table loading, hybrid endgame defaults and boundary settings. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
 
 ## Settings
 
@@ -11,8 +11,10 @@ Copy [ExplorationMask.ini](../ExplorationMask.ini) beside `Game.exe`. Settings a
 ```ini
 [Automap]
 CampaignStyle=hybrid
-MapsStyle=styled
+MapsStyle=hybrid
 OverlayOpacity=80
+RevealMode=native-average
+BoundaryColor=red
 ```
 
 | Value | Behavior |
@@ -22,7 +24,7 @@ OverlayOpacity=80
 | `styled` | The previous simplified floor/wall appearance and exploration bands. |
 | `original` | Native automap with the plugin's exploration mask and shading disabled for that group. |
 
-The inspected level table identifies campaign levels as 1 through 132, ending at Worldstone Chamber. Special/endgame levels above 132 use `MapsStyle`. Towns retain their native footprint; nearby outdoor terrain follows its selected style on both sides of the gate. There are no keyboard bindings or in-game controls in this prototype.
+The inspected level table identifies campaign levels as 1 through 132, ending at Worldstone Chamber. Special/endgame levels above 132 use `MapsStyle`. Towns retain their native footprint; nearby outdoor terrain follows its selected style on both sides of the gate. The existing Automap Options menu now has a Boundary Color row; other settings remain in the INI. See [boundary settings](boundary-settings.md).
 
 `OverlayOpacity` accepts 10-100 and defaults to 80: custom floor shading, water fill, outlines and reveal bands use 80% of their previous alpha. Set 100 to restore the previous overlay opacity. RGB colors and native icons/artwork are preserved. The tested D2GL shader writes the corner map to a separate target with fixed alpha 0.9; that opacity is unaffected. This behavior was checked in the installed renderer's embedded shader and is specific to the supported renderer. Restart after changing the setting.
 
@@ -50,7 +52,7 @@ Outside the Act 3 sewer exception, shore outlines follow known walkable-floor bo
 
 Campaign areas sharing the same native automap layer now share one exploration mask, retained room capture, and incremental geometry cache, keyed by act, seed, and layer. For example, Spider Forest and Flayer Jungle remain visible together after crossing their zone boundary. The previous area does not need to remain loaded: owned room copies and completed geometry are retained. Returning to it selects the same state. Native artwork uses the shared clipping mask too, so its familiar details do not disappear at the crossing.
 
-Different native layers and acts remain separate. `CampaignLayers.hpp` reads expected campaign layers from the user's local `data/global/excel/Levels.txt` at startup. The inspected table covers all 132 campaign areas. Shared keys require the native layer to match this expected layer; if the player area changes before the automap switches layers, the callback skips exploration mutation and geometry capture until they agree. This guard was added after a live trace showed sewer level 92 briefly paired with outdoor layer 57 before switching to 66.
+Different native layers and acts remain separate. `CampaignLayers.hpp` reads expected campaign layers from the active game's `data/global/excel/Levels.txt` through the archive/direct resolver on the first valid automap update. The inspected table covers all 132 campaign areas. Shared keys require the native layer to match this expected layer; if the player area changes before the automap switches layers, the callback skips exploration mutation and geometry capture until they agree. This guard was added after a live trace showed sewer level 92 briefly paired with outdoor layer 57 before switching to 66.
 
 Missing or malformed layer definitions disable shared keys, leaving separate per-area caches. A defined area whose native layer is unavailable or mismatched temporarily draws through the normal game path; it does not add that area to another layer's history. `Levels.txt` must match the active game's map definitions. Endgame maps retain their per-level keys. Town previews use the same shared outdoor key, while the town footprint stays fully visible on its own native layer. No extra rooms are loaded or automatically revealed. Only the current area's loaded rooms are newly captured; adjacent areas first seen across a border may still await capture when entered.
 

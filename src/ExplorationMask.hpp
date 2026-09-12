@@ -106,7 +106,7 @@ public:
     // Fallback: reveal a disk in cell units at each sampled player cell.
     // Teleports reveal the destination only; never interpolate unknown travel.
     void revealAround(Point p,int radius) {
-        if(radius<0 || radius>128) throw std::invalid_argument("radius");
+        if(radius<0 || radius>1024) throw std::invalid_argument("radius");
         int cx=static_cast<int>(std::floor(p.x/cellSize_));
         int cy=static_cast<int>(std::floor(p.y/cellSize_));
         for(int y=-radius;y<=radius;++y) {

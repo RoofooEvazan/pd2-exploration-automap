@@ -39,6 +39,14 @@ $results = foreach ($file in $profile.engineSha256.PSObject.Properties) {
     [pscustomobject]@{ File = $file.Name; Status = $status }
 }
 $results | Format-Table -AutoSize | Out-Host
+# This extension is optional: an unrecognized PD2 menu retains INI colors.
+foreach ($file in $profile.optionalMenuSha256.PSObject.Properties) {
+    $candidate = Join-Path $gameDirectory $file.Name
+    $menuMatch = (Test-Path -LiteralPath $candidate -PathType Leaf) -and
+        ((Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash -ieq $file.Value)
+    if ($menuMatch) { Write-Host 'Boundary Color menu: profiled PD2 file matches; runtime layout checks still apply.' }
+    else { Write-Host 'Boundary Color menu: unrecognized or missing PD2 file; use BoundaryColor in the INI if the row is unavailable.' }
+}
 if (-not $allMatch) {
     Write-Host 'This installation does not match the tested binary set. Do not install this build.'
     exit 2

@@ -39,7 +39,41 @@ template<class Drawing> static auto wallCoverage(const Drawing& drawing) {
 template<class A,class B> static void sameDrawing(const A& a,const B& b) {
     CHECK(coverage(a)==coverage(b));CHECK(wallCoverage(a)==wallCoverage(b));
 }
+static void testPreparedFloors() {
+    styled_map::Drawing source;
+    for(int i=0;i<300;++i) {
+        double x=(i%20-10)*1.25,y=(i/20-7)*.75;
+        auto& layer=source.layers[i%7];auto& quads=i%2?layer.redQuads:layer.quads;
+        quads.push_back({{x,y},{x+1.75,y},{x+1.75,y+2.25},{x,y+2.25}});
+        quads.push_back({{x+20000,y-11000},{x+20004,y-11002},{x+20007,y-10998},{x+20001,y-10999}});
+    }
+    auto prepared=styled_map::PreparedFloors::build(source);CHECK(prepared);
+    for(int divisor:{10,20})for(double ox:{-22.5,0.,24.,49590.,-70000.})for(double oy:{-33.,7.25,7200.}) {
+        auto project=[&](exploration::Point p){return exploration::Point{
+            16*(p.x-p.y)/divisor-ox+(divisor==20?7:8),8*(p.x+p.y)/divisor-oy+(divisor==20?-3:-8)};};
+        for(auto view:std::vector<exploration::Rect>{{-45,-35,40,55},{0,0,1,1},{-200,-200,800,600},{0,0,0,100}})
+            for(std::size_t layer=0;layer<7;++layer)for(int red:{0,1}) {
+                std::vector<double> expected,actual;
+                auto collect=[](auto& out,const styled_map::Quad& q){for(auto p:{q.a,q.b,q.c,q.d}){out.push_back(p.x);out.push_back(p.y);}};
+                for(const auto& q:red?source.layers[layer].redQuads:source.layers[layer].quads)
+                    styled_map::clipQuad({project(q.a),project(q.b),project(q.c),project(q.d)},view,[&](const auto& p){collect(expected,p);});
+                prepared->clip(layer,red!=0,divisor,ox,oy,view,[&](const auto& p){collect(actual,p);});
+                CHECK(expected.size()==actual.size());
+                for(std::size_t n=0;n<expected.size();++n)CHECK(fabs(expected[n]-actual[n])<1e-8);
+            }
+    }
+    source=styled_map::Drawing{};source.layers[0].quads.resize(styled_map::PreparedFloors::quadLimit+1);
+    CHECK(!styled_map::PreparedFloors::build(source)); // The runtime retains its uncached drawing path.
+    std::cout<<"PASS: prepared floor projection matches reference vertices/order across colors, zooms, pans, distant coordinates, clipping and empty views; bounded fallback\n";
+}
 int main() {
+    testPreparedFloors();
+    styled_map::Drawing split;
+    split.walls={{{0,0},{4,0}},{{8,0},{4,0}},{{9,0},{12,0}},
+        {{-2,-8},{-2,-4}},{{-2,0},{-2,-4}},{{-2,2},{-2,5}},{{20,0},{20,3}}};
+    auto expectedWalls=wallCoverage(split);styled_map::compactWalls(split.walls);
+    CHECK(split.walls.size()==5 && wallCoverage(split)==expectedWalls);
+    styled_map::compactWalls(split.walls);CHECK(split.walls.size()==5 && wallCoverage(split)==expectedWalls);
     const exploration::Rect view{0,0,10,10};
     const styled_map::Quad diamond{{5,-2},{12,5},{5,12},{-2,5}};
     double clippedArea=0;int clippedCount=0;

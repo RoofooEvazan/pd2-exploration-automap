@@ -234,6 +234,16 @@ static void testInstalledArtwork() {
         for(DWORD i=0;i<total;++i) {
             auto offset=word(24+4*i);DWORD size=word(offset+28);require(word(offset)==0 && offset+32+size<=data.size());
             exploration::Silhouette shape;require(shape.decode(data.data()+offset+32,size,int(word(offset+4)),int(word(offset+8))));
+            Rect actual{},reference{int(word(offset+4)),int(word(offset+8)),0,0};
+            require(exploration::ArtworkBounds::decode(data.data()+offset+32,size,int(word(offset+4)),int(word(offset+8)),actual));
+            for(int y=0;y<int(shape.rows.size());++y)for(auto span:shape.rows[y]) {
+                reference.left=std::min(reference.left,span.first);reference.right=std::max(reference.right,span.second);
+                reference.top=std::min(reference.top,y);reference.bottom=std::max(reference.bottom,y+1);
+            }
+            if(reference.left<reference.right && reference.top<reference.bottom)
+                reference={std::max(0,reference.left-1),std::max(0,reference.top-1),std::min(int(word(offset+4)),reference.right+1),std::min(int(word(offset+8)),reference.bottom+1)};
+            else reference={};
+            require(actual.left==reference.left && actual.top==reference.top && actual.right==reference.right && actual.bottom==reference.bottom);
             if(i>=283 && i<=288) {
                 using Form=exploration::HybridArtwork::SewerShape;
                 auto form=i==283 || i==285?Form::Down:i==284 || i==286?Form::Up:i==287?Form::Peak:Form::Cap;
@@ -258,7 +268,7 @@ static const DWORD expectedStyledColors[]={0x34343446,0x55181446,0x747474af,0x60
 static void __stdcall captureColor(DWORD value){batchColor=value;++colorCalls;}
 static void __stdcall captureArray(DWORD mode,DWORD count,const void* data) {
     require(mode==5 && count==4 && data && styledCurrent);
-    require(batchColor==expectedStyledColors[arrayCalls%8]);
+    require(batchColor==(arrayCalls%8==1?exploration::boundaryRGBA(boundaryColor,52,70):expectedStyledColors[arrayCalls%8]));
     const auto* pointers=static_cast<const void* const*>(data);
     for(DWORD i=0;i<count;++i){
         const auto& v=*static_cast<const GlideVertex*>(pointers[i]);
@@ -288,6 +298,8 @@ static void testStyledBatches() {
     try {drawStyled(t,{0,0,100,100});require(false);}catch(int){}
     require(!styledBatch && !frontierBatch && !fractionalFrontier);
     throwArray=false;
+    // The worker-prepared path must keep the same native submission contract.
+    preparedFloors=styled_map::PreparedFloors::build(state.drawing);preparedOwner=&state;preparedSerial=gameSerial;
     // The whole replacement is emitted once per terrain pass. Later native
     // cells are suppressed; town cells still pass through even with stale data.
     std::vector<unsigned char> memory(0x11c210);
@@ -615,7 +627,10 @@ static std::string artworkFixture() {
         "Example\twl\t0\t0\t0\tWR A\t10\tFloor Path A\t11\tRiver M A\t12\tWaypoint\t13\n"
         "Example\twl\t0\t0\t0\tWR A\t14\tWall Unknown\t14\tWL A\t15\tWRE 1\t16\n"
         "3 Sewer\twr\t45\t-1\t-1\t3Sewer WR\t283\t3Sewer WL\t284\t3Sewer WBL\t285\t3Sewer WTR\t286\n"
-        "3 Sewer\twr\t45\t-1\t-1\t3Sewer WTLL\t287\t3Sewer WBR\t288\t3Sewer Drain\t289\t3Sewer Bridge\t290\n";
+        "3 Sewer\twr\t45\t-1\t-1\t3Sewer WTLL\t287\t3Sewer WBR\t288\t3Sewer Drain\t289\t3Sewer Bridge\t290\n"
+        "46\tfl\t0\t0\t0\tPW wall\t1572\tPW outline\t1693\tPW outline\t1692\tPW outline\t1930\n"
+        "46\tfl\t0\t0\t0\tPath\t1930\tPW wall\t1574\tRiver M\t12\tWaypoint\t13\n"
+        "Other\tfl\t0\t0\t0\tFloor Path A\t1693\tPW outline\t1973\t\t-1\t\t-1\n";
 }
 static void testHybridClassification() {
     using A=exploration::HybridArtwork;
@@ -634,8 +649,20 @@ static void testHybridClassification() {
     require(hybridArtwork.sewerShape(283)==A::SewerShape::Down && hybridArtwork.sewerShape(284)==A::SewerShape::Up);
     A conflict;std::istringstream conflictTable(artworkFixture()),conflictObjects("Name\tAutoMap\nIcon\t283\nWater icon\t289\n");
     require(conflict.load(conflictTable) && conflict.protectObjects(conflictObjects) && conflict.role(283)==A::Role::Detail && conflict.role(289)==A::Role::Detail);
-    std::istringstream objects("Name\tAutoMap\nImportant object\t15\nEmpty\t0\n");
+    require(hybridArtwork.poisonedWellContours()==4);
+    for(DWORD id:{1572u,1692u,1693u}) {
+        require(hybridArtwork.role(id,202)==A::Role::Wall);
+        for(DWORD level:{0u,92u,93u,109u,201u,203u,205u})require(hybridArtwork.role(id,level)==A::Role::Detail);
+    }
+    require(hybridArtwork.role(1930,202)==A::Role::Detail && hybridArtwork.role(1973,202)==A::Role::Detail);
+    require(hybridArtwork.role(65536,202)==A::Role::Detail);
+    std::istringstream objects("Name\tAutoMap\nImportant object\t15\nMap object\t1574\nEmpty\t0\n");
     require(hybridArtwork.protectObjects(objects) && hybridArtwork.walls()==1 && hybridArtwork.role(15)==A::Role::Detail);
+    require(hybridArtwork.poisonedWellContours()==3 && hybridArtwork.role(1574,202)==A::Role::Detail);
+    // Reload must discard scoped contour metadata, including on parse failure.
+    std::istringstream reload(artworkFixture()),badReload("Invalid header\n");
+    require(conflict.load(reload) && conflict.poisonedWellContours()==4);
+    require(!conflict.load(badReload) && conflict.poisonedWellContours()==0 && conflict.role(1572,202)==A::Role::Detail);
     A malformed;std::istringstream bad("Invalid header\n");require(!malformed.load(bad) && malformed.role(10)==A::Role::Detail);
     std::istringstream broken("Name\tMissingColumn\n");require(!malformed.protectObjects(broken));
     DWORD index=0;require(!frameIndex(nullptr,&index) && !frameIndex(reinterpret_cast<void*>(1),&index));
@@ -671,30 +698,42 @@ static void testHybridRendering() {
     require(!styled_map::strokeQuad({0,0},{10,0},0,quad));
     std::vector<unsigned char> memory(0x11c210);client=memory.data();
     put(memory,0xdbc48,100);put(memory,0xdbc4c,100);
-    std::vector<DWORD> frame(8),file(306),ctx(14);frame[1]=20;frame[2]=20;file[5]=300;
-    for(int i=0;i<300;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
+    std::vector<DWORD> frame(8),file(1980),ctx(14);frame[1]=20;frame[2]=20;file[5]=1974;
+    for(int i=0;i<1974;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
     ctx[13]=reinterpret_cast<DWORD>(file.data());NativeRect viewport{0,100,0,99};
     StyledState drawing;styledCurrent=&drawing;styledArray=captureHybridArray;styledColor=captureColor;
     originalLine=townLine;originalQuad=captureTownQuad;originalCell=prepareAndDrawCell;
-    for(int divisor:{10,20}) {
+    for(int divisor:{10,20})for(DWORD target:{2u,202u,203u,205u}) {
         hybridTransform={double(divisor),36,106};auto t=hybridTransform;
         put(memory,0xf16b0,divisor);put(memory,0x11c1f8,36);put(memory,0x11c1fc,106);
         Mask mask(.25);mask.revealAround(inverse({20.5,30.5},t),16);explored=&mask;
         drawing.drawing=styled_map::Drawing{};drawing.drawing.quads=1;
         drawing.drawing.walls.push_back({inverse({14,30},t),inverse({27,30},t)});
         activeStyle=MapStyle::Hybrid;styledActive=true;maskActive=true;inPass=true;enabled=true;nativeTownActive=false;haveViewport=false;
-        observedLevel=2;
+        observedLevel=target;
         casingCalls=coreCalls=0;ctx[0]=10;auto before=forwardedCells;
         cellHook(ctx.data(),10,40,&viewport,0);
         require(forwardedCells==before && casingCalls==1 && coreCalls==1 && !styledBatch && !fractionalFrontier);
+        // PW contour-only sprites must leave before native clipping. Elsewhere
+        // their aliases retain native artwork, with the same exact reveal mask.
+        for(DWORD id:{1572u,1692u,1693u}) {
+            ctx[0]=id;memset(townPixels,0,sizeof(townPixels));
+            auto hits=rasterClips.hits(),misses=rasterClips.misses();auto cellsBefore=forwardedCells;
+            cellHook(ctx.data(),10,40,&viewport,0);
+            if(target==202)require(forwardedCells==cellsBefore && rasterClips.hits()==hits && rasterClips.misses()==misses);
+            else require(forwardedCells==cellsBefore+1);
+            for(int y=20;y<40;++y)for(int x=10;x<30;++x)
+                require(townPixels[(y-20)*20+x-10]==int(target!=202 && mask.contains(inverse({x+.5,y+.5},t))));
+        }
+        require(casingCalls==1 && coreCalls==1);before=forwardedCells;
         // Roads, water, icons and unknown art retain the exact native mask route.
-        for(DWORD id:{11u,12u,13u,99u,283u,284u,285u,286u,287u,288u}) {
+        for(DWORD id:{11u,12u,13u,99u,283u,284u,285u,286u,287u,288u,1574u,1930u,1973u}) {
             ctx[0]=id;memset(townPixels,0,sizeof(townPixels));
             cellHook(ctx.data(),10,40,&viewport,0);
             for(int y=20;y<40;++y)for(int x=10;x<30;++x)
                 require(townPixels[(y-20)*20+x-10]==int(mask.contains(inverse({x+.5,y+.5},t))));
         }
-        require(forwardedCells==before+10 && casingCalls==1 && coreCalls==1);
+        require(forwardedCells==before+13 && casingCalls==1 && coreCalls==1);
         // Sewers retain one native wall set and the modern floor shading,
         // without a second offset contour alongside the original artwork.
         drawing.drawing.layers[0].quads.push_back({inverse({18,28},t),inverse({22,28},t),inverse({22,32},t),inverse({18,32},t)});
@@ -722,8 +761,13 @@ static void testHybridRendering() {
         for(int y=20;y<40;++y)for(int x=10;x<30;++x)
             require(townPixels[(y-20)*20+x-10]==int(mask.contains(inverse({x+.5,y+.5},t))));
         // When replacement geometry is unavailable, ordinary wall art returns.
-        styledActive=false;nativeTownActive=false;haveViewport=false;before=forwardedCells;ctx[0]=10;
-        cellHook(ctx.data(),10,40,&viewport,0);require(forwardedCells==before+1);
+        styledActive=false;nativeTownActive=false;haveViewport=false;observedLevel=202;
+        for(DWORD id:{10u,1572u,1692u,1693u}) {
+            before=forwardedCells;ctx[0]=id;memset(townPixels,0,sizeof(townPixels));
+            cellHook(ctx.data(),10,40,&viewport,0);require(forwardedCells==before+1);
+            for(int y=20;y<40;++y)for(int x=10;x<30;++x)
+                require(townPixels[(y-20)*20+x-10]==int(mask.contains(inverse({x+.5,y+.5},t))));
+        }
     }
     client=nullptr;styledCurrent=nullptr;styledActive=false;nativeTownActive=false;inPass=false;explored=&emptyMask;
     townBoundary=TownBoundary{};activeStyle=MapStyle::Styled;
@@ -854,7 +898,116 @@ static void testLocalHybridTables() {
     for(DWORD id:{283u,284u,285u,286u,287u,288u})require(policy.role(id)==Role::SewerWall);
     require(policy.role(289)==Role::SewerWater && policy.role(290)==Role::Detail);
     for(DWORD id:{4u,5u,6u,7u,8u,266u,520u})require(policy.role(id)==Role::Water);
+    require(policy.poisonedWellContours()==289);
+    for(DWORD id=0;id<1974;++id) {
+        const bool contour=(id>=1572 && id<=1578) || (id>=1692 && id<=1973);
+        if(contour)require(policy.role(id,202)==Role::Wall && policy.role(id)==Role::Detail);
+        else require(policy.role(id,202)==policy.role(id));
+        for(DWORD level:{76u,92u,93u,109u,203u,205u})require(policy.role(id,level)==policy.role(id));
+    }
+    std::cout<<"PASS: 289 installed Poisoned Well contour IDs replace only in level 202; all other local roles unchanged\n";
     std::cout<<"PASS: local hybrid tables protect roads, water, waypoint, quest artwork, cages, entrances and Act 3 sewer walls; "<<policy.walls()<<" ordinary wall IDs eligible\n";
+}
+static void testArtworkBoundsCache() {
+    checkContext="bounded transparent padding metadata";
+    using A=exploration::ArtworkBounds;
+    const unsigned char bytes[]={0x86,0x80,0x82,2,1,2,0x82,0x80,0x86,0x80,0x86,0x80};
+    Rect bounds{};require(A::decode(bytes,sizeof(bytes),6,4,bounds));
+    require(bounds.left==1 && bounds.top==1 && bounds.right==5 && bounds.bottom==4);
+    const unsigned char empty[]={6,0,0,0,0,0,0,0x80};
+    require(A::decode(empty,sizeof(empty),6,1,bounds) && bounds.left==bounds.right && bounds.top==bounds.bottom);
+    require(!A::decode(bytes,sizeof(bytes)-1,6,4,bounds));
+    require(!A::decode(bytes,sizeof(bytes),5,4,bounds));
+    require(!A::decode(bytes,sizeof(bytes),6,3,bounds));
+    require(!A::decode(nullptr,sizeof(bytes),6,4,bounds));
+    const unsigned char invalid[]={0,0x80},truncated[]={3,1,2},tooWide[]={0x87,0x80};
+    require(!A::decode(invalid,sizeof(invalid),6,1,bounds));
+    require(!A::decode(truncated,sizeof(truncated),6,1,bounds));
+    require(!A::decode(tooWide,sizeof(tooWide),6,1,bounds));
+    auto cache=std::make_unique<A>();int reads=0;
+    auto readBytes=[&](unsigned char* out){++reads;memcpy(out,bytes,sizeof(bytes));return true;};
+    A::Key key{100,200,12,sizeof(bytes),6,4};
+    require(cache->query(key,readBytes,bounds));require(cache->query(key,readBytes,bounds) && reads==1 && cache->hits()==1);
+    // Same allocation addresses cannot alias a different file/frame ID or layout.
+    ++key.index;require(cache->query(key,readBytes,bounds) && reads==2);
+    ++key.file;require(cache->query(key,readBytes,bounds) && reads==3);
+    key.frame+=16;require(cache->query(key,readBytes,bounds) && reads==4);
+    key.width=7;require(cache->query(key,readBytes,bounds) && reads==5);
+    cache->clear();require(cache->query(key,readBytes,bounds) && reads==6);
+    key.length=A::maxBytes+1;require(!cache->query(key,readBytes,bounds) && reads==6);
+    key.length=sizeof(bytes);key.height=3;require(!cache->query(key,readBytes,bounds) && reads==7);
+    require(!cache->query(key,readBytes,bounds) && reads==7 && cache->failures()==1);
+    cache->clear();key.height=4;
+    require(!cache->query(key,[](unsigned char*){return false;},bounds));
+    cache->clear();require(cache->query(key,readBytes,bounds));
+}
+static std::array<unsigned char,16*32> paddedPixels{};
+static std::array<unsigned,80*80> paddedResult{};
+static unsigned paddedQuads=0;
+static void __stdcall capturePaddedQuad(DWORD mode,DWORD count,const void* data,DWORD stride) {
+    require(mode==5 && count==4 && stride==sizeof(GlideVertex));++paddedQuads;
+    auto v=static_cast<const GlideVertex*>(data);
+    for(int y=std::max(0,int(floor(v[0].y)));y<std::min(80,int(ceil(v[2].y)));++y)
+        for(int x=std::max(0,int(floor(v[0].x)));x<std::min(80,int(ceil(v[2].x)));++x) {
+            if(x+.5<v[0].x || x+.5>=v[2].x || y+.5<v[0].y || y+.5>=v[2].y)continue;
+            double u=v[0].s+(x+.5-v[0].x)/(v[1].x-v[0].x)*(v[1].s-v[0].s);
+            double t=v[0].t+(y+.5-v[0].y)/(v[2].y-v[0].y)*(v[2].t-v[0].t);
+            // Interpolated texture coordinates must remain tied to the native frame.
+            require(u>=0 && u<16 && t>=0 && t<32 && v[0].color==0xffffffff);
+            paddedResult[y*80+x]+=paddedPixels[int(t)*16+int(u)];
+        }
+}
+static void __stdcall drawPaddedCell(void* ctx,int x,int y,NativeRect*,int) {
+    ++forwardedCells;Rect r{};require(frameBounds(ctx,x,y,&r));
+    GlideVertex q[]={{float(r.left),float(r.top),0xffffffff,1,0,0,0},{float(r.right),float(r.top),0xffffffff,1,16,0,0},
+        {float(r.right),float(r.bottom),0xffffffff,1,16,32,0},{float(r.left),float(r.bottom),0xffffffff,1,0,32,0}};
+    quadHook(5,4,q,sizeof(GlideVertex));
+}
+static void testPaddedArtworkRendering() {
+    testArtworkBoundsCache();testHybridClassification();checkContext="native artwork padding preserves visible pixels and UVs";
+    std::vector<unsigned char> memory(0x11c210);client=memory.data();
+    put(memory,0xdbc48,80);put(memory,0xdbc4c,80);
+    std::vector<unsigned char> encoded;
+    for(int y=31;y>=0;--y) {
+        encoded.push_back(16);
+        for(int x=0;x<16;++x) {
+            unsigned char value=y>=24 && x>=3 && x<=12 && (x+y)%3?static_cast<unsigned char>(1+(x+y)%255):0;
+            paddedPixels[y*16+x]=value;encoded.push_back(value);
+        }
+        encoded.push_back(128);
+    }
+    std::vector<DWORD> frame(8+(encoded.size()+3)/4),file(106),ctx(14);
+    frame[1]=16;frame[2]=32;frame[7]=DWORD(encoded.size());memcpy(frame.data()+8,encoded.data(),encoded.size());
+    file[0]=6;file[5]=100;for(int i=0;i<100;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
+    ctx[13]=reinterpret_cast<DWORD>(file.data());
+    StyledState state;styledCurrent=&state;originalCell=drawPaddedCell;originalQuad=capturePaddedQuad;
+    unsigned beforeQuads=0,afterQuads=0;
+    for(int divisor:{10,20})for(int pan:{-20,0,17})for(int x:{-4,23,74})for(int centerY:{20,40,49})for(DWORD id:{11u,12u,13u,99u}) {
+        Transform t{double(divisor),double(pan),-30};put(memory,0xf16b0,divisor);put(memory,0x11c1f8,pan);put(memory,0x11c1fc,-30);
+        Mask mask(.25);mask.revealAround(inverse({double(x)+8, double(centerY)},t),35);explored=&mask;
+        ++gameSerial;observedLevel=203;ctx[0]=id;nativeTownActive=false;NativeRect view{0,80,-1,79};
+        enabled=maskActive=styledActive=inPass=haveViewport=true;terrainClips=nullptr;
+        paddedResult.fill(0);paddedQuads=0;activeStyle=MapStyle::Native;
+        cellHook(ctx.data(),x,52,&view,0);auto reference=paddedResult;beforeQuads+=paddedQuads;
+        paddedResult.fill(0);paddedQuads=0;activeStyle=MapStyle::Hybrid;
+        cellHook(ctx.data(),x,52,&view,0);afterQuads+=paddedQuads;require(paddedResult==reference);
+    }
+    require(afterQuads<beforeQuads && nativeBoundsTrimmed>0 && artworkBounds.hits()>0);
+    // A readable all-transparent frame never reaches native drawing. A failed
+    // source read/unsupported header takes the original route instead.
+    Mask all(.25);all.revealAround(inverse({31,36},{10,0,-30}),100);explored=&all;++gameSerial;
+    put(memory,0xf16b0,10);put(memory,0x11c1f8,0);put(memory,0x11c1fc,-30);
+    std::vector<DWORD> blank=frame;for(std::size_t row=0;row<32;++row)
+        memset(reinterpret_cast<unsigned char*>(blank.data()+8)+row*18+1,0,16);
+    file[6+99]=reinterpret_cast<DWORD>(blank.data());ctx[0]=99;NativeRect view{0,80,-1,79};
+    auto before=forwardedCells;cellHook(ctx.data(),23,52,&view,0);require(forwardedCells==before && blankSpritesSkipped>0);
+    file[0]=0;cellHook(ctx.data(),23,52,&view,0);require(forwardedCells==before+1);
+    // Area/session changes discard metadata before reused game allocations.
+    auto decodes=artworkBounds.decoded();file[0]=6;
+    updateForPlayer({10,10,205,999,999},400000);
+    Rect b{};require(opaqueFrameBounds(ctx.data(),{23,20,39,52},&b) && artworkBounds.decoded()==decodes+1);
+    client=nullptr;styledCurrent=nullptr;styledActive=maskActive=inPass=haveViewport=false;explored=&emptyMask;activeStyle=MapStyle::Styled;
+    std::cout<<"PASS: native opaque-pixel/UV coverage matches at both zooms, pans, view edges and reveal frontiers; fewer quads, bounded cache, blank suppression, read fallback and area invalidation\n";
 }
 static std::vector<DWORD> opacityColors;
 static DWORD opacityLineAlpha=0;
@@ -885,6 +1038,21 @@ static void testRasterCache() {
     auto complex=[&](auto emit){++builds;for(int i=0;i<40;++i)emit(Rect{0,i*2,2,i*2+1});};
     for(int i=0;i<2;++i){result.clear();cache->query({0,0,2,80,0},complex,collect);require(result.size()==40);}
     require(builds==4); // Over-budget entries draw completely and are rebuilt.
+    checkContext="growth retains full clips while refreshing partial and hidden clips";
+    for(int kind=0;kind<3;++kind) {
+        cache->invalidate();int queries=0,stage=0;
+        auto growing=[&](auto emit){++queries;
+            if(stage || kind==0)emit(Rect{0,0,20,20});
+            else if(kind==1)emit(Rect{0,0,10,20});
+        };
+        for(int repeat=0;repeat<2;++repeat){result.clear();cache->query({0,0,20,20,0},growing,collect);}
+        require(queries==1);stage=1;cache->grow();result.clear();
+        cache->query({0,0,20,20,0},growing,collect);
+        require(queries==(kind==0?1:2) && result.size()==1 && result[0].right==20);
+        cache->invalidate();stage=0;result.clear();cache->query({0,0,20,20,0},growing,collect);
+        require(queries==(kind==0?2:3));
+        require(kind==2?result.empty():result.size()==1 && result[0].right==(kind==0?20:10));
+    }
     for(int i=0;i<20000;++i){result.clear();cache->query({i,0,i+1,1,0},[&](auto emit){emit(Rect{i,0,i+1,1});},collect);
         require(result.size()==1 && result[0].left==i);}
     for(int divisor:{10,20}) {
@@ -916,6 +1084,7 @@ static void testRasterCache() {
     explored=&leftMask;fromWalls();auto leftPixels=pathPixels;
     explored=&rightMask;fromCells();require(pathPixels!=leftPixels);
     explored=&leftMask;fromWalls();require(pathPixels==leftPixels);
+    leftMask=Mask(.25);fromWalls();require(pathPixels.empty());
     explored=&emptyMask;nativeTownActive=false;townBoundary=TownBoundary{};rasterClips.invalidate();
     std::cout<<"PASS: exact cached clipping, holes, negative pan, zoom, town unions, growth invalidation, collisions and uncached complex-cell fallback\n";
 }
@@ -946,7 +1115,12 @@ static void testWaterReuse() {
     water.clear();require(water.tiles().empty() && water.edges().empty());
     std::cout<<"PASS: water perimeter reuse across reordered frames, changed tiles, zooms, duplicates and capacity limits\n";
 }
+#include "boundary_menu_tests.hpp"
+#include "native_distance_tests.hpp"
 int main() {
+    require(nativeReveal);nativeReveal=false; // Retain explicit legacy-circle regression coverage.
+    require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
+    mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
     testOverlayOpacity(); // Existing rendering contracts then run at 100%.
     testContacts();testInstalledArtwork();
     originalQuad=captureQuad;
@@ -1009,7 +1183,10 @@ int main() {
     testNativeWallTrace();
     testSewerWater();
     testLocalHybridTables();
+    testPaddedArtworkRendering();
     testRasterCache();testWaterReuse();
     testGameTables();
+    testBoundaryMenu();
+    testNativeDistance();
     return 0;
 }

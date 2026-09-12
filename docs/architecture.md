@@ -22,7 +22,7 @@ automap end callback
   -> finish timing and restore per-pass state
 ```
 
-Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a disk of 80 fine cells (20 world subtiles). The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This is a distance mask, not native exploration state or visibility through doors and walls.
+Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a circular disk sized from average native logical-view reach; the explicit legacy setting retains 80 fine cells (20 world subtiles). See [boundary settings](boundary-settings.md) for the approximation and settings. The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This remains a distance mask, not exact native tile exploration or visibility through doors and walls.
 
 Town IDs `1`, `40`, `75`, `103`, and `109` retain native artwork within their level rectangle. The exemption follows the terrain footprint instead of applying to every native cell while the player is in town. Nearby outdoor terrain can therefore use the styled map before the player's area ID changes.
 
@@ -77,7 +77,7 @@ Styled drawing also depends on `glide3x.dll` exports `_grDrawVertexArray@12` at 
 
 The initializer checks selected call opcodes and targets, prepares all affected pages before editing any calls, and changes process memory only. Other offsets and layouts in the readers are equally build-specific. Do not treat these narrow signature guards as complete executable validation.
 
-The game-table reader uses the verified native Storm file resolver after a valid player exists, preserving archive priorities and direct overrides. See [automatic table loading](game-tables.md) for the ABI and resource limits.
+The local source uses `GameTables.hpp` to resolve these tables through native Storm after PD2 archives are mounted. It honors active direct overrides and performs no recurring table reads. See [automatic table loading](game-tables.md) for the additional source binding profile and validation.
 
 ## Lifetime and resource limits
 

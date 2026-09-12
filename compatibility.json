@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "9469F9C4A14604DED06B0E5A0A3EBCEA0ADFD1C0B5B7961386FE20152E346477",
-  "validation": "All three Win32 Release suites pass with local artwork, local tables and private archive table snapshots. The same table loader was verified in-game with archive-only table reads and ordinary direct overrides; the user confirmed both worked. The release retains beta.1 rendering/defaults. Broader map performance and long-session compatibility remain under test.",
+  "testedModuleSha256": "D369DAE8581B0F3847A162184AA2969332B181A6E9D51B82FE6C302030931A8D",
+  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user approved the installed build after testing; live logs confirmed five menu colors and the rounded native-average radius. Ships the exact user-tested DLL. Synthetic performance comparisons are documented separately; broader compatibility and sustained late-map FPS remain under test.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -14,12 +14,16 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.2",
+  "release": "v0.2.0-beta.3",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",
     "data/global/excel/Objects.txt": "e8c129055ff894f306a00b39b1e729c9f73f7674add93871c77c617c9722858b",
     "data/global/excel/Levels.txt": "3382b9ac83d9edc279ca445b217a7c6b1aafae46d2529cc0ef8e6316f0662e45"
   },
-  "gameTables": "Automatically read from active installed game archives or direct overrides via native Storm; the development fixture hashes are informational, not files to download. Missing or malformed tables retain native/per-area fallback."
+  "gameTables": "Automatically read from active installed game archives or direct overrides via native Storm; the development fixture hashes are informational, not files to download. Missing or malformed tables retain native/per-area fallback.",
+  "optionalMenuSha256": {
+    "ProjectDiablo.dll": "538a77b7ccef3d5334e56c4e9e57a4d8fc69a1e27c46beb694c0dedfcfbf9cb3"
+  },
+  "optionalMenuNote": "The native Boundary Color menu row requires the profiled expansion menu. A different menu layout leaves INI color selection available; this optional fingerprint does not replace runtime layout guards."
 }

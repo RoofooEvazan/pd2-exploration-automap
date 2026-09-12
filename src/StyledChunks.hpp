@@ -154,6 +154,7 @@ public:
             compact(dest.quads);compact(dest.redQuads);result.quads+=dest.quads.size()+dest.redQuads.size();
         }
         for(const auto& chunk:chunks_)result.walls.insert(result.walls.end(),chunk.second.walls.begin(),chunk.second.walls.end());
+        compactWalls(result.walls);
         return result;
     }
 };
