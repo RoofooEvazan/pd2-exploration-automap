@@ -1,6 +1,6 @@
 # Boundary settings — BETA
 
-This unpublished follow-up fixes the reveal radius in the plugin at **31 world subtiles**. The same smooth circular edge and quarter-subtile movement precision are retained. The existing color menu remains available. The public beta.4 download still contains the earlier configurable build until this follow-up is approved for release.
+v0.2.0-beta.5 fixes the reveal radius in the plugin at **31 world subtiles**. The same smooth circular edge and quarter-subtile movement precision are retained. The existing color menu remains available; distance settings from older builds are ignored.
 
 ## Color
 
@@ -18,4 +18,4 @@ This removes the supported configuration override. It is not anti-tamper enforce
 
 Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. The fixed-distance suite loads legacy INI entries through the real appearance-settings reader and confirms exact circular coverage, the 31-subtile outer limit, resolution independence, quarter-cell movement, teleport gaps and town history. Existing color/menu, geometry, clipping, water and worker tests remain included.
 
-All three suites pass with the optional local artwork/table/archive fixtures. The prior 31-subtile appearance was user-approved; this hardcoded follow-up awaits a local game check. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). The log should report `DISCOVERY mode=hardcoded` and `radiusSubtiles=31.00`. Keep a backup of the previous DLL and INI for comparison.
+All three suites pass with the optional local artwork/table/archive fixtures. The user confirmed the installed hardcoded build works on 2026-09-12. Live campaign logs report `DISCOVERY mode=hardcoded` and `radiusSubtiles=31.00`, with town and outdoor drawing active. The release ships that exact tested DLL. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Keep a backup of the previous DLL and INI for comparison.

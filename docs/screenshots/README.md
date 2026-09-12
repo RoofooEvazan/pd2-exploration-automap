@@ -1,6 +1,6 @@
 # Gameplay screenshots
 
-The beta.4 gallery shows the 31-subtile rounded reveal, hybrid map/campaign artwork, fullscreen and corner views, and the five boundary colors. These are original-resolution screenshots supplied from the tested local setup. Visible FPS counters are individual moments, not a sustained performance benchmark.
+The current gallery shows the 31-subtile rounded reveal, hybrid map/campaign artwork, fullscreen and corner views, and the five boundary colors. The screenshots were captured with beta.4; beta.5 preserves that appearance while fixing the radius in the plugin. These are original-resolution screenshots supplied from the tested local setup. Visible FPS counters are individual moments, not a sustained performance benchmark.
 
 ## Current gameplay and settings
 
@@ -100,7 +100,7 @@ The same sewer frontier in Light Blue, alongside gray wall and water-channel out
 
 ## Earlier screenshots
 
-These retained images document earlier builds and are not beta.4 appearance references.
+These retained images document earlier builds and are not current appearance references.
 
 ### Spider Forest: campaign overlay
 

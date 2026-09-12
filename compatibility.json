@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "B7DB4FA1657179FC530B86893DC84319DEAEE23C924F94A1D3A37E704DFA1A09",
-  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed 31-subtile circular reveal and approved publication. Ships that exact user-tested DLL. The gallery includes supplied endgame map, Act 3 Sewers, menu and five-color screenshots. Screenshots are appearance examples, not sustained FPS benchmarks; broader compatibility and long-session performance remain under test.",
+  "testedModuleSha256": "43E84491C6E954B319CC8EED4407A09326F800FF7AC1790DA11ADB1AF65BF5A6",
+  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed hardcoded 31-subtile build works; live campaign logs confirm mode=hardcoded and radiusSubtiles=31.00. Ships that exact user-tested DLL. Old distance INI values are ignored, including oversized values; color/style/opacity preferences remain available. Broader compatibility and long-session performance remain under test; this is not online approval or anti-tamper enforcement.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -14,7 +14,7 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.4",
+  "release": "v0.2.0-beta.5",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",

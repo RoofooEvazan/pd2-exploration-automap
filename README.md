@@ -1,14 +1,12 @@
 # PD2 Exploration Automap — BETA
 
-**Unpublished follow-up:** this source now hardcodes the smooth reveal radius at 31 subtiles and ignores the old distance settings. The linked beta.4 download still contains the earlier configurable build; this follow-up is awaiting a local game check.
-
-**v0.2.0-beta.4 — BETA.** The supplied settings now use a **31-subtile circular reveal radius**, keeping the smooth shaded edge. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release includes a new screenshot gallery and retains hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the current fixed-distance behavior.
+**v0.2.0-beta.5 — BETA.** The **31-subtile circular reveal radius is now hardcoded** in the plugin, keeping the same smooth shaded edge. Old distance settings are ignored and display resolution cannot change the radius. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release retains the screenshot gallery, hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the current fixed-distance behavior.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.2.0-beta.4 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.4). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+[Download v0.2.0-beta.5 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.5). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -78,7 +76,7 @@ Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested 
 
 The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
 
-**Installing the hardcoded follow-up:** close the game and replace `ExplorationMask.dll` with the new locally built/tested DLL. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. This follow-up is not yet in the linked beta.4 download. GitHub's automatic source ZIP does not include a compiled DLL.
+**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.5 Windows x86 release ZIP. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include a compiled DLL.
 
 From PowerShell in this repository, check an installation without changing it:
 
