@@ -1,6 +1,6 @@
 # Boundary settings — BETA
 
-v0.2.0-beta.3 adds a color choice to the supported game's existing **Options → Automap Options** menu and keeps the rounded exploration mask while sizing it from the native game view.
+v0.2.0-beta.4 ships with a **31-world-subtile circular reveal radius**. It retains the smooth edge, quarter-subtile movement precision and the five saved colors introduced in beta.3. See the [current screenshot gallery](screenshots/) for the menu and color comparison.
 
 ## Color
 
@@ -10,16 +10,24 @@ The menu prototype supports the profiled expansion menu in `ProjectDiablo.dll` (
 
 ## Rounded reveal distance
 
-`RevealMode=native-average` is the new default. Native D2Client discovery follows terrain rendering: its automap tests the terrain-drawn flag `0x20000`, rather than a fixed circular distance. A perfect native footprint would therefore reveal in tile-shaped steps and vary by terrain artwork.
+The supplied INI sets `RevealRadiusSubtiles=31` under `[Automap]`. This fixed radius applies outdoors and to town-gate previews, independent of display resolution; towns remain fully explored. The unit is a world subtile, not a screen pixel. The setting accepts whole values from 1 through 256 and overrides `RevealMode`. Set it to `0` to follow `RevealMode`; a missing or invalid value also follows that mode. Restart after editing either distance setting.
+
+**Upgrading:** add `RevealRadiusSubtiles=31` to your existing INI as well as replacing the DLL. Keeping an older INI without that key retains its previous reveal mode and distance. Existing color and style preferences can be kept.
+
+### Optional native-average mode
+
+With `RevealRadiusSubtiles=0`, `RevealMode=native-average` estimates a circular radius from native view reach. Native D2Client discovery follows terrain rendering: its automap tests the terrain-drawn flag `0x20000`, rather than a fixed circular distance. A perfect native footprint would therefore reveal in tile-shaped steps and vary by terrain artwork.
 
 At the user's request, the plugin preserves its existing **circular** mask. It reads D2Client's logical width and height, transforms the centered view into world coordinates with the native isometric projection, and averages the radial distance over all headings. That average sets the circle radius, rounded to a quarter-subtile. It uses the game's logical view, not the upscaled D2GL desktop window size. The calculation runs only when the logical dimensions change; it does not scan terrain tiles or grow with the amount already explored.
 
 This is an **approximation of native view reach**, not exact native tile discovery, line of sight, or a per-tile reveal guarantee. A circle cannot match the native footprint in every direction. Camera shifts, panels and the artwork's size can also change native tile visibility. The existing fractional rendering and seven shade bands remain; no tile outlines are introduced. Towns remain fully revealed, and town-gate previews use the same circle radius as the outdoors.
 
-`RevealMode=circle` restores the old fixed 20-subtile radius. Invalid/loading dimensions retain the last valid average, or 20 subtiles until a valid view is available. Existing exploration never shrinks when the view becomes smaller. Restart after changing RevealMode in the INI; color changes through the menu need no restart.
+With `RevealRadiusSubtiles=0`, `RevealMode=circle` restores the old fixed 20-subtile radius. In native-average mode, invalid/loading dimensions retain the last valid average, or 20 subtiles until a valid view is available. Existing exploration never shrinks when the view becomes smaller. Color changes through the menu need no restart.
 
 ## Build and validation
 
-Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. Current automated checks cover the five colors, persistence/save failure, native menu layout guards and resource routing, untouched non-frontier colors, and both render paths. Distance checks compare the average against independent angular sampling and exercise circular coverage, quarter-cell movement, resolution changes, teleports, towns and retained exploration. Existing tests retain the fixed-radius mode's contracts.
+Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. Current automated checks cover the five colors, persistence/save failure, native menu layout guards and resource routing, untouched non-frontier colors, and both render paths. Distance checks compare the average against independent angular sampling and exercise circular coverage, quarter-cell movement, resolution changes, teleports, towns and retained exploration. Beta.4 adds temporary-INI checks for the 31-subtile override, exact circular coverage and its outer limit, resolution independence, movement, all five towns, and absent/zero/invalid settings.
 
-The user approved the local test on 2026-09-12. Live logs confirmed menu installation, saved selections for all four alternate colors, and a 28-subtile radius at 1068×600 logical resolution; a rounded magenta frontier was observed in Dark Temple. The release ships that exact tested DLL. Broader menu/restart coverage and sustained FPS still need testing. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). The log reports the menu installation result, logical view dimensions, circle radius and color saves. Keep a backup of the previous DLL and INI for comparison.
+The user confirmed the local 31-subtile build and approved publication on 2026-09-12. Beta.4 ships that exact tested DLL and includes supplied Dark Temple, Act 3 Sewers, menu and five-color screenshots. Earlier beta.3 logs confirmed menu installation, all four alternate color saves, and the native-average mode's 28-subtile radius at 1068×600. Broader menu/restart coverage and sustained FPS still need testing.
+
+Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Fixed-radius mode reports `DISCOVERY mode=fixed` and `radiusSubtiles=31.00`; logical view dimensions may be zero because the fixed radius does not read them. Keep a backup of the previous DLL and INI for comparison.

@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "D369DAE8581B0F3847A162184AA2969332B181A6E9D51B82FE6C302030931A8D",
-  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user approved the installed build after testing; live logs confirmed five menu colors and the rounded native-average radius. Ships the exact user-tested DLL. Synthetic performance comparisons are documented separately; broader compatibility and sustained late-map FPS remain under test.",
+  "testedModuleSha256": "B7DB4FA1657179FC530B86893DC84319DEAEE23C924F94A1D3A37E704DFA1A09",
+  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed 31-subtile circular reveal and approved publication. Ships that exact user-tested DLL. The gallery includes supplied Dark Temple, Act 3 Sewers, menu and five-color screenshots. Screenshots are appearance examples, not sustained FPS benchmarks; broader compatibility and long-session performance remain under test.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -14,7 +14,7 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.3",
+  "release": "v0.2.0-beta.4",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",

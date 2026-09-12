@@ -1,12 +1,12 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.3 — BETA.** Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. The soft circular reveal now approximates average native view reach. Maps use the campaign's hybrid style, with performance improvements for large explored maps, corrected Poisoned Well contours and less work on transparent artwork. Automatic game-table loading from beta.2 remains included. No quest markers or exit arrows are added.
+**v0.2.0-beta.4 — BETA.** The supplied settings now use a **31-subtile circular reveal radius**, keeping the smooth shaded edge. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release includes a new screenshot gallery and retains hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the radius override and native-average option.
 
-A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and muted red edges that show where there is still room to explore.
+A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.2.0-beta.3 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.3). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+[Download v0.2.0-beta.4 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.4). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -30,23 +30,23 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 
 ## Screenshots
 
-**Spider Forest: campaign overlay.** Gray outlines and red exploration edges sit alongside the familiar blue water patterns, bridges and native symbols. The translucent map leaves the action visible underneath.
+**Dark Temple: hybrid overlay.** Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
 
-![Spider Forest campaign overlay with gray outlines, blue water artwork, native symbols and red exploration edges](docs/screenshots/spider-forest-automap-overlay.png)
+![Dark Temple: hybrid overlay](docs/screenshots/dark-temple-hybrid-overlay.png)
 
-**Spider Forest: corner minimap.** The explored route follows the river in the upper-right map, leaving the center of the screen clear.
+**Dark Temple: corner minimap.** The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
 
-![Spider Forest gameplay beside a wooden bridge with the explored route in the upper-right minimap](docs/screenshots/spider-forest-corner-minimap.png)
+![Dark Temple: corner minimap](docs/screenshots/dark-temple-hybrid-corner-minimap.png)
 
-**Poisoned Well: endgame overlay.** Thin gray wall outlines and muted red exploration edges trace the revealed passages over the game world.
+**Dark Temple: rounded reveal.** A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
 
-![Poisoned Well overlay showing a larger explored route with gray walls and muted red unfinished edges](docs/screenshots/poisoned-well-automap-overlay.png)
+![Dark Temple: rounded reveal](docs/screenshots/dark-temple-rounded-reveal.png)
 
-**Poisoned Well: corner minimap.** Shaded passages, wall outlines and the exploration boundary stay visible in a compact map.
+**Automap Options: Boundary Color.** Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green.
 
-![Poisoned Well corner minimap with shaded passages, thin gray walls and red exploration edges](docs/screenshots/poisoned-well-corner-minimap.png)
+![Automap Options: Boundary Color](docs/screenshots/automap-options-boundary-color.png)
 
-The [full gallery](docs/screenshots/) also includes earlier Dark Temple and reveal-edge detail views.
+Compare the same sewer frontier in [Red](docs/screenshots/boundary-color-red.png), [Neon Green](docs/screenshots/boundary-color-neon-green.png), [Magenta](docs/screenshots/boundary-color-magenta.png), [Cyan](docs/screenshots/boundary-color-cyan.png) and [Light Blue](docs/screenshots/boundary-color-light-blue.png). The [full gallery](docs/screenshots/) includes all five previews, sewer overlay and corner views, and earlier campaign/endgame examples.
 
 ## Features
 
@@ -61,7 +61,7 @@ The [full gallery](docs/screenshots/) also includes earlier Dark Temple and reve
 - Dark gray floor shading and thin gray wall outlines for endgame maps.
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
-- A smooth circular reveal sized to average native logical-view reach; the old fixed 20-subtile radius remains available.
+- A smooth 31-subtile circular reveal in the supplied INI, with optional native-average and legacy 20-subtile modes.
 - Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
 - Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
 - Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
@@ -76,7 +76,7 @@ Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested 
 
 The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
 
-**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.3 release ZIP. Keep your loader entry and normal launch flags. Merge the [settings below](#appearance-settings) into your existing INI to preserve preferences. Set `MapsStyle=hybrid` to use the new map appearance if your older INI says `styled`. Missing `RevealMode` and `BoundaryColor` keys default to `native-average` and `red`. GitHub's automatic source ZIP does not include the compiled DLL; use the Windows x86 BETA download above.
+**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.4 release ZIP. Add `RevealRadiusSubtiles=31` under `[Automap]` in your existing INI to get the new radius; replacing only the DLL preserves the previous reveal mode. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if your older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include the compiled DLL; use the Windows x86 BETA download above.
 
 From PowerShell in this repository, check an installation without changing it:
 
@@ -127,6 +127,7 @@ CampaignStyle=hybrid
 MapsStyle=hybrid
 OverlayOpacity=80
 RevealMode=native-average
+RevealRadiusSubtiles=31
 BoundaryColor=red
 ```
 
@@ -134,7 +135,7 @@ BoundaryColor=red
 
 Open the automap once in an offline game, then use **Options → Automap Options → Boundary Color** to cycle Red, Neon Green, Magenta, Cyan and Light Blue. Each selection changes the edge immediately and saves the INI. `BoundaryColor` also accepts `red`, `neon-green`, `magenta`, `cyan` or `light-blue` directly; restart after manual INI edits. The menu extension supports the profiled `ProjectDiablo.dll`; on other menu layouts, color selection remains available through the INI. See [boundary settings and compatibility](docs/boundary-settings.md).
 
-`RevealMode=native-average` keeps the rounded edge and sizes it from the average reach of the game's logical view. It is an approximation, not exact native tile discovery or line of sight. The tested 1068×600 logical view gives a 28-subtile radius, compared with the previous 20. `RevealMode=circle` restores the old fixed radius. Towns remain fully explored. The calculation is cached by logical resolution and does not grow as more of the map is explored.
+`RevealRadiusSubtiles=31` sets a fixed circular radius of 31 world subtiles, independent of display resolution. It accepts whole values from 1 to 256; movement and the mask still use quarter-subtile precision. This overrides `RevealMode`. Set the radius to `0` to use `RevealMode=native-average` (a circular approximation of native logical-view reach) or `RevealMode=circle` (the legacy 20-subtile circle). A missing or invalid radius also follows `RevealMode`. Towns remain fully explored. Restart after editing the radius. This is distance-based exploration, not exact native tile discovery or line of sight.
 
 The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
 

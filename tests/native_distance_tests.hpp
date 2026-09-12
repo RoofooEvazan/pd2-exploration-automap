@@ -47,6 +47,28 @@ static void testNativeDistance() {
     p.level=202;updateForPlayer(p,500060);require(explored==stored && explored->size()==previous);
     p.x=1000;updateForPlayer(p,500070);require(explored->contains({1000,100}) && !explored->contains({500,100}));
     nativeReveal=false;updateForPlayer(p,500080);require(revealRadius==80);
+    checkContext="31-subtile setting overrides automatic radius and preserves circular coverage";
+    char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"erd",0,file)!=0);
+    require(loadRadiusSetting(file)==0);
+    require(WritePrivateProfileStringA("Automap","RevealRadiusSubtiles","31",file)!=0);
+    fixedRevealRadius=loadRadiusSetting(file);require(fixedRevealRadius==124);
+    nativeReveal=true;p.level=203;p.x=100.125;put(memory,0xdbc48,1068);put(memory,0xdbc4c,600);
+    updateForPlayer(p,500090);require(revealRadius==124 && maskActive);
+    Mask fixedReference(.25);fixedReference.revealAround({p.x,p.y},124);
+    require(explored->rows()==fixedReference.rows());
+    require(explored->contains({p.x+31,p.y}) && !explored->contains({p.x+31.25,p.y}));
+    put(memory,0xdbc48,1920);put(memory,0xdbc4c,1080);updateForPlayer(p,500100);
+    require(revealRadius==124 && explored->rows()==fixedReference.rows());
+    p.x+=.25;updateForPlayer(p,500110);fixedReference.revealAround({p.x,p.y},124);
+    require(explored->rows()==fixedReference.rows());
+    auto* fixedMask=explored;
+    for(DWORD town:{1u,40u,75u,103u,109u}) {p.level=town;updateForPlayer(p,500120);require(!maskActive && revealRadius==124);}
+    p.level=203;updateForPlayer(p,500130);require(explored==fixedMask && explored->rows()==fixedReference.rows());
+    for(auto value:{"0","-1","257","invalid"}) {
+        require(WritePrivateProfileStringA("Automap","RevealRadiusSubtiles",value,file)!=0);
+        require(loadRadiusSetting(file)==0);
+    }
+    require(DeleteFileA(file)!=0);fixedRevealRadius=0;nativeReveal=false;revealRadius=80;
     nativeDistance={};client=nullptr;explored=&emptyMask;
     campaignStyle=campaignBefore;mapsStyle=mapsBefore;
     std::cout<<"PASS: averaged native-view circle, both logical dimensions, stable radius, quarter-cell movement, resizing and persistence\n";

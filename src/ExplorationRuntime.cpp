@@ -123,6 +123,12 @@ static constexpr double maskCellSize=0.25; // Quarter-subtile: 20x finer per axi
 static constexpr int legacyRevealRadius=80; // 20 subtiles, retained as an explicit setting.
 static int revealRadius=legacyRevealRadius;
 static bool nativeReveal=true;
+static int fixedRevealRadius=0; // Optional INI override in quarter-subtile cells.
+static const char* revealModeName(){return fixedRevealRadius?"fixed":nativeReveal?"native-average":"circle";}
+static int loadRadiusSetting(const char* path) {
+    const auto subtiles=GetPrivateProfileIntA("Automap","RevealRadiusSubtiles",0,path);
+    return subtiles>=1 && subtiles<=256?int(subtiles)*4:0;
+}
 static exploration::NativeRevealDistance nativeDistance;
 static Rect passViewport{};
 static bool haveViewport=false;
@@ -329,13 +335,13 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         maskActive=false;styledActive=false;++layerWaits;return false;
     }
     int width=0,height=0;
-    if(nativeReveal)exploration::readNativeView(client,&width,&height);
-    const int radius=nativeReveal?nativeDistance.update(width,height):legacyRevealRadius;
+    if(nativeReveal && !fixedRevealRadius)exploration::readNativeView(client,&width,&height);
+    const int radius=fixedRevealRadius?fixedRevealRadius:nativeReveal?nativeDistance.update(width,height):legacyRevealRadius;
     if(radius!=revealRadius) {
         revealRadius=radius;lastX=lastY=-1;townBoundary.revealX=townBoundary.revealY=INT_MIN;
         townBoundary.sampled=0;
-        if(logfile){fprintf(logfile,"DISCOVERY circle radius=%.2f subtiles; native logical view=%dx%d; average reach approximation.\n",
-            radius*maskCellSize,width,height);fflush(logfile);}
+        if(logfile){fprintf(logfile,"DISCOVERY circle radius=%.2f subtiles; mode=%s; logical view=%dx%d.\n",
+            radius*maskCellSize,revealModeName(),width,height);fflush(logfile);}
     }
     const bool changedArea=observedLevel!=static_cast<LONG>(p.level);
     InterlockedExchange(&observedLevel,static_cast<LONG>(p.level));
@@ -878,7 +884,7 @@ static void endPass() {
                 styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
                 int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
             fprintf(logfile,"DISCOVERY mode=%s radiusSubtiles=%.2f logicalView=%dx%d calibrated=%d\n",
-                nativeReveal?"native-average":"circle",revealRadius*maskCellSize,nativeDistance.width(),nativeDistance.height(),int(nativeDistance.ready()));
+                revealModeName(),revealRadius*maskCellSize,nativeDistance.width(),nativeDistance.height(),int(nativeDistance.ready()));
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
@@ -987,7 +993,10 @@ static void loadStyles() {
     char reveal[32]{};
     GetPrivateProfileStringA("Automap","RevealMode","native-average",reveal,32,settings.c_str());
     nativeReveal=_stricmp(reveal,"circle")!=0;
-    log(nativeReveal?"DISCOVERY mode=native-average; circular approximation of the native logical view, no tile tracing.":
+    fixedRevealRadius=loadRadiusSetting(settings.c_str());
+    if(fixedRevealRadius) {
+        if(logfile){fprintf(logfile,"DISCOVERY mode=fixed; radius=%.2f subtiles; smooth circular reveal.\n",fixedRevealRadius*maskCellSize);fflush(logfile);}
+    } else log(nativeReveal?"DISCOVERY mode=native-average; circular approximation of the native logical view, no tile tracing.":
         "DISCOVERY mode=circle; legacy custom 20-subtile radius.");
     char campaign[32]{},maps[32]{};
     GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());

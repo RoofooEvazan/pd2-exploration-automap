@@ -45,6 +45,6 @@ Use the Test PD2 shortcut. Check Dark Temple and a map containing water in both 
 
 For this correction, prioritize Poisoned Well: confirm the green duplicate shoreline and thick white native walls disappear while the modern outline remains. Explore most of the map again and compare late-run FPS. Startup should report `289 Poisoned Well contour IDs`, and `HYBRID wallsReplaced` should increase during that area. Keep the log for comparison; these counters alone do not prove correct appearance or restored FPS.
 
-To compare the appearance/performance tradeoff, set `MapsStyle=styled` and restart; the new rendering optimizations still apply. Reverting the DLL requires closing the game and restoring the recorded backup. The compatibility fingerprints and release DLL hash in `compatibility.json` describe v0.2.0-beta.3.
+To compare the appearance/performance tradeoff, set `MapsStyle=styled` and restart; the new rendering optimizations still apply. Reverting the DLL requires closing the game and restoring the recorded backup. The compatibility fingerprints and release DLL hash in `compatibility.json` describe the current beta; the optimization measurements here were collected before beta.4's radius adjustment.
 
 The user subsequently confirmed Poisoned Well had virtually no frame drops. Dark Temple required the additional [artwork padding optimization](native-artwork-padding.md), also included in beta.3. These reports do not establish sustained FPS on other systems.

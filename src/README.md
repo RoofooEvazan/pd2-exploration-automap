@@ -4,7 +4,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 
 | File | Purpose |
 | --- | --- |
-| [ExplorationRuntime.cpp](ExplorationRuntime.cpp) | Connects the DLL to the game, reads player state, handles towns, and submits automap drawing. |
+| [ExplorationRuntime.cpp](ExplorationRuntime.cpp) | Connects the DLL to the game, reads player state and the fixed-radius setting, handles towns, and submits automap drawing. |
 | [GameTables.hpp](GameTables.hpp) | Loads owned, size-limited table data through the verified Storm file resolver, using archives or active direct overrides. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
 | [NativeRevealDistance.hpp](NativeRevealDistance.hpp) | Sizes the existing circle from average native logical-view reach, with cached dimensions and a guarded fallback. |

@@ -2,11 +2,11 @@
 
 The campaign now defaults to a hybrid appearance: shaded floors and the red exploration edge from the modern map, gray wall/shore contours with a subtle dark border, and the original water patterns, roads, stairs, entrances, and icons. Ordinary wall artwork is selectively replaced; uncertain or mixed-purpose artwork stays native. No new quest markers, exit arrows, destination labels, or room-reveal calls are added.
 
-This guide covers v0.2.0-beta.3, including automatic game-table loading, hybrid endgame defaults and boundary settings. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
+This guide covers v0.2.0-beta.4, including the 31-subtile radius setting, automatic game-table loading, hybrid endgame defaults and boundary colors. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
 
 ## Settings
 
-Copy [ExplorationMask.ini](../ExplorationMask.ini) beside `Game.exe`. Settings are read at startup; restart after editing them. Missing or invalid values use the defaults below.
+Copy [ExplorationMask.ini](../ExplorationMask.ini) beside `Game.exe`, or merge these supplied settings into your existing INI to preserve preferences. Settings are read at startup; restart after editing them. A missing or invalid `RevealRadiusSubtiles` follows `RevealMode` rather than selecting 31 automatically.
 
 ```ini
 [Automap]
@@ -14,6 +14,7 @@ CampaignStyle=hybrid
 MapsStyle=hybrid
 OverlayOpacity=80
 RevealMode=native-average
+RevealRadiusSubtiles=31
 BoundaryColor=red
 ```
 
