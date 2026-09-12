@@ -1,12 +1,12 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.5 — BETA.** The **31-subtile circular reveal radius is now hardcoded** in the plugin, keeping the same smooth shaded edge. Old distance settings are ignored and display resolution cannot change the radius. Choose Red, Neon Green, Magenta, Cyan or Light Blue in the existing Automap Options menu. This release retains the screenshot gallery, hybrid campaign/map styling, earlier rendering optimizations and automatic game-table loading. See [boundary settings](docs/boundary-settings.md) for the current fixed-distance behavior.
+**v0.2.0-beta.6 — BETA.** Endgame maps now support native **shrine and PD2 event icons** in explored areas, with a bounded fallback for loaded units that have not reached the native automap yet. Existing native icons take precedence to prevent duplicates. This release keeps the hardcoded 31-subtile circular reveal, five boundary colors, hybrid styling and screenshot gallery. See [shrine and event icons](docs/map-markers.md) for behavior and limits.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.2.0-beta.5 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.5). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+[Download v0.2.0-beta.6 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.6). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -20,7 +20,7 @@ Each folder has its own guide to the files inside. The [screenshot gallery](docs
 | [scripts](scripts/) | A read-only checker that compares your game files with the tested build. |
 | [src](src/) | The plugin's exploration mask, floor shading, wall outlines, renderer hooks, and background updates. |
 | [tests](tests/) | Checks for exploration, clipping, drawing behavior, and incremental map updates. |
-| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map style, reveal distance, boundary color and overlay opacity settings. |
+| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map style, boundary color and overlay opacity settings; reveal distance is fixed in the plugin. |
 | [CMakeLists.txt](CMakeLists.txt) | Build settings for the 32-bit Windows DLL and its three test programs. |
 | [compatibility.json](compatibility.json) | Fingerprints of the tested game files and plugin, plus loader and launch settings. |
 | [LICENSE](LICENSE) | The MIT license for this project's original source code. |
@@ -50,6 +50,7 @@ Compare the same sewer frontier in [Red](docs/screenshots/boundary-color-red.png
 
 ## Features
 
+- Native shrine and PD2 event icons on explored endgame maps, with duplicate protection and bounded loaded-unit sampling.
 - Hybrid campaign styling: gray contours and shaded floors with native roads, entrances, water patterns and icons.
 - Straight Act 3 sewer wall profiles, highlighted water channels and retained bridge artwork.
 - Five boundary colors in the existing Automap Options menu, saved immediately.
@@ -74,9 +75,9 @@ You need your own installed copy of Diablo II / Project Diablo 2 and the matchin
 
 Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. This beta also requires the listed `D2Win.dll` for menu/session tracking. These hashes identify the actual tested files more precisely than a season or launcher label.
 
-The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
+The plugin reads its automap, object, campaign-layer and event-actor definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
 
-**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.5 Windows x86 release ZIP. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include a compiled DLL.
+**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.6 Windows x86 release ZIP. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include a compiled DLL.
 
 From PowerShell in this repository, check an installation without changing it:
 

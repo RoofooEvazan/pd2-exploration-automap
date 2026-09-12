@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "43E84491C6E954B319CC8EED4407A09326F800FF7AC1790DA11ADB1AF65BF5A6",
-  "validation": "All three Win32 Release suites pass with local artwork/tables and private archive fixtures. The user confirmed the installed hardcoded 31-subtile build works; live campaign logs confirm mode=hardcoded and radiusSubtiles=31.00. Ships that exact user-tested DLL. Old distance INI values are ignored, including oversized values; color/style/opacity preferences remain available. Broader compatibility and long-session performance remain under test; this is not online approval or anti-tamper enforcement.",
+  "testedModuleSha256": "535E42FCDDD8FE9C6D6837F6E16836474066C677A8D66143DE2D1EF9A1ED76BD",
+  "validation": "All three Win32 Release suites passed with private artwork/table/archive fixtures. The user confirmed shrine/event icons work in the installed build on 2026-09-12; live logs accepted marker definitions and recorded fallback submissions and native duplicate skips. Ships that exact tested DLL. The hardcoded 31-subtile radius and existing appearance settings remain unchanged. Broader compatibility and long-session performance remain under test; this is not online approval or anti-tamper enforcement.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -14,14 +14,16 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.5",
+  "release": "v0.2.0-beta.6",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",
     "data/global/excel/Objects.txt": "e8c129055ff894f306a00b39b1e729c9f73f7674add93871c77c617c9722858b",
-    "data/global/excel/Levels.txt": "3382b9ac83d9edc279ca445b217a7c6b1aafae46d2529cc0ef8e6316f0662e45"
+    "data/global/excel/Levels.txt": "3382b9ac83d9edc279ca445b217a7c6b1aafae46d2529cc0ef8e6316f0662e45",
+    "data/global/excel/MonStats.txt": "d416aa1672a3a2bef1c4b289f1727c74f289e09f2e681af9447754479b8e5bf0",
+    "data/global/excel/MonStats2.txt": "a240af74d2c93d356a68b74a7361ce5247298f24a90e0038d4f589e7f507488d"
   },
-  "gameTables": "Automatically read from active installed game archives or direct overrides via native Storm; the development fixture hashes are informational, not files to download. Missing or malformed tables retain native/per-area fallback.",
+  "gameTables": "Automatically read from active installed game archives or direct overrides via native Storm; development fixture hashes are informational, not files to download. Missing/malformed geometry or layer tables retain native/per-area fallback. Missing marker definitions disable the affected shrine/event fallback; existing native drawing remains.",
   "optionalMenuSha256": {
     "ProjectDiablo.dll": "538a77b7ccef3d5334e56c4e9e57a4d8fc69a1e27c46beb694c0dedfcfbf9cb3"
   },

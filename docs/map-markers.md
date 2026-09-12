@@ -1,4 +1,4 @@
-# Shrine and event icons (local test)
+# Shrine and event icons — BETA
 
 Endgame automaps retain native shrine and PD2 event symbols. A small fallback
 also draws those symbols for already-loaded units whose locations are explored
@@ -41,7 +41,7 @@ loaded rooms are not discovered. Missing/malformed marker tables disable the
 affected fallback while keeping the ordinary native drawing path. Events that
 have no native marker definition are not assigned a guessed symbol.
 
-## Validation and local test
+## Validation and gameplay check
 
 The runtime suite tests table mappings and exclusion of ordinary quest/exit
 artwork, guarded room/unit reads, invalid pointers and cycles, sample expiry,
@@ -58,4 +58,4 @@ map, activate the shrine/event, and walk away and back. Confirm the native icon,
 placement, visibility and FPS. `ExplorationMask.log` includes marker-definition
 counts and `MARKERS sampled=... added=... alreadyNative=...` diagnostics.
 
-This change remains a local candidate until the gameplay check is approved.
+v0.2.0-beta.6 ships the exact DLL confirmed working by the user on 2026-09-12. All three Win32 Release suites passed with the private artwork/table/archive fixtures. The live log accepted 95 object definitions and seven event actor definitions, and recorded both fallback submissions and native-registration/duplicate skips. Those counts reflect the active development tables; other supported table sets can differ. This is a functional check of the tested build, not a broad performance or compatibility guarantee.

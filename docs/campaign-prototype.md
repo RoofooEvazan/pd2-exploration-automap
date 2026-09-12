@@ -2,7 +2,7 @@
 
 The campaign now defaults to a hybrid appearance: shaded floors and the red exploration edge from the modern map, gray wall/shore contours with a subtle dark border, and the original water patterns, roads, stairs, entrances, and icons. Ordinary wall artwork is selectively replaced; uncertain or mixed-purpose artwork stays native. No new quest markers, exit arrows, destination labels, or room-reveal calls are added.
 
-This guide covers v0.2.0-beta.5, including the hardcoded 31-subtile radius, automatic game-table loading, hybrid endgame defaults and boundary colors. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
+This guide covers v0.2.0-beta.6, retaining the hardcoded 31-subtile radius, automatic game-table loading, hybrid endgame defaults and boundary colors. Endgame shrine/event additions are described in the [marker guide](map-markers.md). Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
 
 ## Settings
 
