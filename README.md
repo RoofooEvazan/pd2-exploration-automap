@@ -1,12 +1,12 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.1 — BETA.** Modern exploration mapping for the campaign and endgame: shaded floors, gray wall outlines, red unexplored edges, and familiar campaign water, roads and icons. This beta adds connected-area persistence, straight sewer walls and highlighted water channels, faster clipping and water preparation, and adjustable overlay opacity. No quest markers or exit arrows are added.
+**v0.2.0-beta.2 — BETA.** Fixes missing-table installation failures: hybrid styling and adjoining-area persistence now load definitions automatically from the installed game. No separate `automap.txt`, `Objects.txt` or `Levels.txt` download or extraction is needed for the supported PD2 installation. Existing appearance settings are preserved; no quest markers or exit arrows are added.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and muted red edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
 
-[Download v0.2.0-beta.1 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.1). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+[Download v0.2.0-beta.2 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.2). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
 
 This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
 
@@ -72,7 +72,9 @@ You need your own installed copy of Diablo II / Project Diablo 2 and the matchin
 
 Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. This beta also requires the listed `D2Win.dll` for menu/session tracking. These hashes identify the actual tested files more precisely than a season or launcher label.
 
-Hybrid campaign styling reads your installation's loose `data/global/excel/automap.txt` and `Objects.txt`; connected-area sharing also needs matching `Levels.txt`. These game tables are **not included**. Missing/malformed artwork tables select native exploration styling; missing layer definitions keep separate per-area histories. The binary checker below checks engine files only, not these optional tables. See [campaign settings and data requirements](docs/campaign-prototype.md).
+The plugin reads its automap, object and campaign-layer definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
+
+**Upgrading from beta.1:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.2 release ZIP. Keep your INI, loader entry and normal launch flags. Downloading GitHub’s source ZIP does not supply the compiled DLL.
 
 From PowerShell in this repository, check an installation without changing it:
 

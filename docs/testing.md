@@ -32,6 +32,10 @@ Unset means skip that optional check. A supplied directory with missing or malfo
 
 `PD2_FLOOR_PROBE` can point to the original local Dark Temple development capture. This legacy integration check uses fixed seed coordinates from that capture, so an arbitrary room dump is not a substitute. The fixture is not distributed or required; the default synthetic suite covers the same floor/geometry algorithms without game data. The test does not write preview files.
 
+## Automatic game-table checks
+
+Synthetic runtime tests cover native ABI guards, bounded reads, handle cleanup, short/failed reads, style fallback and one-time initialization. Optional `PD2_ARCHIVE_TABLE_DIR` accepts private snapshots of the installed archive’s three TXT tables; no assets are needed for default tests or included in this repository. See [live table checks](game-tables.md#validation).
+
 ## Runtime diagnostics
 
 ### Optional hybrid artwork-table audit
@@ -47,6 +51,9 @@ finally { Remove-Item Env:\PD2_HYBRID_TABLE_DIR }
 This reads `automap.txt`, `Objects.txt`, and `Levels.txt` locally; these files do not belong in the repository. The inspected tables produce 111 eligible ordinary wall IDs and preserve the tested roads, water, waypoint, cave/temple entrances, stairs, cages, landmark artwork, and six Act 3 sewer wall IDs. The layer audit checks 132 campaign entries, shared jungle layers, distinct sewer layers, blank numeric defaults, conflicting records, and act/endgame isolation. An unset variable skips this optional integration audit. This is a fixture check for the development tables, not a universal table-compatibility guarantee.
 
 ### Log fields
+
+`TABLE` lines report each read, followed by `CAMPAIGN layers`, `HYBRID classified` and `STYLE` to confirm successful parsing and selected behavior. Installed hooks alone do not prove that table loading succeeded.
+
 
 The game folder's `ExplorationMask.log` records initialization status, hook activity, mask size, CPU timing, and geometry counts. Missing modules or an unexpected hook chain produces a `Not installed` message. An absent `-exploration-test` flag produces `Dormant`.
 

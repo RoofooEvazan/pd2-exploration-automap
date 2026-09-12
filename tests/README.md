@@ -5,7 +5,7 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 | Test | What it checks |
 | --- | --- |
 | [mask_tests.cpp](mask_tests.cpp) | Explored cells, reveal boundaries, clipping coverage, movement, and session state. |
-| [runtime_tests.cpp](runtime_tests.cpp) | Native clipping, hybrid contours and protected details, sewer outline/shading behavior, towns, shared campaign areas, and session/transition guards. |
+| [runtime_tests.cpp](runtime_tests.cpp) | Native clipping, hybrid contours and protected details, sewer outline/shading behavior, towns, shared campaign areas, session/transition guards, and bounded native game-table reads. |
 | [styled_tests.cpp](styled_tests.cpp) | Floor shading, red open edges, wall outlines, cached-versus-full geometry, and background worker snapshots. |
 
 After [building the project](../README.md#build-from-source), run from the repository folder:

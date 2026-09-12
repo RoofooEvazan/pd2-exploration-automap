@@ -4,6 +4,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 
 | File | Purpose |
 | --- | --- |
+| [GameTables.hpp](GameTables.hpp) | Reads bounded, owned table data through native Storm archives and direct overrides. |
 | [ExplorationRuntime.cpp](ExplorationRuntime.cpp) | Connects the DLL to the game, reads player state, handles towns, and submits automap drawing. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |

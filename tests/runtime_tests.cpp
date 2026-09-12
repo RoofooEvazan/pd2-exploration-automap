@@ -9,6 +9,142 @@
 #include <sstream>
 static const char* checkContext="runtime";
 static void require(bool ok){if(!ok){std::cerr<<"FAILED: "<<checkContext<<"\n";std::exit(1);}}
+static std::map<std::string,std::string> gameTestFiles;
+static const std::string* gameTestCurrent=nullptr;
+static unsigned gameOpens=0,gameArchiveOpens=0,gameCloses=0,gameReads=0;
+static DWORD gameSizeOverride=0,gameSizeHigh=0;
+static bool gameShortRead=false,gameFailedRead=false,gameThrowRead=false,gameBadExport=false;
+static BOOL __stdcall openGameTest(const char* path,HANDLE* result) {
+    ++gameOpens;
+    auto it=gameTestFiles.find(path);if(it==gameTestFiles.end())return FALSE;
+    gameTestCurrent=&it->second;*result=reinterpret_cast<HANDLE>(17);return TRUE;
+}
+static BOOL __stdcall openGameArchiveTest(HANDLE archive,const char* path,DWORD scope,HANDLE* result) {
+    require(!archive && scope==0);++gameArchiveOpens;
+    auto it=gameTestFiles.find(std::string("archive/")+path);if(it==gameTestFiles.end())return FALSE;
+    gameTestCurrent=&it->second;*result=reinterpret_cast<HANDLE>(17);return TRUE;
+}
+static DWORD __stdcall sizeGameTest(HANDLE file,DWORD* high) {
+    require(file==reinterpret_cast<HANDLE>(17));*high=gameSizeHigh;
+    return gameSizeOverride?gameSizeOverride:DWORD(gameTestCurrent->size());
+}
+static BOOL __stdcall readGameTest(HANDLE file,void* data,DWORD length,DWORD* got,OVERLAPPED* overlap) {
+    require(file==reinterpret_cast<HANDLE>(17) && !overlap && length==gameTestCurrent->size());++gameReads;
+    if(gameThrowRead)throw 1;
+    memcpy(data,gameTestCurrent->data(),length);*got=length-(gameShortRead?1:0);
+    return gameFailedRead?FALSE:TRUE;
+}
+static BOOL __stdcall closeGameTest(HANDLE file) {
+    require(file==reinterpret_cast<HANDLE>(17));++gameCloses;return TRUE;
+}
+static FARPROC WINAPI resolveGameTest(HMODULE module,LPCSTR name) {
+    unsigned rva=0;
+    switch(reinterpret_cast<uintptr_t>(name)) {
+    case 267:rva=0x28da0;break;case 268:rva=0x28960;break;case 265:rva=0x262d0;break;
+    case 269:rva=0x29be0;break;case 253:rva=0x26e20;break;
+    default:require(false);
+    }
+    return reinterpret_cast<FARPROC>(reinterpret_cast<unsigned char*>(module)+rva+(gameBadExport?1:0));
+}
+static void testGameTables() {
+    checkContext="game file binding, owned reads, table fallback and one-time load";
+    using exploration::GameFiles;using exploration::TableRead;using exploration::readGameTable;
+    GameFiles api{openGameTest,sizeGameTest,readGameTest,closeGameTest};
+    std::string bytes="old";
+    require(readGameTable({},"missing",bytes)==TableRead::Unavailable && bytes.empty() && gameOpens==0);
+    require(readGameTable(api,"missing",bytes)==TableRead::OpenFailed && gameCloses==0);
+    gameTestFiles["example"]="native bytes\r\n";
+    require(readGameTable(api,"example",bytes)==TableRead::Ready && bytes==gameTestFiles["example"] && gameCloses==1);
+    gameSizeHigh=1;
+    require(readGameTable(api,"example",bytes)==TableRead::InvalidSize && bytes.empty() && gameCloses==2 && gameReads==1);
+    gameSizeHigh=0;gameSizeOverride=16*1024*1024+1;
+    require(readGameTable(api,"example",bytes)==TableRead::InvalidSize && gameCloses==3 && gameReads==1);
+    gameSizeOverride=0xffffffff;
+    require(readGameTable(api,"example",bytes)==TableRead::InvalidSize && gameCloses==4);
+    gameSizeOverride=0;gameTestFiles["empty"]="";
+    require(readGameTable(api,"empty",bytes)==TableRead::InvalidSize && gameCloses==5);
+    gameShortRead=true;
+    require(readGameTable(api,"example",bytes)==TableRead::ReadFailed && bytes.empty() && gameCloses==6);
+    gameShortRead=false;gameFailedRead=true;
+    require(readGameTable(api,"example",bytes)==TableRead::ReadFailed && bytes.empty() && gameCloses==7);
+    gameFailedRead=false;gameThrowRead=true;bool caught=false;
+    try {readGameTable(api,"example",bytes);}catch(...){caught=true;}
+    require(caught && gameCloses==8);gameThrowRead=false;
+
+    std::vector<unsigned char> module(0x60000);
+    auto dos=reinterpret_cast<IMAGE_DOS_HEADER*>(module.data());dos->e_magic=IMAGE_DOS_SIGNATURE;dos->e_lfanew=0x100;
+    auto nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(module.data()+0x100);
+    nt->Signature=IMAGE_NT_SIGNATURE;nt->FileHeader.Machine=IMAGE_FILE_MACHINE_I386;
+    nt->FileHeader.TimeDateStamp=0x4b95c049;nt->OptionalHeader.Magic=IMAGE_NT_OPTIONAL_HDR32_MAGIC;
+    nt->OptionalHeader.SizeOfImage=0x60000;
+    const unsigned char o[]={0x8b,0x4c,0x24,0x10,0x81,0xec,0x10,0x01,0,0};
+    const unsigned char s[]={0x56,0x57,0x8b,0x7c,0x24,0x10,0x85,0xff};
+    const unsigned char r[]={0x8b,0x44,0x24,0x14,0x8b,0x4c,0x24,0x10,0x8b,0x54,0x24,0x0c};
+    const unsigned char c[]={0x8b,0x7c,0x24,0x08,0x85,0xff};
+    const unsigned char ro[]={0x33,0xc0,0xf6,0xc2,0x01,0x74,0x05,0xb8,0x01,0x00,0x00,0x00,
+        0xf6,0xc2,0x02,0x74,0x03,0x83,0xc8,0x02};
+    const unsigned char rc[]={0x6a,0x00,0xe8,0x81,0xfb,0xff,0xff,0xc2,0x08,0x00};
+    module[0x28da0]=0x8b;module[0x28da1]=0x15;
+    *reinterpret_cast<uintptr_t*>(module.data()+0x28da2)=reinterpret_cast<uintptr_t>(module.data()+0x53130);
+    memcpy(module.data()+0x28da6,ro,sizeof(ro));memcpy(module.data()+0x28dd8,rc,sizeof(rc));
+    memcpy(module.data()+0x28960,o,sizeof(o));memcpy(module.data()+0x262d0,s,sizeof(s));
+    memcpy(module.data()+0x29be0,r,sizeof(r));memcpy(module.data()+0x26e2c,c,sizeof(c));
+    auto h=reinterpret_cast<HMODULE>(module.data());
+    require(bool(GameFiles::bind(h,resolveGameTest)));
+    gameBadExport=true;require(!GameFiles::bind(h,resolveGameTest));gameBadExport=false;
+    for(auto offset:{0x28da0,0x28da2,0x28da6,0x28dd8,0x28960,0x262d0,0x29be0,0x26e2c}) {
+        module[offset]^=1;require(!GameFiles::bind(h,resolveGameTest));module[offset]^=1;
+    }
+    nt->FileHeader.TimeDateStamp^=1;require(!GameFiles::bind(h,resolveGameTest));nt->FileHeader.TimeDateStamp^=1;
+    nt->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;require(!GameFiles::bind(h,resolveGameTest));
+    require(!GameFiles::bind(nullptr) && !GameFiles::bind(GetModuleHandleA("kernel32.dll")));
+
+    const std::string prefix="data\\global\\excel\\";
+    gameTestFiles[prefix+"Levels.txt"]="Id\tAct\tLayer\n76\t2\t42\n78\t2\t42\n";
+    gameTestFiles[prefix+"automap.txt"]="LevelName\tDescription\tCel1\tDescription\tCel2\tDescription\tCel3\tDescription\tCel4\n1\tWall\t23\tWater\t24\t\t0\t\t0\n";
+    gameTestFiles[prefix+"Objects.txt"]="AutoMap\n24\n";
+    auto campaignBefore=campaignStyle,mapsBefore=mapsStyle;
+    campaignStyle=mapsStyle=MapStyle::Hybrid;
+    loadGameTables(api);unsigned layer=0;
+    require(campaignStyle==MapStyle::Hybrid && mapsStyle==MapStyle::Hybrid);
+    require(campaignLayers.lookup(76,2,layer) && layer==42);
+    // Explicit archive-only diagnostics affect only this reader. Ordinary
+    // opens keep the direct override; no native direct-access flag is changed.
+    gameTestFiles["archive/example"]="archive bytes";api.openArchive=openGameArchiveTest;
+    api.archiveOnly=true;auto directOpens=gameOpens;
+    require(readGameTable(api,"example",bytes)==TableRead::Ready && bytes=="archive bytes" && gameArchiveOpens==1 && gameOpens==directOpens);
+    api.archiveOnly=false;
+    require(readGameTable(api,"example",bytes)==TableRead::Ready && bytes=="native bytes\r\n" && gameArchiveOpens==1);
+    gameTestFiles[prefix+"Objects.txt"]="wrong header\n";
+    loadGameTables(api);require(campaignStyle==MapStyle::Native && mapsStyle==MapStyle::Native);
+    require(campaignLayers.lookup(78,2,layer) && layer==42); // Independent layer success survives artwork failure.
+    campaignStyle=MapStyle::Original;mapsStyle=MapStyle::Styled;
+    auto readsBefore=gameReads;loadGameTables(api);
+    require(gameReads==readsBefore+1 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
+    gameTablesPending=true;ensureGameTables(); // No supported Storm loaded in the synthetic host.
+    require(!gameTablesPending && campaignLayers.size()==0 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
+    auto opensBefore=gameOpens;ensureGameTables();require(gameOpens==opensBefore);
+    campaignStyle=campaignBefore;mapsStyle=mapsBefore;
+    campaignLayers=exploration::CampaignLayers{};hybridArtwork=exploration::HybridArtwork{};
+
+    // Optional private archive snapshots exercise the actual shipped TXT
+    // schema; the default tests above contain only synthetic data.
+    char* dir=nullptr;std::size_t n=0;require(_dupenv_s(&dir,&n,"PD2_ARCHIVE_TABLE_DIR")==0);
+    const std::string directory=dir?dir:"";std::free(dir);
+    if(!directory.empty()) {
+        for(auto name:{"Levels.txt","automap.txt","Objects.txt"}) {
+            std::ifstream input(directory+"/"+name,std::ios::binary);require(bool(input));
+            gameTestFiles[prefix+name]=std::string((std::istreambuf_iterator<char>(input)),{});
+        }
+        campaignStyle=mapsStyle=MapStyle::Hybrid;loadGameTables(api);
+        require(campaignStyle==MapStyle::Hybrid && mapsStyle==MapStyle::Hybrid && campaignLayers.size()==132);
+        std::cout<<"PASS: installed archive tables; "<<campaignLayers.size()<<" campaign layers, "<<hybridArtwork.walls()<<" ordinary walls\n";
+        campaignStyle=campaignBefore;mapsStyle=mapsBefore;
+        campaignLayers=exploration::CampaignLayers{};hybridArtwork=exploration::HybridArtwork{};
+    }
+    gameTestFiles.clear();gameTestCurrent=nullptr;
+    std::cout<<"PASS: native game-file ABI guards, bounded reads, handle cleanup, table fallback and one-time loading\n";
+}
 static GlideVertex capturedA{},capturedB{};
 static int floatCalls=0,pointCalls=0,forwardedCells=0;
 static void __stdcall captureLine(const void* a,const void* b) {
@@ -874,5 +1010,6 @@ int main() {
     testSewerWater();
     testLocalHybridTables();
     testRasterCache();testWaterReuse();
+    testGameTables();
     return 0;
 }

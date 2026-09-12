@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include "ExplorationMask.hpp"
 #include "FrontierContacts.hpp"
 #include "NativeFloorReader.hpp"
@@ -22,6 +23,7 @@
 #include "SessionIdentity.hpp"
 #include "HybridArtwork.hpp"
 #include "CampaignLayers.hpp"
+#include "GameTables.hpp"
 #include "NativeWallTrace.hpp"
 #include "SewerWater.hpp"
 #include "RasterClipCache.hpp"
@@ -80,6 +82,8 @@ enum class MapStyle { Original, Native, Styled, Hybrid };
 static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Styled,activeStyle=MapStyle::Styled;
 static exploration::HybridArtwork hybridArtwork;
 static exploration::CampaignLayers campaignLayers;
+static bool gameTablesPending=false;
+static void ensureGameTables();
 static unsigned long layerWaits=0;
 static unsigned long hybridWallsReplaced=0,hybridDetails=0,hybridWater=0;
 static std::vector<GlideVertex> sewerCasing,sewerCore;
@@ -387,6 +391,7 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
 static void update() {
     PlayerState p{};
     if(!playerState(&p)) {InterlockedIncrement(&stateFailure);maskActive=false;nativeTownActive=false;sawTarget=false;return;}
+    ensureGameTables();
     DWORD now=GetTickCount();if(!updateForPlayer(p,now))return;
     if(maskActive)probeFloors(p.level);
     auto drawingPlayer=updateTownBoundary(p,now);
@@ -878,6 +883,9 @@ static MapStyle parseStyle(const char* value,MapStyle fallback) {
     return fallback;
 }
 static void loadStyles() {
+    // D2GL initializes us before PD2 finishes mounting its archives. Read the
+    // settings now, but resolve game tables only after a valid player exists.
+    gameTablesPending=true;
     char path[MAX_PATH]{};
     DWORD length=GetModuleFileNameA(nullptr,path,MAX_PATH);
     if(!length || length>=MAX_PATH){log("Style settings unavailable; using defaults.");return;}
@@ -890,14 +898,34 @@ static void loadStyles() {
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
     if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
-    std::string data(path,slash+1);data+="data\\global\\excel\\";
-    std::ifstream levels(data+"Levels.txt");
-    if(levels && campaignLayers.load(levels)) {
+}
+static void loadGameTables(const exploration::GameFiles& api) {
+    campaignLayers=exploration::CampaignLayers{};
+    std::string bytes;
+    auto readTable=[&](const char* name) {
+        std::string path="data\\global\\excel\\";path+=name;
+        auto result=exploration::readGameTable(api,path.c_str(),bytes);
+        if(logfile){fprintf(logfile,"TABLE %s: %s; bytes=%zu; source=%s.\n",
+            name,exploration::tableReadName(result),bytes.size(),
+            api.archiveOnly?"mounted archives (table diagnostic)":"game file resolver");fflush(logfile);}
+        return result==exploration::TableRead::Ready;
+    };
+    bool layersReady=false;
+    if(readTable("Levels.txt")) {
+        std::istringstream levels(std::move(bytes));layersReady=campaignLayers.load(levels);
+    }
+    if(layersReady) {
         if(logfile){fprintf(logfile,"CAMPAIGN layers=%zu; adjoining areas share state only on the expected native layer.\n",campaignLayers.size());fflush(logfile);}
     } else log("Campaign layer definitions unavailable; retaining separate per-area exploration caches.");
     if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid) {
-        std::ifstream definitions(data+"automap.txt"),objects(data+"Objects.txt");
-        bool ready=definitions && objects && hybridArtwork.load(definitions) && hybridArtwork.protectObjects(objects);
+        bool ready=false;
+        if(readTable("automap.txt")) {
+            std::istringstream definitions(std::move(bytes));ready=hybridArtwork.load(definitions);
+        }
+        if(ready) {
+            ready=readTable("Objects.txt");
+            if(ready){std::istringstream objects(std::move(bytes));ready=hybridArtwork.protectObjects(objects);}
+        }
         if(!ready) {
             if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
             if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
@@ -906,6 +934,23 @@ static void loadStyles() {
     }
     if(logfile){fprintf(logfile,"STYLE campaign=%d maps=%d (0=original, 1=native exploration, 2=styled, 3=hybrid); no added markers or arrows.\n",
         int(campaignStyle),int(mapsStyle));fflush(logfile);}
+}
+static void ensureGameTables() {
+    if(!gameTablesPending)return;
+    gameTablesPending=false; // No table I/O, parsing or retries during exploration.
+    try {
+        auto files=exploration::GameFiles::bind(GetModuleHandleA("Storm.dll"));
+        // A table-only diagnostic reproduces missing loose TXT files without
+        // disabling -direct for the rest of a custom test installation.
+        files.archiveOnly=strstr(GetCommandLineA(),"-exploration-archive-tables")!=nullptr;
+        loadGameTables(files);
+    }
+    catch(...) {
+        campaignLayers=exploration::CampaignLayers{};
+        if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
+        if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
+        log("Game table loading failed; retaining native artwork and separate area histories.");
+    }
 }
 static DWORD WINAPI diagnosticThread(void*) {
     // Reuse the existing watcher for process-lifetime menu detection. It only

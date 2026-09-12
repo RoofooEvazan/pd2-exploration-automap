@@ -1,5 +1,5 @@
 // Conservative native-artwork classification for the local hybrid renderer.
-// Definitions are read from the user's own loose game tables, never bundled.
+// Definitions come from the user's active game files, never bundled.
 #pragma once
 #include <array>
 #include <algorithm>

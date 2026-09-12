@@ -2,7 +2,7 @@
 
 The campaign now defaults to a hybrid appearance: shaded floors and the red exploration edge from the modern map, gray wall/shore contours with a subtle dark border, and the original water patterns, roads, stairs, entrances, and icons. Ordinary wall artwork is selectively replaced; uncertain or mixed-purpose artwork stays native. No new quest markers, exit arrows, destination labels, or room-reveal calls are added.
 
-This guide covers v0.2.0-beta.1. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
+This guide covers v0.2.0-beta.2, including automatic game-table loading. Offline testing confirmed the sewer appearance and adjoining-area persistence. The beta also includes clipping/water optimizations and a more translucent full-screen overlay. All three suites pass, including optional local artwork/table integration. Broad campaign coverage, sustained FPS and long-session stability remain under test; the beta label does not imply general compatibility.
 
 ## Settings
 
@@ -17,7 +17,7 @@ OverlayOpacity=80
 
 | Value | Behavior |
 | --- | --- |
-| `hybrid` | Modern contours with a dark contrast border, native details/icons, shaded floors, and red exploration bands. Requires the local tables described below. |
+| `hybrid` | Modern contours with a dark contrast border, native details/icons, shaded floors, and red exploration bands. Uses the active game tables described below. |
 | `native` | Original artwork clipped to explored space, with shaded floors and red exploration bands. |
 | `styled` | The previous simplified floor/wall appearance and exploration bands. |
 | `original` | Native automap with the plugin's exploration mask and shading disabled for that group. |
@@ -28,7 +28,7 @@ The inspected level table identifies campaign levels as 1 through 132, ending at
 
 ## Hybrid wall and shoreline rendering
 
-At startup, `HybridArtwork.hpp` reads the user's own loose `data/global/excel/automap.txt` and `Objects.txt` under the game directory. No tables or artwork are bundled here. Only recognized ordinary wall descriptions qualify for replacement. Roads, water/pools, bridges, stairs, doors, entrances, landmarks, ambiguous frame IDs, and every ID referenced by `Objects.txt` remain native. Missing or malformed required tables make the requested hybrid mode fall back to `native`.
+On the first valid automap update, `HybridArtwork.hpp` receives `data/global/excel/automap.txt` and `Objects.txt` through the game's archive/direct-file resolver. Manual table extraction is no longer required. See [automatic table loading](game-tables.md). No tables or artwork are bundled here. Only recognized ordinary wall descriptions qualify for replacement. Roads, water/pools, bridges, stairs, doors, entrances, landmarks, ambiguous frame IDs, and every ID referenced by `Objects.txt` remain native. Missing or malformed required tables make the requested hybrid mode fall back to `native`.
 
 The tested tables identify 111 ordinary wall frame IDs eligible for the floor-contour replacement. Six Act 3 sewer wall pieces (283 through 288) use a separate artwork-based route. The sewer drain/water frame 289 receives a faint fill and channel outline while retaining its native pattern; bridge frame 290, entrances, and icons remain native. Water classification is scoped to the `3 Sewer` table rows and levels 92/93 because unrelated endgame terrain reuses that frame ID. Conflicting sewer definitions or any object-icon reference prevent water styling. This is a tile-set exception, not a universal proof that every wall or water surface has a replacement.
 
