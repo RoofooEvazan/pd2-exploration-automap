@@ -566,6 +566,13 @@ static bool frameIndex(void* ctx,DWORD* id) {
     __try {if(!ctx)return false;*id=read<DWORD>(ctx);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
+static void recordBlueTerrain(void* ctx,int x,int y) {
+    Transform t{};Rect frame{};
+    if(!transform(t) || !frameBounds(ctx,x,y,&frame))return;
+    const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
+    waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
+    waterTint.add({frame.left+sx,frame.top+sy,frame.right+sx,frame.bottom+sy});
+}
 struct FrameSource { const void* frame;DWORD length,flags;int width,height;const void* file;DWORD index; };
 static bool frameSource(void* ctx,FrameSource* source) {
     __try {
@@ -810,9 +817,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             auto role=knownFrame?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
-            tintWater=!marker && !importantDetail && hybridArtwork.waterTile(id);
+            tintWater=!marker && !importantDetail && hybridArtwork.blueTerrainTile(id);
             replaceWall=!marker && role==exploration::HybridArtwork::Role::Wall;
-            if(replaceWall){++hybridWallsReplaced;if(!pendingTerrain && (!nativeTownActive || !townInViewport)){++suppressed;return;}}
+            if(replaceWall){
+                // Replaced cliff sprites still identify the material of the
+                // completed contour. Capture them before the fast suppression.
+                if(tintWater)recordBlueTerrain(ctx,x,y);
+                ++hybridWallsReplaced;if(!pendingTerrain && (!nativeTownActive || !townInViewport)){++suppressed;return;}
+            }
             else if(role==exploration::HybridArtwork::Role::Water || traceWater)++hybridWater;else ++hybridDetails;
         }
         Transform t{};Rect bounds{};

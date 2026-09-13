@@ -53,6 +53,16 @@ public:
         return false;
     }
     enum class Role { Detail, Wall, Water, SewerWall, SewerWater };
+    // Riverbank sprites contain only part of a water tile. Cliff sprites mark
+    // raised terrain, even where their labels don't contain "water".
+    static unsigned terrainEdge(const std::string& label) {
+        std::string text=label;for(auto& c:text)c=char(std::tolower(static_cast<unsigned char>(c)));
+        if(text.compare(0,4,"pd2 ")==0)text.erase(0,4);
+        if(text.compare(0,3,"rb_")==0)return 4;
+        for(const char* prefix:{"c_wr","c_wl","c_wbr","c_wbl","c_wtr","c_wtll"})
+            if(text.compare(0,std::char_traits<char>::length(prefix),prefix)==0)return 8;
+        return 0;
+    }
     enum class SewerShape { None, Down, Up, Peak, Cap };
     static SewerShape sewerShape(const std::string& label) {
         std::string text=label;for(auto& c:text)c=char(std::tolower(static_cast<unsigned char>(c)));
@@ -112,6 +122,7 @@ public:
                 Role role=describe(row[col-1]);
                 std::string label=row[col-1];for(auto& c:label)c=char(std::tolower(static_cast<unsigned char>(c)));
                 if(role==Role::Water)waterTiles_[id]|=label.find("island")==std::string::npos?1:2;
+                waterTiles_[id]|=std::uint8_t(terrainEdge(label));
                 entrances_[id]|=entranceLabel(row[col-1])?1:2;
                 if(landmarkLabel(row[col-1]))entrances_[id]|=4;
                 flags_[id]|=role==Role::Wall?1:role==Role::Water?6:role==Role::SewerWall?16:role==Role::SewerWater?32:2;++definitions;
@@ -160,6 +171,9 @@ public:
     bool loaded() const {return loaded_;}
     bool waterTile(std::uint32_t id) const {
         return loaded_ && id<flags_.size() && waterTiles_[id]==1 && !(flags_[id]&8) && !styledDetail(id);
+    }
+    bool blueTerrainTile(std::uint32_t id) const {
+        return loaded_ && id<flags_.size() && !(waterTiles_[id]&2) && (waterTiles_[id]&13) && !(flags_[id]&8) && !styledDetail(id);
     }
     bool entrance(std::uint32_t id) const {
         if(!loaded_ || id>=entrances_.size())return false;

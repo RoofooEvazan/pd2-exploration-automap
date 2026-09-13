@@ -39,6 +39,14 @@ static void testWaterTint() {
     std::istringstream objects("Name\tAutoMap\nWater shrine\t21\n");
     require(artwork.load(table) && artwork.protectObjects(objects));
     require(artwork.waterTile(12) && !artwork.waterTile(10) && !artwork.waterTile(20) && !artwork.waterTile(21) && !artwork.waterTile(22) && !artwork.waterTile(65536));
+    std::istringstream banks(artworkFixture()+
+        "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n"
+        "Test\tfl\t0\t0\t0\tC_WTLL\t22\tbridgeLt\t23\tStn_WR a\t24\tF_WR\t25\n");
+    require(artwork.load(banks));
+    for(unsigned id:{18u,19u,20u,21u,22u})require(artwork.blueTerrainTile(id));
+    for(unsigned id:{10u,23u,24u,25u,65536u})require(!artwork.blueTerrainTile(id));
+    std::istringstream protectedBank("Name\tAutoMap\nShrine\t18\n");
+    require(artwork.protectObjects(protectedBank) && !artwork.blueTerrainTile(18));
 
     checkContext="hybrid blue shorelines preserve walls, geometry, alpha and other styles";
     auto oldStyle=activeStyle;auto oldWall=wallColor;auto oldOpacity=overlayOpacity;
@@ -81,6 +89,27 @@ static void testWaterTint() {
         cellHook(ctx.data(),-shiftX,w*2-shiftY,&nativeView,0);
         require(waterTint.size()==std::size_t(style==MapStyle::Hybrid?1:0));
         require(forwardedCells==before+(style==MapStyle::Styled?0:1));
+    }
+    checkContext="riverbanks and suppressed cliff cells both register blue terrain";
+    std::istringstream runtimeBanks(artworkFixture()+
+        "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n");
+    require(hybridArtwork.load(runtimeBanks));
+    for(int divisor:{10,20})for(DWORD id:{18u,19u,20u,21u}) {
+        const int w=divisor==10?16:8;
+        frame[1]=w;frame[2]=w*2;put(memory,0xf16b0,divisor);ctx[0]=id;
+        Mask mask(.25);mask.revealAround({0,0},132);explored=&mask;
+        activeStyle=MapStyle::Hybrid;enabled=inPass=haveViewport=styledActive=maskActive=true;
+        state.captureIncomplete=false;nativeTownActive=false;terrainClips=nullptr;
+        ++gameSerial;waterTint.select(gameSerial,lastLevelKey,divisor);
+        const int sx=-40-(divisor==10?8:7),sy=-20-(divisor==10?-8:-3);
+        auto before=forwardedCells;
+        cellHook(ctx.data(),-sx,w*2-sy,&nativeView,0);
+        require(waterTint.size()==1 && forwardedCells==before+(id<20?1:0));
+        // The refresh fallback keeps the same material information and still
+        // draws the native cliff only where completed terrain is unavailable.
+        state.captureIncomplete=true;state.coverage.reset();
+        cellHook(ctx.data(),-sx,w*2-sy,&nativeView,0);
+        require(waterTint.size()==1 && forwardedCells==before+(id<20?2:1));
     }
     waterTint.select(++gameSerial,lastLevelKey,10);client=nullptr;inPass=haveViewport=maskActive=styledActive=false;
     activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;styledCurrent=nullptr;explored=&emptyMask;
