@@ -16,7 +16,7 @@ Open the automap once in a game, then go to **Options → Automap Options → Ma
 | --- | --- |
 | **Original** | Unchanged game automap, without custom clipping, shading, contours or entrance emphasis. |
 | **Native** | Original artwork with exploration clipping and a colored boundary, without custom floor shading or contours. |
-| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. |
+| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Water edges use light blue independently of the wall color. |
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
 
 Native, Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.

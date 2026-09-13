@@ -18,6 +18,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [CampaignLayers.hpp](CampaignLayers.hpp) | Reads expected campaign layers so adjoining areas share explored maps and stale transition callbacks cannot mix separate layers. |
 | [NativeWallTrace.hpp](NativeWallTrace.hpp) | Builds straight sewer wall profiles with shared endpoints, checking them against native artwork before replacement. |
 | [SewerWater.hpp](SewerWater.hpp) | Joins sewer water tiles into channel outlines and reuses unchanged perimeters without rebuilding internal seams each frame. |
+| [WaterTint.hpp](WaterTint.hpp) | Colors water-facing parts of Hybrid contours light blue using native water tiles. Caches color splits across movement and keeps the geometry unchanged. |
 | [FrontierContacts.hpp](FrontierContacts.hpp) | Finds where the reveal edge touches visible artwork in fallback mode. |
 | [NativeFloorReader.hpp](NativeFloorReader.hpp) | Reads loaded room collision data for floor and wall geometry. |
 | [StyledMap.hpp](StyledMap.hpp) | Builds shaded floors, wall contours and open-frontier geometry. |

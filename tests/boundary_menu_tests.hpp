@@ -191,15 +191,16 @@ static void testPersonalizedDrawing() {
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,viewport);
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
             require(appearancePositions==geometry && batchColor==0x848484e0 && !styledBatch);
-            // The same wall selection colors both native-traced sewer walls and
-            // the joined water outline, but leaves the water fill/casing alone.
+            // Sewer walls follow the selection; water edges keep light blue.
+            // Neither setting changes the native fill or contrast casing.
             sewerCasing.assign(testQuad,testQuad+4);sewerCore=sewerCasing;sewerWaterFill=sewerCasing;sewerWater.clear();
+            waterCore=sewerCasing;
             inPass=maskActive=styledActive=haveViewport=true;nativeTownActive=false;activeStyle=MapStyle::Hybrid;
             observedLevel=92;passViewport=viewport;markerArtworkFile=nullptr;
             appearanceColors.clear();appearancePositions.clear();endPass();
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x56606438),overlayColor(0x181818c0),
-                overlayColor(wallRGBA(wallColor,148,224))}));
-            require(sewerCore.empty() && sewerCasing.empty() && sewerWaterFill.empty());
+                overlayColor(wallRGBA(wallColor,148,224)),overlayColor(0x50a5dce0)}));
+            require(sewerCore.empty() && sewerCasing.empty() && sewerWaterFill.empty() && waterCore.empty());
             // Styled mode uses the same fractional contour casing and core.
             // Fallback line accents still preserve ordinary and collapsed strokes.
             activeStyle=MapStyle::Styled;appearanceColors.clear();appearancePositions.clear();

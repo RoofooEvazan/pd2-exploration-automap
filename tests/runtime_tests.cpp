@@ -675,7 +675,7 @@ static void __stdcall captureSewerShade(DWORD mode,DWORD count,const void* data)
 }
 static void __stdcall captureHybridArray(DWORD mode,DWORD count,const void* data) {
     require(mode==5 && count>0 && count%4==0 && data);
-    require(batchColor==0x181818c0 || batchColor==0x949494e0);
+    require(batchColor==0x181818c0 || batchColor==0x949494e0 || batchColor==0x50a5dce0);
     if(batchColor==0x181818c0)++casingCalls;else ++coreCalls;
     auto vertices=static_cast<const GlideVertex* const*>(data);
     for(DWORD i=0;i<count;i+=4) {
@@ -868,12 +868,12 @@ static void testSewerWater() {
     StyledState drawing;drawing.floorCells=1;drawing.drawing.quads=1;styledCurrent=&drawing;styledActive=true;activeStyle=MapStyle::Hybrid;observedLevel=92;
     maskActive=true;inPass=true;enabled=true;nativeTownActive=false;haveViewport=true;passViewport={0,0,100,100};
     NativeRect viewport{0,100,0,99};originalCell=captureCell;originalLine=townLine;styledArray=captureWaterArray;styledColor=captureColor;
-    sewerWater.clear();sewerWaterFill.clear();sewerCasing.clear();sewerCore.clear();casingCalls=coreCalls=waterFillCalls=0;
+    sewerWater.clear();sewerWaterFill.clear();sewerCasing.clear();sewerCore.clear();waterCore.clear();casingCalls=coreCalls=waterFillCalls=0;
     auto before=forwardedCells;cellHook(ctx.data(),10,32,&viewport,0);cellHook(ctx.data(),18,36,&viewport,0);
     require(forwardedCells==before+2 && sewerWater.tiles().size()==2 && sewerWater.edges().size()==6);
     ctx[0]=290;cellHook(ctx.data(),10,32,&viewport,0);require(forwardedCells==before+3 && sewerWater.tiles().size()==2); // Bridge stays native.
     endPass();require(waterFillCalls==1 && casingCalls==1 && coreCalls==1 && sewerWater.tiles().empty());
-    require(sewerWaterFill.empty() && sewerCasing.empty() && sewerCore.empty() && !styledBatch);
+    require(sewerWaterFill.empty() && sewerCasing.empty() && sewerCore.empty() && waterCore.empty() && !styledBatch);
     styledCurrent=nullptr;styledActive=false;inPass=false;client=nullptr;explored=&emptyMask;activeStyle=MapStyle::Styled;
     std::cout<<"PASS: straight joined sewer wall profiles; water tile union without interior seams, duplicate rejection, clipped fill/border, native water/bridge preservation and three bounded batches\n";
 }
@@ -902,6 +902,8 @@ static void testLocalHybridTables() {
     for(DWORD id:{283u,284u,285u,286u,287u,288u})require(policy.role(id)==Role::SewerWall);
     require(policy.role(289)==Role::SewerWater && policy.role(290)==Role::Detail);
     for(DWORD id:{4u,5u,6u,7u,8u,266u,520u})require(policy.role(id)==Role::Water);
+    for(DWORD id:{4u,5u,6u,7u,8u,266u,267u,520u,521u,522u})require(policy.waterTile(id));
+    require(!policy.waterTile(1259) && !policy.waterTile(290) && !policy.waterTile(308));
     require(policy.poisonedWellContours()==289);
     for(DWORD id=0;id<1974;++id) {
         const bool contour=(id>=1572 && id<=1578) || (id>=1692 && id<=1973);
@@ -1125,6 +1127,7 @@ static void testWaterReuse() {
 #include "entrance_visibility_tests.hpp"
 #include "map_style_tests.hpp"
 #include "area_entry_tests.hpp"
+#include "water_tint_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
@@ -1201,5 +1204,6 @@ int main() {
     testEmptyAreaPass();
     testAreaEntryWalls();
     testStableWallRefresh();
+    testWaterTint();
     return 0;
 }
