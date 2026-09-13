@@ -46,6 +46,12 @@ public:
         return found || text=="den of evil" || text=="ftwr marker" ||
             text.compare(0,6,"crypt ")==0 || text=="temple str dwn" || text.compare(0,9,"mesa dwn ")==0;
     }
+    static bool landmarkLabel(const std::string& label) {
+        std::string text;for(unsigned char c:label)text+=std::isalnum(c)?char(std::tolower(c)):' ';
+        std::istringstream words(text);std::string word;
+        while(words>>word)if(oneOf(word,{"waypoint","shrine","marker","altar","forge","tome"}))return true;
+        return false;
+    }
     enum class Role { Detail, Wall, Water, SewerWall, SewerWater };
     enum class SewerShape { None, Down, Up, Peak, Cap };
     static SewerShape sewerShape(const std::string& label) {
@@ -105,6 +111,7 @@ public:
                 int id=number(row[col]);if(id<0)continue;
                 Role role=describe(row[col-1]);
                 entrances_[id]|=entranceLabel(row[col-1])?1:2;
+                if(landmarkLabel(row[col-1]))entrances_[id]|=4;
                 flags_[id]|=role==Role::Wall?1:role==Role::Water?6:role==Role::SewerWall?16:role==Role::SewerWater?32:2;++definitions;
                 // This profile's Poisoned Well (level 202) uses table group 46.
                 // Its custom labels denote contour sprites, including a blank
@@ -153,7 +160,16 @@ public:
         if(!loaded_ || id>=entrances_.size())return false;
         // Native generic stair/exit symbol is not listed in automap.txt.
         // Any active table alias overrides this supported-artwork fallback.
-        return entrances_[id]==1 || (id==308 && entrances_[id]==0 && flags_[id]==0);
+        return (entrances_[id]&3)==1 || (id==308 && entrances_[id]==0 && flags_[id]==0);
+    }
+    bool styledDetail(std::uint32_t id) const {
+        if(!loaded_ || id>=flags_.size())return false;
+        // Built-in portal/stair/shrine/waypoint variants absent from TXT.
+        // An active table alias takes precedence over this artwork fallback.
+        const bool builtIn=(id==301 || id==302 || id==311 || id==317) && flags_[id]==0 && entrances_[id]==0;
+        // An ambiguous stair/terrain alias is kept for navigation, even when
+        // it is too uncertain for the independent brightness enhancement.
+        return builtIn || (flags_[id]&8) || (entrances_[id]&5) || entrance(id);
     }
     std::size_t walls() const {return std::count(flags_.begin(),flags_.end(),std::uint8_t(1));}
     std::size_t poisonedWellContours() const {

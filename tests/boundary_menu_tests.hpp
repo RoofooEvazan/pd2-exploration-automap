@@ -39,13 +39,13 @@ static void testBoundaryMenu() {
     for(unsigned i=0;i<source.size();++i){source[i].type=i?1:0xffffffff;source[i].cell=reinterpret_cast<void*>(0x100+i*4);}
     source[8].type=0;strcpy_s(source[0].artwork,"AutoMapOptions");strcpy_s(source[8].artwork,"SPrevious");
     ui::Menu descriptor{9,45,34,49,36,0};ui::makeMenu(descriptor,source.data());
-    require(ui::menu.count==11 && !memcmp(ui::entries.data(),source.data(),8*sizeof(ui::Entry)));
-    require(!memcmp(&ui::entries[10],&source[8],sizeof(ui::Entry)) && !ui::entries[8].cell && !ui::entries[9].cell);
+    require(ui::menu.count==12 && !memcmp(ui::entries.data(),source.data(),8*sizeof(ui::Entry)));
+    require(!memcmp(&ui::entries[ui::backRow],&source[8],sizeof(ui::Entry)) && !ui::entries[ui::boundaryRow].cell && !ui::entries[ui::wallRow].cell);
     for(const auto& row:ui::pickerEntries) {
         require(!row.cell && !row.artwork[0]);
         for(auto cell:row.switches)require(!cell);
     }
-    auto active=ui::entries.data();auto activeDescriptor=&ui::menu;DWORD selected=8,last=10;
+    auto active=ui::entries.data();auto activeDescriptor=&ui::menu;DWORD selected=ui::boundaryRow,last=ui::backRow;
     ui::activeEntries=&active;ui::activeMenu=&activeDescriptor;ui::selection=&selected;ui::escapeSelection=&last;
     ui::drawText=captureMenuText;ui::textSize=captureMenuFont;ui::textWidth=captureMenuWidth;ui::originalText=captureMenuCell;
     // Native drawing and hit testing use the same centered row geometry.
@@ -62,7 +62,7 @@ static void testBoundaryMenu() {
     for(bool walls:{false,true})for(unsigned i=0;i<boundaryPresets.size();++i) {
         checkContext=walls?"wall picker selection and persistence":"boundary picker selection and persistence";
         const auto untouched=walls?boundaryColor:wallColor;
-        auto& row=ui::entries[walls?9:8];
+        auto& row=ui::entries[walls?ui::wallRow:ui::boundaryRow];
         require(row.press(&row,nullptr));
         require(active==ui::pickerEntries.data() && activeDescriptor==&ui::pickerMenu && last==ui::pickerMenu.count-1);
         const auto current=walls?wallColor:boundaryColor;
@@ -82,7 +82,7 @@ static void testBoundaryMenu() {
         require(choice.press(&choice,nullptr));
         require((walls?wallColor:boundaryColor)==static_cast<BoundaryColor>(i));
         require((walls?boundaryColor:wallColor)==untouched && !ui::saveFailed);
-        require(active==ui::entries.data() && activeDescriptor==&ui::menu && selected==(walls?9u:8u) && last==10);
+        require(active==ui::entries.data() && activeDescriptor==&ui::menu && selected==(walls?ui::wallRow:ui::boundaryRow) && last==ui::backRow);
         char saved[32]{};
         GetPrivateProfileStringA("Automap",walls?"WallColor":"BoundaryColor",walls?"gray":"red",saved,32,file);
         require(parseBoundaryColor(saved)==static_cast<BoundaryColor>(i) && GetPrivateProfileIntA("Automap","OverlayOpacity",0,file)==63);
@@ -101,7 +101,7 @@ static void testBoundaryMenu() {
     checkContext="picker Back/Escape and save failure";
     require(ui::openPicker(true));
     // PD2 Escape calls the last callback with the TABLE pointer, not row pointer.
-    require(ui::pickerEntries[last].press(active,nullptr) && active==ui::entries.data() && selected==9 && last==10);
+    require(ui::pickerEntries[last].press(active,nullptr) && active==ui::entries.data() && selected==ui::wallRow && last==ui::backRow);
     require(!ui::choose(source.data(),nullptr)); // stale or foreign callbacks cannot save
     require(ui::openPicker(false));settingsPath.clear();
     const auto colorBeforeFailure=boundaryColor;
@@ -115,7 +115,7 @@ static void testBoundaryMenu() {
     loadAppearanceSettings(file);require(wallColor==BoundaryColor::Gray);
     require(WritePrivateProfileStringA("Automap","WallColor",nullptr,file)!=0);
     loadAppearanceSettings(file);require(wallColor==BoundaryColor::Gray);
-    ui::drawRow(source[0].cell,400,int(ui::entries[8].y+ui::menu.textHeight),1,5,-1);
+    ui::drawRow(source[0].cell,400,int(ui::entries[ui::boundaryRow].y+ui::menu.textHeight),1,5,-1);
     ui::drawRow(nullptr,400,1,1,5,-1);active=source.data();ui::drawRow(nullptr,400,1,1,5,-1);
     require(menuForwards==3);
     settingsPath=oldPath;boundaryColor=oldColor;wallColor=oldWall;require(DeleteFileA(file)!=0);
@@ -143,9 +143,9 @@ static void testBoundaryMenu() {
     put(game,0x11c060,pd.data()+0x3a3fb0);put(game,0x11c05c,pd.data()+0x39da90);put(game,0x11c058,DWORD(8));
     checkContext="active menu resource transfer";
     ui::bindActive(pd.data(),game.data());
-    require(*ui::activeEntries==ui::entries.data() && *ui::activeMenu==&ui::menu && *ui::selection==10 && *ui::escapeSelection==10);
-    require(ui::entries[10].cell==source[8].cell &&
-        !memcmp(ui::entries[10].switches,source[8].switches,sizeof(source[8].switches))); // resources unchanged after layout
+    require(*ui::activeEntries==ui::entries.data() && *ui::activeMenu==&ui::menu && *ui::selection==ui::backRow && *ui::escapeSelection==ui::backRow);
+    require(ui::entries[ui::backRow].cell==source[8].cell &&
+        !memcmp(ui::entries[ui::backRow].switches,source[8].switches,sizeof(source[8].switches))); // resources unchanged after layout
     require(ui::openPicker(false) && ui::back(nullptr,nullptr));
     ui::activeEntries=nullptr;ui::activeMenu=nullptr;ui::selection=ui::escapeSelection=nullptr;
     checkContext="menu rejection of changed profile bytes";
@@ -224,12 +224,12 @@ static void testPersonalizedDrawing() {
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x56606438),overlayColor(0x181818c0),
                 overlayColor(wallRGBA(wallColor,148,224))}));
             require(sewerCore.empty() && sewerCasing.empty() && sewerWaterFill.empty());
-            // Styled mode still uses subpixel lines; it must tint only the wall,
-            // restore native color, and preserve both ordinary and collapsed strokes.
+            // Styled mode uses the same fractional contour casing and core.
+            // Fallback line accents still preserve ordinary and collapsed strokes.
             activeStyle=MapStyle::Styled;appearanceColors.clear();appearancePositions.clear();
             drawStyled(t,viewport);
-            require(appearanceColors==std::vector<DWORD>({overlayColor(wallRGBA(wallColor,132,255))}));
-            require(batchColor==(0x84848400u|overlayAlpha(255)) && !fractionalFrontier && !fractionalTint);
+            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
+            require(appearancePositions==geometry && batchColor==0x848484e0 && !fractionalFrontier && !fractionalTint);
             appearanceColors.clear();appearancePositions.clear();
             drawFrontier({10.125,20.25},{10.375,20.375},wallRGBA(wallColor,132,255));
             require(appearancePositions==std::vector<float>({10.125f,20.25f,10.375f,20.375f}));

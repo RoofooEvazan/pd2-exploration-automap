@@ -120,9 +120,9 @@ static void testGameTables() {
     require(campaignLayers.lookup(78,2,layer) && layer==42); // Independent layer success survives artwork failure.
     campaignStyle=MapStyle::Original;mapsStyle=MapStyle::Styled;
     auto readsBefore=gameReads;loadGameTables(api);
-    require(gameReads==readsBefore+2 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
+    require(gameReads==readsBefore+3 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Native);
     gameTablesPending=true;ensureGameTables(); // No supported Storm loaded in the synthetic host.
-    require(!gameTablesPending && campaignLayers.size()==0 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Styled);
+    require(!gameTablesPending && campaignLayers.size()==0 && campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Native);
     auto opensBefore=gameOpens;ensureGameTables();require(gameOpens==opensBefore);
     campaignStyle=campaignBefore;mapsStyle=mapsBefore;
     campaignLayers=exploration::CampaignLayers{};hybridArtwork=exploration::HybridArtwork{};
@@ -897,6 +897,7 @@ static void testLocalHybridTables() {
     for(DWORD id:{173u,174u,177u,180u,223u,265u,291u,308u,312u,393u,394u,432u,436u,693u,694u,1373u,1403u,1528u,1529u})
         require(policy.entrance(id));
     for(DWORD id:{4u,307u,309u,310u,311u,518u,519u,1101u,1338u,1449u})require(!policy.entrance(id));
+    for(DWORD id:{223u,307u,308u,310u,311u,432u,693u,694u,1101u,1338u,1373u,1449u})require(policy.styledDetail(id));
     using Role=exploration::HybridArtwork::Role;
     for(DWORD id:{0u,1u,2u,3u,307u,312u,426u,432u,251u,265u,1354u,1373u,1403u,1497u})require(policy.role(id)==Role::Detail);
     for(DWORD id:{283u,284u,285u,286u,287u,288u})require(policy.role(id)==Role::SewerWall);
@@ -1123,6 +1124,7 @@ static void testWaterReuse() {
 #include "fixed_distance_tests.hpp"
 #include "map_marker_tests.hpp"
 #include "entrance_visibility_tests.hpp"
+#include "map_style_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
@@ -1195,5 +1197,6 @@ int main() {
     testFixedDistance();
     testMapMarkers();
     testEntranceVisibility();
+    testMapStyles();
     return 0;
 }

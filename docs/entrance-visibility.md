@@ -1,6 +1,6 @@
 # Entrance and exit visibility
 
-Local, unpublished follow-up to beta.6. Recognized native entrance/exit symbols and cave/stairway artwork are easier to see in both hybrid campaign and hybrid endgame automaps. It changes the appearance of existing artwork only: no exit arrows, quest markers, added geometry or extra discovery.
+Local, unpublished follow-up to beta.6. Recognized native entrance/exit symbols and cave/stairway artwork are easier to see in both Hybrid and Styled campaign/endgame automaps. It changes the appearance of existing artwork only: no exit arrows, quest markers, added geometry or extra discovery.
 
 ## How the boost works
 
@@ -18,7 +18,7 @@ Eligible visible cells are collected during the native automap pass and drawn on
 
 For brightness, one temporary palette covers the entire entrance group. The validated D2GL palette export flushes preceding vertices before changing palette state; the original palette is restored immediately after the group. The game's palette array is never modified. This adds at most two palette uploads per automap pass, not per entrance, with no extra sprite draws or texture copies. The queue accepts at most 64 cells, 512 clips per cell and 8,192 total clips per pass. Retained clip capacity is bounded to 512 KiB. Overflow keeps the original immediate native drawing.
 
-The optional palette binding checks the supported D2Glide image, relocated palette references, call/import chain and D2GL export address. Binding failure leaves native entrances unchanged. Unknown view states and failed palette reads also retain native drawing. Original/native/styled map styles are unchanged; the boost applies to hybrid mode.
+The optional palette binding checks the supported D2Glide image, relocated palette references, call/import chain and D2GL export address. Binding failure leaves native entrances unchanged. Unknown view states and failed palette reads also retain native drawing. The boost applies to Hybrid and Styled; Map Style Native uses untouched game rendering.
 
 ## Validation and local run
 

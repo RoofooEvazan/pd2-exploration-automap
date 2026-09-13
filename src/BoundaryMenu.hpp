@@ -31,7 +31,11 @@ using TextSize=DWORD(__fastcall*)(DWORD);
 using TextWidth=void(__fastcall*)(const wchar_t*,DWORD*,DWORD*);
 using SelectColor=bool(*)(BoundaryColor);
 using CurrentColor=BoundaryColor(*)();
-inline std::array<Entry,11> entries{};
+using SelectStyle=bool(*)(unsigned);
+using CurrentStyle=unsigned(*)();
+inline constexpr unsigned styleRow=8,boundaryRow=9,wallRow=10,backRow=11;
+inline constexpr std::array<const wchar_t*,3> styleLabels{L"Native",L"Hybrid",L"Styled"};
+inline std::array<Entry,12> entries{};
 inline std::array<Entry,boundaryPresets.size()+2> pickerEntries{};
 inline Menu menu{},pickerMenu{};
 inline Entry** activeEntries=nullptr;
@@ -46,6 +50,9 @@ inline SelectColor selectColor=nullptr;
 inline CurrentColor currentColor=nullptr;
 inline SelectColor selectWallColor=nullptr;
 inline CurrentColor currentWallColor=nullptr;
+inline SelectStyle selectStyle=nullptr;
+inline CurrentStyle currentStyle=nullptr;
+inline bool styleSaveFailed=false;
 inline bool installed=false,saveFailed=false;
 inline bool pickingWalls=false;
 inline void activate(Menu& descriptor,Entry* rows,DWORD selected) {
@@ -55,7 +62,7 @@ inline void activate(Menu& descriptor,Entry* rows,DWORD selected) {
 inline BOOL __fastcall back(Entry*,void*) {
     if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
        *activeEntries!=pickerEntries.data() || *activeMenu!=&pickerMenu)return FALSE;
-    activate(menu,entries.data(),pickingWalls?9:8);saveFailed=false;return TRUE;
+    activate(menu,entries.data(),pickingWalls?wallRow:boundaryRow);saveFailed=false;return TRUE;
 }
 inline BOOL __fastcall choose(Entry* row,void*) {
     if(!activeEntries || *activeEntries!=pickerEntries.data())return FALSE;
@@ -77,6 +84,11 @@ inline BOOL openPicker(bool walls) {
 }
 inline BOOL __fastcall openBoundary(Entry*,void*) {return openPicker(false);}
 inline BOOL __fastcall openWalls(Entry*,void*) {return openPicker(true);}
+inline BOOL __fastcall cycleStyle(Entry* row,void*) {
+    if(!activeEntries || !activeMenu || *activeEntries!=entries.data() || *activeMenu!=&menu ||
+       row!=&entries[styleRow] || !selectStyle || !currentStyle)return FALSE;
+    styleSaveFailed=!selectStyle((currentStyle()+1)%styleLabels.size());return TRUE;
+}
 inline void bindActive(unsigned char* pd,unsigned char* client) {
     activeEntries=reinterpret_cast<Entry**>(client+0x11c060);
     activeMenu=reinterpret_cast<Menu**>(client+0x11c05c);
@@ -86,16 +98,17 @@ inline void bindActive(unsigned char* pd,unsigned char* client) {
     // The picker has no resources and is never passed to either operation.
     if(*activeMenu==reinterpret_cast<Menu*>(pd+0x39da90) &&
        *activeEntries==reinterpret_cast<Entry*>(pd+0x3a3fb0)) {
-        const auto selected=*selection==8?10:*selection;
-        activate(menu,entries.data(),selected<menu.count?selected:10);
+        const auto selected=*selection==8?backRow:*selection;
+        activate(menu,entries.data(),selected<menu.count?selected:backRow);
     }
 }
 inline void makeMenu(const Menu& source,const Entry* sourceEntries) {
-    menu=source;menu.count=DWORD(entries.size());menu.spacing=36;
+    menu=source;menu.count=DWORD(entries.size());menu.spacing=33;menu.textHeight=32;menu.barHeight=32;
     std::copy_n(sourceEntries,8,entries.begin());
-    entries[8]=Entry{};entries[8].press=openBoundary;
-    entries[9]=Entry{};entries[9].press=openWalls;
-    entries[10]=sourceEntries[8];
+    entries[styleRow]=Entry{};entries[styleRow].press=cycleStyle;
+    entries[boundaryRow]=Entry{};entries[boundaryRow].press=openBoundary;
+    entries[wallRow]=Entry{};entries[wallRow].press=openWalls;
+    entries[backRow]=sourceEntries[8];
     pickerMenu=source;pickerMenu.count=DWORD(pickerEntries.size());
     pickerMenu.spacing=25;pickerMenu.textHeight=22;pickerMenu.barHeight=24;
     pickerEntries={};pickerEntries[0].type=0xffffffff;
@@ -110,9 +123,14 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
     DWORD font=2,color=4; // Native Font30 matches the existing option artwork.
     if(*activeEntries==entries.data()) {
         const wchar_t* value=nullptr;
-        if(y==int(entries[8].y+menu.textHeight))
+        if(y==int(entries[styleRow].y+menu.textHeight) && currentStyle) {
+            swprintf_s(label,L"Map Style");
+            const unsigned selected=currentStyle();
+            value=styleSaveFailed?L"Save failed":styleLabels[selected<styleLabels.size()?selected:1];
+            if(styleSaveFailed)color=1;
+        } else if(y==int(entries[boundaryRow].y+menu.textHeight))
             {swprintf_s(label,L"Boundary Color");value=boundaryPreset(currentColor()).label;}
-        else if(y==int(entries[9].y+menu.textHeight))
+        else if(y==int(entries[wallRow].y+menu.textHeight))
             {swprintf_s(label,L"Wall Color");value=boundaryPreset(currentWallColor()).label;}
         if(value) {
             // Native option labels start 230 pixels left of center; values
@@ -184,7 +202,8 @@ inline bool compatible(const unsigned char* pd,const unsigned char* client) {
     return true;
 }
 inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,
-                    SelectColor select,CurrentColor current,SelectColor selectWall,CurrentColor currentWall) {
+                    SelectColor select,CurrentColor current,SelectColor selectWall,CurrentColor currentWall,
+                    SelectStyle chooseStyle,CurrentStyle selectedStyle) {
     if(installed)return true;
     if(!client || !win || !compatible(pd,client) || !profile(win,0xcf000,0x4b95c21d))return false;
     const auto d=GetProcAddress(reinterpret_cast<HMODULE>(win),MAKEINTRESOURCEA(10150));
@@ -204,6 +223,7 @@ inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,
     }
     if(ready==std::size(patches)) {
         selectColor=select;currentColor=current;selectWallColor=selectWall;currentWallColor=currentWall;
+        selectStyle=chooseStyle;currentStyle=selectedStyle;
         makeMenu(*reinterpret_cast<Menu*>(pd+0x39da90),reinterpret_cast<Entry*>(pd+0x3a3fb0));
         originalText=reinterpret_cast<CellText>(client+0xd372);
         drawText=reinterpret_cast<DrawText>(d);textSize=reinterpret_cast<TextSize>(s);textWidth=reinterpret_cast<TextWidth>(w);

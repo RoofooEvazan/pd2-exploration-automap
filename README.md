@@ -2,7 +2,7 @@
 
 **v0.2.0-beta.6 — BETA.** Endgame maps now support native **shrine and PD2 event icons** in explored areas, with a bounded fallback for loaded units that have not reached the native automap yet. Existing native icons take precedence to prevent duplicates. This release keeps the hardcoded 31-subtile circular reveal, five boundary colors, hybrid styling and screenshot gallery. See [shrine and event icons](docs/map-markers.md) for behavior and limits.
 
-**Unpublished follow-up:** source builds use a hardcoded **33-subtile** radius and add separate boundary/wall color lists, including six new pastel/orange colors, Gray and White. The new settings use the native label/value layout and larger list headings. See [color settings](docs/boundary-settings.md). The beta.6 download and existing screenshots show the previous version. The initial color pickers were approved locally; the latest menu refinements await a live check.
+**Unpublished follow-up:** source builds use a hardcoded **33-subtile** radius, thirteen boundary/wall colors, and **Native / Hybrid / Styled** choices in Automap Options. Styled keeps navigation icons and entrance artwork while using contour terrain. Retained entrances also receive a visibility boost. See [map styles](docs/map-styles.md), [color settings](docs/boundary-settings.md) and [entrance visibility](docs/entrance-visibility.md). Color menus were approved locally; the latest style selector awaits a live check. The beta.6 download and existing screenshots show the previous version.
 
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 

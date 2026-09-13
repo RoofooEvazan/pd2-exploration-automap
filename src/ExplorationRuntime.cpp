@@ -382,7 +382,9 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
     const bool selected=p.level>0 && !town && (targetLevel==0 || p.level==targetLevel);
     maskActive=enabled && selected && activeStyle!=MapStyle::Original;
     explored=selected?&explorationSession.select(gameSerial,levelKey):&emptyMask;
-    if(maskActive) {
+    // Keep lightweight discovery history while Native is selected, but leave
+    // all of its rendering untouched and skip floor capture/worker submission.
+    if(enabled && selected) {
         int x=static_cast<int>(floor(p.x/maskCellSize)),y=static_cast<int>(floor(p.y/maskCellSize));
         if(x!=lastX || y!=lastY) {explored->revealAround({p.x,p.y},revealRadius);lastX=x;lastY=y;}
     }
@@ -712,12 +714,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
     InterlockedIncrement(&cellCount);
     if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
     try {
-        DWORD markerId=0;
-        const bool marker=mapMarkersActive() && frameIndex(ctx,&markerId) && mapMarkerDefinitions.artwork(markerId);
+        DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
+        const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
+        const bool styledOnly=activeStyle==MapStyle::Styled && styledActive;
+        const bool importantDetail=knownFrame && (hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id));
         if(mapMarkersActive() && !markerArtworkFile) {
             FrameSource source{};if(frameSource(ctx,&source)){markerArtworkFile=const_cast<void*>(source.file);markerDrawMode=mode;}
         }
-        if(marker)nativeMarkers.emplace(markerId,x,y);
+        if(marker)nativeMarkers.emplace(id,x,y);
         if(styledActive && styledCurrent) {
             if(!haveViewport) {
                 Transform t{};
@@ -729,14 +733,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                     drawStyled(t,passViewport);haveViewport=true;++styledPasses;
                 }
             }
-            if(styledActive && !nativeArtwork() && !marker && (!nativeTownActive || !townInViewport)){++suppressed;return;}
+            if(styledActive && styledOnly && !importantDetail && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
-        const bool townOnly=nativeTownActive && !nativeArtwork() && (isTown(observedLevel) || styledActive);
+        const bool townOnly=nativeTownActive && !nativeArtwork() && !importantDetail && (isTown(observedLevel) || styledActive);
         const bool hybrid=activeStyle==MapStyle::Hybrid && styledActive && hybridArtwork.loaded();
-        bool replaceWall=false,traceSewer=false,traceWater=false;DWORD id=0;
+        bool replaceWall=false,traceSewer=false,traceWater=false;
         if(hybrid) {
             // frameBounds below validates the complete context before any draw.
-            auto role=frameIndex(ctx,&id)?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
+            auto role=knownFrame?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
             replaceWall=!marker && role==exploration::HybridArtwork::Role::Wall;
@@ -794,12 +798,12 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         if(nativeTownActive)++townClippedCells;else if(!styledActive)recordAssetContact(ctx,assetBounds);
         if(clips.size()==1 && clips[0].left==bounds.left && clips[0].right==bounds.right &&
            clips[0].top==bounds.top && clips[0].bottom==bounds.bottom) {
-            if(!(hybrid && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,nullptr)))
+            if(!((hybrid || styledOnly) && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,nullptr)))
                 drawPreparedCell(ctx,x,y,native,mode);
             ++drawn;return;
         }
         ++partial;
-        if(!(hybrid && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,&clips)))
+        if(!((hybrid || styledOnly) && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,&clips)))
             drawPreparedCell(ctx,x,y,native,mode,&clips);
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
 }
@@ -882,7 +886,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     submit(casing,0x181818c0);submit(core,exploration::wallRGBA(wallColor,148,224));
 }
 static void drawStyled(const Transform& t,Rect viewport) {
-    if(viewport.left>=viewport.right || viewport.top>=viewport.bottom)return;
+    if(activeStyle==MapStyle::Original || viewport.left>=viewport.right || viewport.top>=viewport.bottom)return;
     struct ClearSubmission {
         ~ClearSubmission(){styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;}
     } clearSubmission;
@@ -918,18 +922,8 @@ static void drawStyled(const Transform& t,Rect viewport) {
         if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
         return;
     }
-    if(nativeArtwork())return;
-    std::vector<std::pair<Point,Point>> walls;
-    for(const auto& wall:styledCurrent->drawing.walls) {
-        Point a=project(wall.a,t),b=project(wall.b,t);
-        if(styled_map::clipStroke(a,b,viewport))walls.push_back({a,b});
-    }
-    if(!walls.empty()) {
-        frontierBatch=&walls;
-        drawFrontier(walls[0].first,walls[0].second,
-            wallColor==exploration::BoundaryColor::Gray?0:exploration::wallRGBA(wallColor,132,255));
-        frontierBatch=nullptr;
-    }
+    if(activeStyle==MapStyle::Styled){drawHybridWalls(t,viewport);return;}
+    // Legacy clipped-native mode stops after floor shading and reveal bands.
 }
 static void queueWaterGeometry(const Transform& t,Rect viewport) {
     static std::vector<Rect> clips;
@@ -1089,6 +1083,31 @@ static MapStyle parseStyle(const char* value,MapStyle fallback) {
     if(_stricmp(value,"original")==0)return MapStyle::Original;
     return fallback;
 }
+// Public menu Native means the unmodified game automap. The old per-area
+// "native" INI value remains a compatibility fallback (clipped artwork).
+static constexpr MapStyle menuStyles[]={MapStyle::Original,MapStyle::Hybrid,MapStyle::Styled};
+static constexpr const char* menuStyleKeys[]={"native","hybrid","styled"};
+static unsigned currentMapStyle() {
+    const auto style=styleForLevel(observedLevel>0?DWORD(observedLevel):2);
+    return style==MapStyle::Original?0:style==MapStyle::Styled?2:1;
+}
+static bool selectMapStyle(unsigned choice) {
+    if(choice>=std::size(menuStyles))return false;
+    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap","MapStyle",menuStyleKeys[choice],settingsPath.c_str())) {
+        log("Map style unchanged: unable to save ExplorationMask.ini.");return false;
+    }
+    const auto style=menuStyles[choice];
+    // A game started in Native may not have needed classification/event tables.
+    if(style!=MapStyle::Original && (!hybridArtwork.loaded() || mapsStyle==MapStyle::Original))gameTablesPending=true;
+    campaignStyle=mapsStyle=activeStyle=style;
+    maskActive=nativeTownActive=townInViewport=styledActive=false;
+    entranceCount=entranceClipCount=0;entranceAlpha=-1;
+    lastX=lastY=-1;sawTarget=false;
+    // Keep exploration and completed geometry: changing appearance does not
+    // discard the player's visited areas or launch a fresh geometry rebuild.
+    if(logfile){fprintf(logfile,"APPEARANCE MapStyle=%s; campaign and maps; saved.\n",menuStyleKeys[choice]);fflush(logfile);}
+    return true;
+}
 static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current) {
     if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
     if(color==current)return true;
@@ -1110,8 +1129,8 @@ static void ensureBoundaryMenu() {
     attempted=true;
     const auto ok=exploration::boundary_menu::install(pd,client,
         reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,[]{return boundaryColor;},
-        selectWallColor,[]{return wallColor;});
-    log(ok?"BOUNDARY menu installed in native Automap Options; boundary and wall color lists.":
+        selectWallColor,[]{return wallColor;},selectMapStyle,currentMapStyle);
+    log(ok?"BOUNDARY menu installed in native Automap Options; Map Style and boundary/wall color lists.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI color remains available.");
 }
 static void loadAppearanceSettings(const std::string& settings) {
@@ -1128,6 +1147,8 @@ static void loadAppearanceSettings(const std::string& settings) {
     GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
     GetPrivateProfileStringA("Automap","MapsStyle","hybrid",maps,32,settings.c_str());
     campaignStyle=parseStyle(campaign,MapStyle::Hybrid);mapsStyle=parseStyle(maps,MapStyle::Hybrid);
+    char style[32]{};GetPrivateProfileStringA("Automap","MapStyle","",style,32,settings.c_str());
+    for(unsigned i=0;i<std::size(menuStyles);++i)if(_stricmp(style,menuStyleKeys[i])==0)campaignStyle=mapsStyle=menuStyles[i];
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
     if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
@@ -1175,7 +1196,7 @@ static void loadGameTables(const exploration::GameFiles& api) {
     }
     if(logfile){fprintf(logfile,"MARKERS definitions objects=%zu eventActors=%zu; loaded endgame units only, explored locations only.\n",
         mapMarkerDefinitions.objects(),mapMarkerDefinitions.monsters());fflush(logfile);}
-    if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid) {
+    if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid || campaignStyle==MapStyle::Styled || mapsStyle==MapStyle::Styled) {
         bool ready=false;
         if(readTable("automap.txt")) {
             std::istringstream definitions(std::move(bytes));ready=hybridArtwork.load(definitions);
@@ -1185,8 +1206,8 @@ static void loadGameTables(const exploration::GameFiles& api) {
             if(ready){std::istringstream objects(objectBytes);ready=hybridArtwork.protectObjects(objects);}
         }
         if(!ready) {
-            if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
-            if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
+            if(campaignStyle==MapStyle::Hybrid || campaignStyle==MapStyle::Styled)campaignStyle=MapStyle::Native;
+            if(mapsStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Styled)mapsStyle=MapStyle::Native;
             log("Hybrid artwork definitions unavailable; retaining native exploration style.");
         } else if(logfile){fprintf(logfile,"HYBRID classified %zu ordinary wall artwork IDs; %zu Poisoned Well contour IDs; native details/water protected.\n",hybridArtwork.walls(),hybridArtwork.poisonedWellContours());fflush(logfile);}
     }
@@ -1205,8 +1226,8 @@ static void ensureGameTables() {
     }
     catch(...) {
         campaignLayers=exploration::CampaignLayers{};
-        if(campaignStyle==MapStyle::Hybrid)campaignStyle=MapStyle::Native;
-        if(mapsStyle==MapStyle::Hybrid)mapsStyle=MapStyle::Native;
+        if(campaignStyle==MapStyle::Hybrid || campaignStyle==MapStyle::Styled)campaignStyle=MapStyle::Native;
+        if(mapsStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Styled)mapsStyle=MapStyle::Native;
         log("Game table loading failed; retaining native artwork and separate area histories.");
     }
 }

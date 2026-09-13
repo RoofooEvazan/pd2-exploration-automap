@@ -4,6 +4,7 @@ Guides to the automap's design, compatibility requirements, testing, and perform
 
 | Guide | What it explains |
 | --- | --- |
+| [Map styles](map-styles.md) | Native, Hybrid and Styled menu choices, saved settings, preserved navigation details and live switching. |
 | [Entrance visibility](entrance-visibility.md) | The local entrance/exit visibility boost, minimap brightness, preserved native clipping and bounded rendering cost. |
 | [Boundary settings](boundary-settings.md) | Independent boundary/wall color lists, saved preferences, the native menu extension and the hardcoded 33-subtile circle in the unpublished follow-up. |
 | [Shrine and event icons](map-markers.md) | Native endgame shrine/event artwork, explored-only fallback, duplicate suppression and validation. |
