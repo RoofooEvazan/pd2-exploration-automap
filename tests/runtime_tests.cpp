@@ -400,7 +400,7 @@ static void testTownBoundary() {
     player.level=109;player.x=100.125;
     updateForPlayer(player,5200);outdoor=updateTownBoundary(player,5200);
     require(nativeTownActive && explored==previewMask && outdoor.level==110);
-    // While an outdoor build is pending, every native pixel must belong to town.
+    // While an outdoor build is pending, retain town and explored outdoor art.
     std::vector<DWORD> frame(8),file(7),ctx(14);
     frame[1]=20;frame[2]=20;file[5]=1;file[6]=reinterpret_cast<DWORD>(frame.data());ctx[13]=reinterpret_cast<DWORD>(file.data());
     NativeRect viewport{0,100,0,99};Transform t{10,36,106};
@@ -408,10 +408,11 @@ static void testTownBoundary() {
     cellHook(ctx.data(),10,40,&viewport,0);
     int inside=0,outside=0;
     for(int y=20;y<40;++y)for(int x=10;x<30;++x) {
-        bool expected=inTownBounds(inverse({x+.5,y+.5},t));
+        auto world=inverse({x+.5,y+.5},t);
+        bool expected=inTownBounds(world)||previewMask->contains(world);
         require(townPixels[(y-20)*20+x-10]==int(expected));expected?++inside:++outside;
     }
-    require(inside>0 && outside>0);
+    require(inside>0); // The large reveal circle can include this whole sprite.
     // Native fallback combines town and explored outdoor spans without overlap.
     Mask small(.25);small.revealAround({105.5,75.5},8);explored=&small;
     observedLevel=110;maskActive=true;haveViewport=false;memset(townPixels,0,sizeof(townPixels));
@@ -1123,6 +1124,7 @@ static void testWaterReuse() {
 #include "map_marker_tests.hpp"
 #include "entrance_visibility_tests.hpp"
 #include "map_style_tests.hpp"
+#include "area_entry_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
@@ -1197,5 +1199,6 @@ int main() {
     testEntranceVisibility();
     testMapStyles();
     testEmptyAreaPass();
+    testAreaEntryWalls();
     return 0;
 }

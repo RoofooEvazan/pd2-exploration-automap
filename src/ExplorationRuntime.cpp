@@ -95,7 +95,8 @@ static DWORD overlayColor(DWORD color){return (color&0xffffff00u)|overlayAlpha(c
 struct StyledState {
     styled_map::FloorCopies floor;
     styled_map::Drawing drawing;
-    std::size_t queuedRooms=0,queuedMask=0,floorCells=0;
+    std::size_t queuedRooms=0,queuedMask=0,floorCells=0,drawingRooms=0;
+    bool captureIncomplete=false;
     bool queuedTownExcluded=false,drawingTownExcluded=false;
     DWORD submitted=0;
 };
@@ -109,6 +110,10 @@ static std::unique_ptr<styled_map::PreparedFloors> preparedFloors;
 static const StyledState* preparedOwner=nullptr;
 static std::uint64_t preparedSerial=0;
 static bool styledActive=false;
+static bool wallSnapshotReady() {
+    return styledCurrent && !styledCurrent->captureIncomplete &&
+        styledCurrent->drawingRooms==styledCurrent->floor.rooms.size();
+}
 static unsigned long styledPasses=0,styledQuadCount=0;
 static double styledBuildMs=0;
 static double styledLatencyMs=0;
@@ -144,7 +149,6 @@ static constexpr std::size_t sewerVertexLimit=65536;
 static exploration::SewerWater sewerWater;
 static std::vector<GlideVertex> sewerWaterFill;
 static unsigned long sewerWaterCells=0;
-static bool nativeArtwork() {return activeStyle==MapStyle::Native || activeStyle==MapStyle::Hybrid;}
 static const char* styleName(MapStyle style) {
     switch(style){case MapStyle::Original:return "original";case MapStyle::Native:return "native";
         case MapStyle::Hybrid:return "hybrid";default:return "styled";}
@@ -414,6 +418,37 @@ static void probeFloors(DWORD level) {
             if(logfile){fprintf(logfile,"FLOOR level=%lu x=%d y=%d w=%d h=%d samples=%zu\n",r.level,r.x,r.y,r.width,r.height,grid.size());fflush(logfile);}
         });
 }
+static bool roomSharesMap(const PlayerState& p,std::uint64_t key,DWORD roomLevel) {
+    if(roomLevel==p.level)return true;
+    if(isTown(p.level) || isTown(roomLevel) || targetLevel!=0)return false;
+    unsigned layer=0;
+    if(!campaignLayers.lookup(roomLevel,p.actNumber,layer) || automapLayer()!=layer)return false;
+    auto neighbor=p;neighbor.level=roomLevel;
+    return mapKey(neighbor)==key;
+}
+static void captureStyledRooms(const PlayerState& p,std::uint64_t key,StyledState& state) {
+    bool currentArea=false;
+    std::size_t missing=0,copied=0;
+    // Discovery and collision must use the same campaign layer. The next area's
+    // loaded rooms can already be inside the reveal circle before its label changes.
+    floor_reader::capture(client,0,[&](const floor_reader::Room& r){
+        if(!roomSharesMap(p,key,r.level))return false;
+        if(state.floor.contains(r.x,r.y,r.width,r.height)) {
+            if(r.level==p.level)currentArea=true;
+            return false;
+        }
+        ++missing;
+        return state.floor.wanted(r.x,r.y,r.width,r.height);
+    },[&](const floor_reader::Room& r,const std::vector<std::uint16_t>& grid){
+        state.floor.ingest(r.x,r.y,r.width,r.height,grid);
+        if(state.floor.contains(r.x,r.y,r.width,r.height)) {
+            ++copied;if(r.level==p.level)currentArea=true;
+        }
+    });
+    // Failed reads/budgets retain native terrain until a complete snapshot can
+    // replace it. Old floor cells elsewhere on a shared layer are not readiness.
+    state.captureIncomplete=!currentArea || missing!=copied;
+}
 static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
     if(!levelKey)levelKey=lastLevelKey;
     styledActive=false;
@@ -427,6 +462,7 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
             auto it=styledLevels.find(result->level);
             if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
                 it->second.drawing=std::move(result->drawing);it->second.floorCells=result->floorCells;
+                it->second.drawingRooms=result->roomCount;
                 it->second.drawingTownExcluded=result->excludesTown;
                 preparedFloors=std::move(result->preparedFloors);preparedOwner=&it->second;preparedSerial=gameSerial;
                 styledBuildMs=result->milliseconds;
@@ -434,11 +470,10 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
             }
         }
         auto& state=styledLevels[levelKey];styledCurrent=&state;
-        if(changedArea){state.queuedMask=0;state.submitted=0;}
+        if(changedArea){state.queuedMask=0;state.submitted=0;state.captureIncomplete=true;}
         if(changedArea || GetTickCount()-sampled>=250) {
             sampled=GetTickCount();
-            floor_reader::capture(client,p.level,[&](const floor_reader::Room& r){return state.floor.wanted(r.x,r.y,r.width,r.height);},
-                [&](const floor_reader::Room& r,const std::vector<std::uint16_t>& grid){state.floor.ingest(r.x,r.y,r.width,r.height,grid);});
+            captureStyledRooms(p,levelKey,state);
         }
         if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size() || state.queuedTownExcluded!=nativeTownActive) && GetTickCount()-state.submitted>=40) {
             auto request=std::make_unique<styled_map::BuildRequest>();
@@ -726,7 +761,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
     try {
         DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
         const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
-        const bool terrainReady=styledActive && styledCurrent && styledCurrent->floorCells>0;
+        const bool terrainReady=styledActive && wallSnapshotReady() && styledCurrent->floorCells>0;
         const bool styledOnly=activeStyle==MapStyle::Styled && terrainReady;
         const bool importantDetail=knownFrame && (hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id));
         if(mapMarkersActive() && !markerArtworkFile) {
@@ -746,7 +781,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             }
             if(styledActive && styledOnly && !importantDetail && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
-        const bool townOnly=nativeTownActive && !nativeArtwork() && !importantDetail && (isTown(observedLevel) || styledActive);
+        const bool townOnly=nativeTownActive && styledOnly && !importantDetail;
         const bool hybrid=activeStyle==MapStyle::Hybrid && terrainReady && hybridArtwork.loaded();
         bool replaceWall=false,traceSewer=false,traceWater=false;
         if(hybrid) {
@@ -929,10 +964,10 @@ static void drawStyled(const Transform& t,Rect viewport) {
         // Sewer wall faces and floor-edge contours are offset from one another.
         // Their matching artwork traces are queued by cellHook and batched in
         // endPass; unsupported frames keep their native wall instead.
-        if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
+        if(wallSnapshotReady() && observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
         return;
     }
-    if(activeStyle==MapStyle::Styled){drawHybridWalls(t,viewport);return;}
+    if(activeStyle==MapStyle::Styled){if(wallSnapshotReady())drawHybridWalls(t,viewport);return;}
     // Native retains the original artwork and adds only the reveal boundary.
 }
 static void queueWaterGeometry(const Transform& t,Rect viewport) {
@@ -1065,9 +1100,11 @@ static void endPass() {
             lastReport=GetTickCount();
             double ms=counterFrequency.QuadPart && mapSamples?1000.0*mapTicks/counterFrequency.QuadPart/mapSamples:0;
             fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu townNativeCells=%lu townPreviewPasses=%lu previewLevel=%lu townClipActive=%d\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks,townClippedCells,townPreviewPasses,townBoundary.outside,nativeTownActive);fflush(logfile);
-            fprintf(logfile,"DRAW style=%s floorQuads=%zu wallRuns=%zu preparedFloors=%d\n",styleName(activeStyle),
+            fprintf(logfile,"DRAW style=%s floorQuads=%zu wallRuns=%zu preparedFloors=%d roomsReady=%zu roomsCaptured=%zu captureIncomplete=%d\n",styleName(activeStyle),
                 styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
-                int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
+                int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial),
+                styledCurrent?styledCurrent->drawingRooms:0,styledCurrent?styledCurrent->floor.rooms.size():0,
+                int(styledCurrent && styledCurrent->captureIncomplete));
             fprintf(logfile,"DISCOVERY mode=hardcoded radiusSubtiles=%.2f\n",revealRadius*maskCellSize);
             fprintf(logfile,"ENTRANCES drawn=%lu palettePasses=%lu fallbacks=%lu\n",entranceDraws,entrancePalettePasses,entranceFallbacks);
             if(mapMarkersActive())fprintf(logfile,"MARKERS sampled=%zu added=%lu alreadyNative=%lu\n",mapMarkers.size(),markersDrawn,markersAlreadyNative);

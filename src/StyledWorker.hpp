@@ -30,6 +30,7 @@ class FloorCopies {
     bool full_=false;
 public:
     std::vector<std::shared_ptr<const CapturedRoom>> rooms;
+    bool contains(int x,int y,int w,int h) const {return seen_.count({x,y,w,h})!=0;}
     bool wanted(int x,int y,int w,int h) const {return !full_ && rooms.size()<2048 && !seen_.count({x,y,w,h});}
     void ingest(int x,int y,int w,int h,const std::vector<std::uint16_t>& flags) {
         if(w<1 || h<1 || w>512 || h>512 || flags.size()!=std::size_t(w)*h || !wanted(x,y,w,h))return;
@@ -54,7 +55,7 @@ struct BuildResult {
     bool boundaryThroughUnknown=false;
     bool excludesTown=false;
     std::uint64_t session=0,level=0;
-    std::size_t maskSize=0,floorCells=0;
+    std::size_t maskSize=0,floorCells=0,roomCount=0;
     std::size_t rebuiltChunks=0,totalChunks=0;
     double milliseconds=0,latencyMilliseconds=0;
     bool success=false;
@@ -104,6 +105,7 @@ class Worker {
             try {
                 result=std::make_unique<BuildResult>();
                 result->session=request->session;result->level=request->level;result->maskSize=request->maskSize;
+                result->roomCount=request->rooms.size();
                 result->boundaryThroughUnknown=request->boundaryThroughUnknown;
                 result->excludesTown=request->excludeTown;
                 auto start=std::chrono::steady_clock::now();

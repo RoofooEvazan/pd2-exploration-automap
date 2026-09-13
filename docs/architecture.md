@@ -43,6 +43,10 @@ The worker combines connected floor with the explored region. Seven shade layers
 
 One background worker owns the derived floor/geometry cache. It has one replaceable pending request and one completed result. Requests contain owned data and shared immutable room copies, never borrowed game pointers. Results include session and area identifiers. The render thread uses the last completed drawing while work continues. Submission is limited to once per 40 ms; room capture is sampled at 250 ms intervals and immediately on area entry.
 
+Campaign capture includes already-loaded neighboring rooms on the same verified act/layer, matching the shared exploration mask. It does not wait for the player's area label to change. Town rooms and rooms on different layers stay separate; endgame capture remains per level. Capture does not reveal cells or load additional rooms.
+
+The completed drawing records its room count. If new rooms are waiting for a rebuild, a collision read fails, or the current area's collision is unavailable, Hybrid and Styled temporarily retain clipped native terrain and pause contour replacement. The exploration boundary continues drawing. This avoids hiding native walls based solely on old floor data elsewhere on a shared layer. Normal replacement resumes after capture and construction finish.
+
 ## Native artwork fallback
 
 When styled output is unavailable, the original cell preparation runs once. The final axis-aligned textured quad is clipped into disjoint visible strips before the original draw call; position and texture coordinates are interpolated together. This avoids repeatedly asking the game to prepare or crop its texture-cache entry.
