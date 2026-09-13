@@ -8,7 +8,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [GameTables.hpp](GameTables.hpp) | Loads owned, size-limited table data through the verified Storm file resolver, using archives or active direct overrides. |
 | [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
-| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines twelve boundary/wall presets, exact RGB values and renderer-specific default gray. |
+| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines thirteen boundary/wall presets, exact RGB values and renderer-specific default gray. |
 | [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent boundary/wall color lists with native navigation, Escape handling and guarded resource ownership. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |

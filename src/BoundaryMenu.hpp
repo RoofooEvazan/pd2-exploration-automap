@@ -97,7 +97,7 @@ inline void makeMenu(const Menu& source,const Entry* sourceEntries) {
     entries[9]=Entry{};entries[9].press=openWalls;
     entries[10]=sourceEntries[8];
     pickerMenu=source;pickerMenu.count=DWORD(pickerEntries.size());
-    pickerMenu.spacing=26;pickerMenu.textHeight=22;pickerMenu.barHeight=24;
+    pickerMenu.spacing=25;pickerMenu.textHeight=22;pickerMenu.barHeight=24;
     pickerEntries={};pickerEntries[0].type=0xffffffff;
     for(unsigned i=0;i<boundaryPresets.size();++i)pickerEntries[i+1].press=choose;
     pickerEntries.back().press=back;
@@ -107,16 +107,27 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
         originalText(cell,x,y,align,mode,extra);return;
     }
     wchar_t label[96]{};
-    DWORD font=7,color=4;
+    DWORD font=2,color=4; // Native Font30 matches the existing option artwork.
     if(*activeEntries==entries.data()) {
+        const wchar_t* value=nullptr;
         if(y==int(entries[8].y+menu.textHeight))
-            swprintf_s(label,L"Boundary Color: %s",boundaryPreset(currentColor()).label);
+            {swprintf_s(label,L"Boundary Color");value=boundaryPreset(currentColor()).label;}
         else if(y==int(entries[9].y+menu.textHeight))
-            swprintf_s(label,L"Wall Color: %s",boundaryPreset(currentWallColor()).label);
+            {swprintf_s(label,L"Wall Color");value=boundaryPreset(currentWallColor()).label;}
+        if(value) {
+            // Native option labels start 230 pixels left of center; values
+            // end 230 pixels right of center, on the same text baseline.
+            const auto old=textSize(font);
+            DWORD width=0,file=0;textWidth(value,&width,&file);
+            drawText(label,x-230,y,color,0);
+            drawText(value,x+230-int(width),y,color,0);
+            textSize(old);return;
+        }
     } else if(*activeEntries==pickerEntries.data()) {
         font=0; // Compact native font: the full list fits 480- and 600-high views.
         for(unsigned i=0;i<pickerEntries.size();++i)if(y==int(pickerEntries[i].y+pickerMenu.textHeight)) {
             if(i==0) {
+                font=2; // Font30 heading above the compact choices.
                 swprintf_s(label,L"%s",saveFailed?L"Could not save color":(pickingWalls?L"Wall Color":L"Boundary Color"));
                 color=saveFailed?1:4;
             } else if(i==pickerEntries.size()-1)swprintf_s(label,L"Back");

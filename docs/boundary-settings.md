@@ -6,7 +6,7 @@ The unpublished follow-up fixes the reveal radius in the plugin at **33 world su
 
 The unpublished follow-up adds independent **Boundary Color** and **Wall Color** list pickers to **Options → Automap Options**. Open the automap once in an offline game to initialize the extension. Click either row, then click a named color or use Up/Down and Enter. The current color is marked **(Selected)**. Choosing a color saves it immediately and returns to Automap Options. **Back** or **Escape** returns without changing it. If saving fails, the picker stays open and the previous color remains active.
 
-Both lists offer the original five colors, the six new colors below, and Gray. Boundary Color defaults to Red; Wall Color defaults to Gray so existing installations retain their previous wall appearance. Existing INIs do not need replacement. Choices save separately as `BoundaryColor` and `WallColor` in `ExplorationMask.ini`.
+Both lists offer thirteen colors, including Gray and White. Boundary Color defaults to Red; Wall Color defaults to Gray so existing installations retain their previous wall appearance. Existing INIs do not need replacement. Choices save separately as `BoundaryColor` and `WallColor` in `ExplorationMask.ini`. The Automap Options rows align their labels and values with the native settings; each color list has a larger centered heading above its compact choices.
 
 | Color | INI value | Base RGB |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ Both lists offer the original five colors, the six new colors below, and Gray. B
 | Pale Peach | `pale-peach` | `#FCE4A4` |
 | Pale Lemon | `pale-lemon` | `#FCFCC4` |
 | Gray | `gray` | `#949494` |
+| White | `white` | `#FFFFFF` |
 
 The hex values are the exact base colors. Boundary bands retain their existing shade multipliers and opacity; wall cores use the selected RGB with the existing opacity and dark contrast casing. Gray preserves the previous brightness in each wall renderer. Screen appearance therefore also depends on the game background and overlay transparency.
 
@@ -41,4 +42,4 @@ This removes the supported configuration override. It is not anti-tamper enforce
 
 Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. The fixed-distance suite loads legacy INI entries through the real appearance-settings reader and confirms exact circular coverage, the 33-subtile outer limit, resolution independence, quarter-cell movement, teleport gaps and town history. Existing color/menu, geometry, clipping, water and worker tests remain included.
 
-All three suites pass for the 33-subtile color-picker candidate with the optional local artwork/table/archive fixtures. Live appearance and menu checks are pending. Automated checks cover exact RGBs, independent persistence, legacy defaults, save failure, picker Back/Escape, resource ownership, layout bounds, both zooms, clipped geometry and native color restoration. Its log should report `DISCOVERY mode=hardcoded` and `radiusSubtiles=33.00`. The public beta.6 DLL retains the previously approved 31-subtile radius. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Keep a backup of the previous DLL and INI for comparison.
+All three suites pass for the 33-subtile color-picker candidate with the optional local artwork/table/archive fixtures. The initial color pickers were approved in local gameplay; White and the revised menu formatting await a live check. Automated checks cover exact RGBs, independent persistence, legacy defaults, save failure, picker Back/Escape, resource ownership, layout bounds, label/value alignment, heading fonts, both zooms, clipped geometry and native color restoration. Its log should report `DISCOVERY mode=hardcoded` and `radiusSubtiles=33.00`. The public beta.6 DLL retains the previously approved 31-subtile radius. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Keep a backup of the previous DLL and INI for comparison.

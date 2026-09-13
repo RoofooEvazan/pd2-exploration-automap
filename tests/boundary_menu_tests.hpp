@@ -2,7 +2,11 @@
 static std::wstring menuLabel;
 static DWORD menuFont=1;
 static unsigned menuForwards=0;
-static void __fastcall captureMenuText(const wchar_t* text,int,int,DWORD,DWORD){menuLabel=text;}
+struct MenuTextCall {std::wstring text;int x,y;DWORD font,color;};
+static std::vector<MenuTextCall> menuTextCalls;
+static void __fastcall captureMenuText(const wchar_t* text,int x,int y,DWORD color,DWORD){
+    menuLabel=text;menuTextCalls.push_back({text,x,y,menuFont,color});
+}
 static DWORD __fastcall captureMenuFont(DWORD font){auto old=menuFont;menuFont=font;return old;}
 static void __fastcall captureMenuWidth(const wchar_t* text,DWORD* width,DWORD* file){*width=DWORD(wcslen(text)*10);*file=0;}
 static void __fastcall captureMenuCell(void*,int,int,int,int,int){++menuForwards;}
@@ -11,7 +15,7 @@ static void testBoundaryMenu() {
     using namespace exploration;
     namespace ui=exploration::boundary_menu;
     const DWORD rgb[]={0xa53028,0x1edc0f,0xdc14dc,0x00d2dc,0x50a5dc,
-        0xf8883c,0xccf4f4,0xfce874,0xc4fcb0,0xfce4a4,0xfcfcc4,0x949494};
+        0xf8883c,0xccf4f4,0xfce874,0xc4fcb0,0xfce4a4,0xfcfcc4,0x949494,0xffffff};
     static_assert(std::size(rgb)==boundaryPresets.size(),"palette coverage");
     require(parseBoundaryColor("MAGENTA")==BoundaryColor::Magenta && parseBoundaryColor("invalid")==BoundaryColor::Red);
     require(parseBoundaryColor("",BoundaryColor::Gray)==BoundaryColor::Gray);
@@ -50,6 +54,9 @@ static void testBoundaryMenu() {
         require(top>=0 && top+int((desc.count-1)*desc.spacing+desc.textHeight)<=height-80);
         require(desc.spacing>=desc.textHeight);
     }
+    // Font30 title must fit above the first compact choice, even at 480 high.
+    const int pickerTop=(480-80)/2-int(ui::pickerMenu.count*ui::pickerMenu.spacing)/2;
+    require(pickerTop+int(ui::pickerMenu.textHeight)>=30 && ui::pickerMenu.spacing>=22);
     for(unsigned i=0;i<ui::entries.size();++i)ui::entries[i].y=40+i*ui::menu.spacing;
     for(unsigned i=0;i<ui::pickerEntries.size();++i)ui::pickerEntries[i].y=40+i*ui::pickerMenu.spacing;
     for(bool walls:{false,true})for(unsigned i=0;i<boundaryPresets.size();++i) {
@@ -60,9 +67,17 @@ static void testBoundaryMenu() {
         require(active==ui::pickerEntries.data() && activeDescriptor==&ui::pickerMenu && last==ui::pickerMenu.count-1);
         const auto current=walls?wallColor:boundaryColor;
         require(selected==static_cast<unsigned>(current)+1);
+        menuTextCalls.clear();
+        const int titleY=int(ui::pickerEntries[0].y+ui::pickerMenu.textHeight);
+        ui::drawRow(nullptr,400,titleY,1,5,-1);
+        require(menuTextCalls.size()==1 && menuFont==1);
+        const auto& title=menuTextCalls.back();
+        require(title.text==(walls?L"Wall Color":L"Boundary Color") && title.font==2 && title.color==4);
+        require(title.x==400-int(title.text.size()*10)/2 && title.y==titleY);
         auto& currentRow=ui::pickerEntries[selected];
         ui::drawRow(nullptr,400,int(currentRow.y+ui::pickerMenu.textHeight),1,5,-1);
         require(menuLabel==std::wstring(boundaryPreset(current).label)+L" (Selected)" && menuFont==1);
+        require(menuTextCalls.back().font==0);
         auto& choice=ui::pickerEntries[i+1];
         require(choice.press(&choice,nullptr));
         require((walls?wallColor:boundaryColor)==static_cast<BoundaryColor>(i));
@@ -71,8 +86,14 @@ static void testBoundaryMenu() {
         char saved[32]{};
         GetPrivateProfileStringA("Automap",walls?"WallColor":"BoundaryColor",walls?"gray":"red",saved,32,file);
         require(parseBoundaryColor(saved)==static_cast<BoundaryColor>(i) && GetPrivateProfileIntA("Automap","OverlayOpacity",0,file)==63);
-        ui::drawRow(nullptr,400,int(row.y+ui::menu.textHeight),1,5,-1);
-        require(menuLabel==std::wstring(walls?L"Wall Color: ":L"Boundary Color: ")+boundaryPreset(static_cast<BoundaryColor>(i)).label);
+        menuTextCalls.clear();
+        const int rowY=int(row.y+ui::menu.textHeight);
+        ui::drawRow(nullptr,400,rowY,1,5,-1);
+        require(menuTextCalls.size()==2 && menuFont==1);
+        const auto& label=menuTextCalls[0];const auto& value=menuTextCalls[1];
+        require(label.text==(walls?L"Wall Color":L"Boundary Color") && label.x==170);
+        require(value.text==boundaryPreset(static_cast<BoundaryColor>(i)).label && value.x+int(value.text.size()*10)==630);
+        require(label.y==rowY && value.y==rowY && label.font==2 && value.font==2 && label.color==4 && value.color==4);
         const auto savedBoundary=boundaryColor,savedWall=wallColor;
         boundaryColor=BoundaryColor::Red;wallColor=BoundaryColor::Gray;loadAppearanceSettings(file);
         require(boundaryColor==savedBoundary && wallColor==savedWall && overlayOpacity==63);

@@ -6,10 +6,10 @@
 namespace exploration {
 enum class BoundaryColor : unsigned {
     Red, NeonGreen, Magenta, Cyan, LightBlue,
-    Orange, PaleBlue, PaleYellow, PaleGreen, PalePeach, PaleLemon, Gray
+    Orange, PaleBlue, PaleYellow, PaleGreen, PalePeach, PaleLemon, Gray, White
 };
 struct BoundaryPreset { const char* key;const wchar_t* label;unsigned r,g,b; };
-inline constexpr std::array<BoundaryPreset,12> boundaryPresets{{
+inline constexpr std::array<BoundaryPreset,13> boundaryPresets{{
     {"red",L"Red",165,48,40},
     {"neon-green",L"Neon Green",30,220,15},
     {"magenta",L"Magenta",220,20,220},
@@ -21,7 +21,8 @@ inline constexpr std::array<BoundaryPreset,12> boundaryPresets{{
     {"pale-green",L"Pale Green",0xc4,0xfc,0xb0},
     {"pale-peach",L"Pale Peach",0xfc,0xe4,0xa4},
     {"pale-lemon",L"Pale Lemon",0xfc,0xfc,0xc4},
-    {"gray",L"Gray",0x94,0x94,0x94}
+    {"gray",L"Gray",0x94,0x94,0x94},
+    {"white",L"White",0xff,0xff,0xff}
 }};
 inline const BoundaryPreset& boundaryPreset(BoundaryColor color) {
     auto i=static_cast<unsigned>(color);return boundaryPresets[i<boundaryPresets.size()?i:0];
