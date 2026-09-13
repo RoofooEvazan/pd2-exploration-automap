@@ -22,7 +22,7 @@ struct VisibleSnapshot {
         return it!=row.begin() && x<std::prev(it)->second;
     }
 };
-struct CapturedRoom {int x,y,w,h;std::vector<std::uint16_t> flags;};
+struct CapturedRoom {int x,y,w,h;std::vector<std::uint16_t> flags;std::vector<std::uint8_t> banks{};};
 // Owned immutable grids are retained so coalescing a pending update or changing
 // areas cannot drop the only copy of a room. The worker never reads game memory.
 class FloorCopies {
@@ -33,10 +33,10 @@ public:
     std::vector<std::shared_ptr<const CapturedRoom>> rooms;
     bool contains(int x,int y,int w,int h) const {return seen_.count({x,y,w,h})!=0;}
     bool wanted(int x,int y,int w,int h) const {return !full_ && rooms.size()<2048 && !seen_.count({x,y,w,h});}
-    void ingest(int x,int y,int w,int h,const std::vector<std::uint16_t>& flags) {
+    void ingest(int x,int y,int w,int h,const std::vector<std::uint16_t>& flags,const std::vector<std::uint8_t>& banks={}) {
         if(w<1 || h<1 || w>512 || h>512 || flags.size()!=std::size_t(w)*h || !wanted(x,y,w,h))return;
         if(cells_+flags.size()>2000000){full_=true;return;}
-        auto room=std::make_shared<CapturedRoom>(CapturedRoom{x,y,w,h,flags});
+        auto room=std::make_shared<CapturedRoom>(CapturedRoom{x,y,w,h,flags,banks.size()==flags.size()?banks:std::vector<std::uint8_t>{}});
         rooms.push_back(std::move(room));seen_.insert({x,y,w,h});cells_+=flags.size();
     }
 };
@@ -121,7 +121,7 @@ class Worker {
                 if(levels.size()>=32 && !levels.count(request->level))levels.erase(levels.begin());
                 auto& cached=levels[request->level];auto& map=cached.map;auto& floor=map.floor();
                 for(const auto& room:request->rooms)
-                    floor.ingest(room->x,room->y,room->w,room->h,room->flags);
+                    floor.ingest(room->x,room->y,room->w,room->h,room->flags,room->banks);
                 if(floor.connect(request->player) || request->boundaryThroughUnknown) {
                     result->drawing=map.build(request->visible,request->boundaryWidth,request->boundaryThroughUnknown);
                     if(!cached.coverage || cached.coverageRooms!=floor.roomCount()) {

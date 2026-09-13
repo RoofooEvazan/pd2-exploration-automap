@@ -3,6 +3,10 @@
 #include <windows.h>
 #include <cstdint>
 #include <vector>
+#include <array>
+#include <algorithm>
+#include <cctype>
+#include <string>
 
 // Read-only 1.13c room/collision access. All game pointers are short-lived;
 // callers keep owned grid copies only. No room load/reveal API is invoked.
@@ -60,6 +64,58 @@ inline bool copyGrid(const Room& room,std::uint16_t* destination) {
     __try {
         memcpy(destination,room.grid,std::size_t(room.width)*room.height*sizeof(std::uint16_t));return true;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+struct GroundTile {int x=0,y=0,type=0;char library[260]{};};
+inline bool floorTiles(const Room& room,void** tiles,int* count) {
+    __try {
+        // D2Common 1.13c #10544: room+8 -> floor list at +8, count at +0xC.
+        auto lists=field<void*>(room.address,8);if(!lists)return false;
+        *tiles=field<void*>(lists,8);*count=field<int>(lists,12);
+        return *count>=0 && *count<=16384 && (!*count || *tiles);
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+inline bool groundTile(const Room& room,const void* tiles,int index,GroundTile* result) {
+    __try {
+        auto tile=static_cast<const unsigned char*>(tiles)+std::size_t(index)*0x30;
+        auto entry=field<void*>(tile,0x18);if(!entry || field<int>(tile,0x1c)!=0 || field<int>(entry,0x14)!=0)return false;
+        int x=field<int>(tile,8),y=field<int>(tile,12);
+        if(x<0 || y<0 || x>room.width/5 || y>room.height/5)return false;
+        auto parent=field<const char*>(entry,0x38);if(!parent)return false;
+        result->x=room.x+x*5;result->y=room.y+y*5;result->type=field<int>(entry,0x18);
+        for(int i=0;i<260;++i){result->library[i]=parent[i];if(!parent[i])return true;}
+        return false;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+inline bool grassyBankLibrary(const char* name) {
+    std::string path(name);
+    for(auto& c:path)c=c=='\\'?'/':char(std::tolower(static_cast<unsigned char>(c)));
+    for(const char* file:{"act1/outdoors/pond.dt1","act1/outdoors/puddle.dt1","act1/outdoors/swamp.dt1"}) {
+        const std::size_t length=std::char_traits<char>::length(file);
+        if(path.size()>=length && path.compare(path.size()-length,length,file)==0 &&
+           (path.size()==length || path[path.size()-length-1]=='/'))return true;
+    }
+    return false;
+}
+struct BankRead {unsigned tiles=0,banks=0,failures=0;};
+inline std::vector<std::uint8_t> copyBanks(const Room& room,const std::vector<std::uint16_t>& grid,BankRead& stats) {
+    std::vector<std::uint8_t> banks;
+    if(grid.size()!=std::size_t(room.width)*room.height)return banks;
+    void* tiles=nullptr;int count=0;
+    if(!floorTiles(room,&tiles,&count)){++stats.failures;return banks;}
+    for(int i=0;i<count;++i) {
+        GroundTile tile{};
+        if(!groundTile(room,tiles,i,&tile)){++stats.failures;continue;}
+        ++stats.tiles;if(!grassyBankLibrary(tile.library))continue;
+        ++stats.banks;if(banks.empty())banks.resize(grid.size());
+        for(int y=tile.y;y<std::min(tile.y+5,room.y+room.height);++y)
+            for(int x=tile.x;x<std::min(tile.x+5,room.x+room.width);++x) {
+                const auto at=std::size_t(y-room.y)*room.width+x-room.x;
+                // Static low bank collision; a wall/visibility/missile barrier
+                // placed on top retains its architectural wall color.
+                if((grid[at]&0x27)==1)banks[at]=1;
+            }
+    }
+    return banks;
 }
 template<class Wanted,class Visit> bool capture(const void* client,std::uint32_t level,Wanted wanted,Visit visit) {
     void* seen[256]{};int count=0;bool any=false;

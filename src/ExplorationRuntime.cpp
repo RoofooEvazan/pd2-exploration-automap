@@ -462,7 +462,14 @@ static void captureStyledRooms(const PlayerState& p,std::uint64_t key,StyledStat
         ++missing;
         return state.floor.wanted(r.x,r.y,r.width,r.height);
     },[&](const floor_reader::Room& r,const std::vector<std::uint16_t>& grid){
-        state.floor.ingest(r.x,r.y,r.width,r.height,grid);
+        floor_reader::BankRead bankRead{};
+        std::vector<std::uint8_t> banks;
+        if(r.level>=2 && r.level<=7)banks=floor_reader::copyBanks(r,grid,bankRead);
+        state.floor.ingest(r.x,r.y,r.width,r.height,grid,banks);
+        if(logfile && r.level>=2 && r.level<=7) {
+            fprintf(logfile,"GROUND_BANKS level=%lu room=%d,%d tiles=%u banks=%u cells=%zu readFailures=%u\n",
+                r.level,r.x,r.y,bankRead.tiles,bankRead.banks,std::count(banks.begin(),banks.end(),std::uint8_t(1)),bankRead.failures);fflush(logfile);
+        }
         if(state.floor.contains(r.x,r.y,r.width,r.height)) {
             ++copied;if(r.level==p.level)currentArea=true;
         }
@@ -966,6 +973,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     riverTint.select(gameSerial,lastLevelKey,int(t.divisor));
     const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
     auto draw=[&](const styled_map::Stroke& wall,bool water) {
+        water=activeStyle==MapStyle::Hybrid && (water || wall.bank);
         const auto a=project(wall.a,t),b=project(wall.b,t);
         styled_map::Quad outer{},inner{};
         if(!styled_map::strokeQuad(a,b,2.5,outer) || !styled_map::strokeQuad(a,b,1.0,inner))return;

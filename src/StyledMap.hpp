@@ -12,7 +12,7 @@ using Span=std::pair<int,int>;
 using Row=std::vector<Span>;
 using Rows=std::map<int,Row>;
 struct Quad {Point a,b,c,d;};
-struct Stroke {Point a,b;};
+struct Stroke {Point a,b;bool bank=false;};
 struct Layer {unsigned gray,alpha;std::vector<Quad> quads;std::vector<Quad> redQuads{};};
 struct Drawing {
     // Low outer rim, bright inner rim, then a gradual fade into the floor.
@@ -36,7 +36,7 @@ inline void compactWalls(std::vector<Stroke>& walls) {
             auto& last=walls[keep-1];
             const bool straight=(vertical(last) && vertical(w)) ||
                 (last.a.y==last.b.y && w.a.y==w.b.y);
-            if(straight && last.b.x==w.a.x && last.b.y==w.a.y){last.b=w.b;continue;}
+            if(straight && last.bank==w.bank && last.b.x==w.a.x && last.b.y==w.a.y){last.b=w.b;continue;}
         }
         walls[keep++]=w;
     }
@@ -139,7 +139,7 @@ inline void mergeQuads(const Rows& rows,std::vector<Quad>& quads) {
     for(const auto& r:active)addRect(quads,r.first.first,r.first.second,r.second.first,r.second.second);
 }
 class Level {
-    exploration::Mask candidates_{1},floor_{1},known_{1};
+    exploration::Mask candidates_{1},floor_{1},known_{1},banks_{1};
     std::set<int> connectionRows_;
     bool roomBudgetReached_=false;
     std::size_t capturedCells_=0;
@@ -184,15 +184,17 @@ class Level {
             int count=int(std::abs(b.x-a.x)+std::abs(b.y-a.y));
             if(!count)return;
             Point step{(b.x-a.x)/count,(b.y-a.y)/count};
-            Point normal{step.y*.5,-step.x*.5};int start=-1;
+            Point normal{step.y*.5,-step.x*.5};int start=-1;bool bank=false;
             for(int i=0;i<=count;++i) {
                 Point mid{a.x+step.x*(i+.5),a.y+step.y*(i+.5)};
                 bool keep=i<count && known_.contains({mid.x+normal.x,mid.y+normal.y}) &&
                     known_.contains({mid.x-normal.x,mid.y-normal.y});
-                if(keep && start<0)start=i;
-                if(!keep && start>=0){
-                    permanentWalls_.push_back({{a.x+step.x*start,a.y+step.y*start},{a.x+step.x*i,a.y+step.y*i}});start=-1;
+                const bool material=keep && (banks_.contains({mid.x+normal.x,mid.y+normal.y}) ||
+                    banks_.contains({mid.x-normal.x,mid.y-normal.y}));
+                if(start>=0 && (!keep || bank!=material)){
+                    permanentWalls_.push_back({{a.x+step.x*start,a.y+step.y*start},{a.x+step.x*i,a.y+step.y*i},bank});start=-1;
                 }
+                if(keep && start<0){start=i;bank=material;}
             }
         });
         wallRevision_=revision;
@@ -200,10 +202,13 @@ class Level {
 public:
     std::size_t revision=0;
     bool wanted(int x,int y,int w,int h) const {return !roomBudgetReached_ && rooms_.size()<2048 && !rooms_.count({x,y,w,h});}
-    void ingest(int x,int y,int w,int h,const std::vector<std::uint16_t>& flags) {
+    void ingest(int x,int y,int w,int h,const std::vector<std::uint16_t>& flags,const std::vector<std::uint8_t>& banks={}) {
         if(w<1 || h<1 || w>512 || h>512 || flags.size()!=std::size_t(w)*h || !wanted(x,y,w,h))return;
         if(capturedCells_+flags.size()>2000000){roomBudgetReached_=true;return;}
         capturedCells_+=flags.size();
+        if(banks.size()==flags.size())for(int row=0;row<h;++row)for(int col=0;col<w;++col)
+            if(banks[std::size_t(row)*w+col] && (flags[std::size_t(row)*w+col]&0x27)==1)
+                banks_.revealRange(y+row,x+col,x+col+1);
         for(int row=0;row<h;++row) {
             known_.revealRange(y+row,x,x+w);connectionRows_.insert(y+row);int start=-1;
             for(int col=0;col<=w;++col) {
@@ -301,7 +306,7 @@ public:
                 bool keep=i<count && (explored.contains({p.x+side.x,p.y+side.y}) || explored.contains({p.x-side.x,p.y-side.y}));
                 if(keep && start<0)start=i;
                 if(!keep && start>=0) {
-                    drawing.walls.push_back({{line.a.x+step.x*start,line.a.y+step.y*start},{line.a.x+step.x*i,line.a.y+step.y*i}});start=-1;
+                    drawing.walls.push_back({{line.a.x+step.x*start,line.a.y+step.y*start},{line.a.x+step.x*i,line.a.y+step.y*i},line.bank});start=-1;
                 }
             }
         }

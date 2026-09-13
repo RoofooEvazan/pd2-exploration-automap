@@ -63,7 +63,7 @@ public:
     }
     const std::vector<Part>& prepare(const std::vector<styled_map::Stroke>& walls) {
         const auto equal=[](const styled_map::Stroke& a,const styled_map::Stroke& b){
-            return a.a.x==b.a.x && a.a.y==b.a.y && a.b.x==b.b.x && a.b.y==b.b.y;
+            return a.a.x==b.a.x && a.a.y==b.a.y && a.b.x==b.b.x && a.b.y==b.b.y && a.bank==b.bank;
         };
         if(preparedTiles_==tiles_.size() && source_.size()==walls.size() && std::equal(source_.begin(),source_.end(),walls.begin(),equal))return parts_;
         ++builds_;source_=walls;preparedTiles_=tiles_.size();parts_.clear();
@@ -79,7 +79,7 @@ public:
             }
             std::sort(ranges.begin(),ranges.end());
             auto at=[&](double t){return Point{wall.a.x+(wall.b.x-wall.a.x)*t,wall.a.y+(wall.b.y-wall.a.y)*t};};
-            auto append=[&](double l,double r,bool water){if(r>l)parts_.push_back({{at(l),at(r)},water});};
+            auto append=[&](double l,double r,bool water){if(r>l)parts_.push_back({{at(l),at(r),wall.bank},water});};
             double cursor=0;
             for(std::size_t i=0;i<ranges.size();) {
                 double lo=ranges[i].first,hi=ranges[i++].second;

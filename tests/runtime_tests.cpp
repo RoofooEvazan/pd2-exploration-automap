@@ -1139,6 +1139,7 @@ static void testWaterReuse() {
 #include "map_style_tests.hpp"
 #include "area_entry_tests.hpp"
 #include "water_tint_tests.hpp"
+#include "ground_bank_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
@@ -1217,5 +1218,6 @@ int main() {
     testStableWallRefresh();
     testWaterTint();
     testNativeRiverBanks();
+    testGroundBanks();
     return 0;
 }
