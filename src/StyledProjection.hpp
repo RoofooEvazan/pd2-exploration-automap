@@ -1,7 +1,4 @@
-// Clips projected floor quads and wall strokes to the automap viewport.
-// Quads wholly inside or outside take fast paths; crossing polygons are split
-// into renderer-ready pieces without drawing beyond the viewport boundary.
-
+// Viewport clipping for floor quads and fractional wall strokes.
 #pragma once
 #include "StyledMap.hpp"
 

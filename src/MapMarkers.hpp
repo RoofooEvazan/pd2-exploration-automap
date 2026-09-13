@@ -1,5 +1,4 @@
-// Native shrine/event artwork, sourced from active tables and loaded units.
-// No preset traversal, room revealing, game-state writes or additional icons.
+// Native shrine/event definitions and bounded snapshots of loaded units.
 #pragma once
 #include "NativeFloorReader.hpp"
 #include <array>

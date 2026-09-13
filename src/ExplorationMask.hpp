@@ -1,7 +1,4 @@
-// Explored-cell storage, movement-based reveal, and masks for each tracked area.
-// Supplies frontier extraction and reference primitive clipping independently
-// of native wall layers, artwork colors, and the styled floor renderer.
-
+// Sparse exploration masks, frontier extraction and reference primitive clipping.
 #pragma once
 #include <algorithm>
 #include <cmath>
@@ -120,7 +117,7 @@ public:
     }
 };
 // Caller supplies a unique game serial and a unique level-instance serial.
-// A recycled pointer or a level number alone is NOT a sufficient instance key.
+// Recycled pointers or level numbers alone are insufficient instance keys.
 class Session {
     std::uint64_t game_=0;
     std::map<std::uint64_t,Mask> levels_;
@@ -133,10 +130,8 @@ public:
         return levels_.try_emplace(levelInstance,cellSize_).first->second;
     }
 };
-// Invoke before the original primitive draw. Emit disjoint scanline clip
-// rectangles, then redraw the SAME primitive with each rectangle. No sprite
-// decoding, palette changes, wall-layer rules, or replacement geometry.
-// inverse must map this pass's raster pixel centers to stable world coordinates.
+// Emit disjoint scanline clips for the original primitive.
+// inverse maps raster pixel centers to stable world coordinates.
 template<class Inverse,class Emit>
 void clipPrimitive(const Mask& mask,Rect bounds,Rect viewport,Inverse inverse,Emit emit) {
     Rect r=intersect(bounds,viewport);

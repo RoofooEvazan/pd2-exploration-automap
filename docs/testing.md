@@ -1,101 +1,87 @@
-# Building and testing
+# Testing and diagnostics
 
-Use this guide to understand each test suite, enable optional local integration checks, and read the plugin's runtime diagnostics.
+Configure and build a Win32 Release using the [build instructions](../README.md#build-from-source), then run:
 
-The [README](../README.md#build-from-source) gives the CMake commands. All three default tests run without a game installation, external fixture, or network access. Configure a Release **Win32** build with MSVC and run CTest.
+```powershell
+ctest --test-dir build -C Release --output-on-failure
+```
 
-| Test | Main checks |
+The default suites use synthetic data and mocked game/renderer calls. They need no game installation, extracted assets or network access. Warnings are errors. Passing tests validates geometry and callback contracts, not undocumented addresses in another game build.
+
+## Automated coverage
+
+| Suite / component | Checks |
 | --- | --- |
-| `mask_tests` | Independent explored cells, movement, frontier extraction, clipping and session behavior |
-| `runtime_tests` | Mocked native/Glide callbacks, quad coverage and UV interpolation, contact decoding, fractional lines, styled color restoration, exception cleanup, five town exemptions, town footprints, outdoor previews and gate-transition persistence |
-| `styled_tests` | Reference erosion, exact shade coverage, viewport clipping, red open edges versus gray wall edges, collision connectivity, chunk/full equivalence, resets, teleports, worker coalescing and session isolation |
+| `mask_tests` | Sparse cells, circular reveal, frontier extraction, independent raster coverage, movement and session masks. |
+| `styled_tests` | Floor connectivity, exact shade coverage, open-edge classification, viewport clipping, incremental/full-build equivalence, prepared coordinates, wall joins, worker coalescing and session isolation. |
+| `runtime_tests` | Native quad coverage and UVs, fractional lines, state restoration, failure cleanup, terrain classification, town/exploration unions, shared campaign layers, bounded table reads and fallback paths. |
+| `map_style_tests.hpp` | Native bypass, Styled terrain suppression and navigation retention, both zooms, style cycling, persistence, legacy precedence, failed saves and retained history/caches. |
+| `boundary_menu_tests.hpp` | Thirteen RGB presets, independent wall/boundary persistence, Back/Escape, label alignment, heading fonts, resource ownership and menu signature guards. |
+| `fixed_distance_tests.hpp` | Exact 33-subtile circle, ignored legacy radius inputs, resolution independence, quarter-cell movement, teleport gaps and town exemptions. |
+| `entrance_visibility_tests.hpp` | Capped alpha/RGB gain, classification, both views, exact-once drawing, copied contexts/clips, queue limits, palette binding, grouped uploads and restoration after exceptions. |
+| `map_marker_tests.hpp` | Shrine/event definitions, loaded-unit snapshots, pointer/cycle guards, expiry, explored-location gating, native registration and duplicate suppression. |
 
-Warnings are errors. Tests check actual geometric coverage and renderer-call contracts rather than loading a DLL into the game. Their success does not validate undocumented engine addresses or long-session behavior.
+The header-based checks run within `runtime_tests`; there are three test executables. The [test source index](../tests/) links to each file.
 
-Campaign tests additionally cover native artwork IDs and exact clipping at both zooms, native town/exploration unions, a single shading pass without duplicate wall lines, independent style settings, original-mode bypass, long callback gaps, transient reads, cross-act travel, menu epochs, same-seed new games, and player/seed changes. See [campaign-prototype.md](campaign-prototype.md) for live checks still required.
+Sewer regressions cover shared wall endpoints, full-width clipping, native fallback, owned profile caches, scoped water classification, duplicate tiles, shared-edge removal and bridge exclusion. Poisoned Well checks ensure contour suppression preserves icons/water and unrelated-area aliases. Padding checks compare visible pixels and UVs with the full-canvas reference.
 
-The v0.1.1 regression checks cover town rectangle rasterization at both zoom levels, tile-to-subtile validation, outdoor preparation before crossing, retained exploration after exit and reentry, exact native town coverage, duplicate-free fallback clipping, once-per-pass mixed rendering, off-screen rejection, and act/layer isolation. All three Win32 Release suites passed. A live Harrogath/Bloody Foothills test confirmed consistent outdoor styling when approaching, crossing, and returning through the gate. Other town entrances have not received the same visual validation.
+Cache regressions compare cold/cached coverage across holes, pan, both zooms, growth, shrink, town unions, collisions and complex cells. All cache callers share invalidation state. Prepared-floor tests retain projection/order and fallback at capacity limits. Session tests cover callback gaps, transient state reads, menu epochs, repeated seeds, act changes and stale native layers during travel.
 
-## Optional local artwork check
+## Optional fixtures
 
-If you have legally obtained and already extracted `MaxiMap.dc6` and `MaxiMapS.dc6`, point `PD2_AUTOMAP_ARTWORK_DIR` at their directory. `runtime_tests` then decodes all frames in both files in addition to the synthetic tests:
+These checks use private files from the development installation. Fixtures are not required to build or use the plugin and are not distributed. Unset variables skip the corresponding check; supplied fixtures must match the expected schema or capture.
+
+| Variable | Input |
+| --- | --- |
+| `PD2_AUTOMAP_ARTWORK_DIR` | Directory containing `MaxiMap.dc6` and `MaxiMapS.dc6`. Decodes both sheets, checks occupied bounds and validates sewer profiles against native pixels. |
+| `PD2_HYBRID_TABLE_DIR` | Directory containing `automap.txt`, `Objects.txt`, `Levels.txt`, `MonStats.txt` and `MonStats2.txt` from the development setup. Audits known artwork IDs, layers and marker definitions. |
+| `PD2_ARCHIVE_TABLE_DIR` | Private archive snapshots of `Levels.txt`, `automap.txt` and `Objects.txt`, read through the mocked file-reader interface. |
+| `PD2_FLOOR_PROBE` | Original development collision capture. This legacy test uses fixed seed coordinates; arbitrary room dumps are not substitutes. |
+
+Example:
 
 ```powershell
 $env:PD2_AUTOMAP_ARTWORK_DIR = 'D:\LocalFixtures\AUTOMAP'
-ctest --test-dir build -C Release -R runtime_tests --output-on-failure
-Remove-Item Env:\PD2_AUTOMAP_ARTWORK_DIR
-```
-
-Unset means skip that optional check. A supplied directory with missing or malformed files fails. Do not add the sheets to this repository or a release.
-
-## Optional development collision fixture
-
-`PD2_FLOOR_PROBE` can point to the original local endgame-map development capture. This legacy integration check uses fixed seed coordinates from that capture, so an arbitrary room dump is not a substitute. The fixture is not distributed or required; the default synthetic suite covers the same floor/geometry algorithms without game data. The test does not write preview files.
-
-## Runtime diagnostics
-
-### Automatic game-table loading
-
-The default runtime suite covers the native Storm binding and owned table reads with synthetic data. An optional `PD2_ARCHIVE_TABLE_DIR` can point to private snapshots of the three TXT files from the installed PD2 archive; it tests parsing through the same reader interface. No archive library or game asset is needed for the default tests. Do not distribute these snapshots. See [game-table validation](game-tables.md#validation) for the live comparison with and without direct overrides.
-
-On the first automap update, `TABLE` lines report each file read. `CAMPAIGN layers`, `HYBRID classified` and `STYLE` then confirm accepted definitions and the resulting styles. Missing-table fallback may occur even when the memory hooks installed successfully.
-
-### Optional hybrid artwork-table audit
-
-The synthetic runtime suite always checks conservative classification, protected details, and hybrid drawing. To additionally check the current development installation's campaign frame IDs against its own tables:
-
-```powershell
-$env:PD2_HYBRID_TABLE_DIR = 'C:\Program Files\Diablo II\ProjectD2\data\global\excel'
 try { ctest --test-dir build -C Release --output-on-failure }
-finally { Remove-Item Env:\PD2_HYBRID_TABLE_DIR }
+finally { Remove-Item Env:\PD2_AUTOMAP_ARTWORK_DIR }
 ```
 
-This reads `automap.txt`, `Objects.txt`, and `Levels.txt` locally; these files do not belong in the repository. The inspected tables produce 111 eligible ordinary wall IDs and preserve the tested roads, water, waypoint, cave/temple entrances, stairs, cages, landmark artwork, and six Act 3 sewer wall IDs. The layer audit checks 132 campaign entries, shared jungle layers, distinct sewer layers, blank numeric defaults, conflicting records, and act/endgame isolation. An unset variable skips this optional integration audit. This is a fixture check for the development tables, not a universal table-compatibility guarantee.
+The inspected direct tables contain 132 campaign entries, 111 ordinary wall IDs and 289 scoped Poisoned Well contour IDs. The two artwork sheets each contain 1,974 frames. Fixture counts are not runtime requirements for other supported table sets.
 
-### Log fields
+## Runtime logs
 
-The game folder's `ExplorationMask.log` records initialization status, hook activity, mask size, CPU timing, and geometry counts. Missing modules or an unexpected hook chain produces a `Not installed` message. An absent `-exploration-test` flag produces `Dormant`.
+`ExplorationMask.log` is written beside the game executable. `Dormant` means the activation flag is absent; `Not installed` indicates a missing module or unsupported hook chain.
 
-Useful timing fields:
+| Field | Meaning |
+| --- | --- |
+| `TABLE` | Read status, byte count and resolver source. A successful read still needs to pass parsing. |
+| `CAMPAIGN layers`, `HYBRID classified`, `STYLE` | Accepted definitions and selected internal styles. Internal `original` corresponds to menu Native; internal `native exploration` is the clipped-native fallback. |
+| `BOUNDARY`, `APPEARANCE` | Menu installation and loaded/saved style or colors. |
+| `DISCOVERY mode=hardcoded`, `radiusSubtiles=33.00` | Fixed reveal policy. |
+| `mapMs` | CPU time between automap callbacks, not total frame time or GPU cost. |
+| `workerBuildMs`, `revealLatencyMs` | Latest completed build duration and queue-to-completion time. |
+| `rebuiltChunks` / `totalChunks` | Rebuilt versus retained geometry regions. |
+| `DRAW style`, `floorQuads`, `wallRuns`, `preparedFloors` | Drawing mode, geometry counts and prepared-projection status. |
+| `clipHits` / `clipMisses` | Reused versus rebuilt clipping queries. |
+| `Area detected`, `layer`, `mapKey`, `layerWaits` | Layer sharing and transition deferrals. Adjoining campaign areas on the same layer should share a key. |
+| `townNativeCells`, `townPreviewPasses`, `previewLevel`, `townClipActive` | Town clipping and nearby outdoor preparation. |
+| `HYBRID wallsReplaced`, `detailsRetained`, `waterRetained` | Cumulative classification counts, including off-screen/unrevealed artwork. |
+| `sewerTraced`, `sewerFallbacks`, `sewerWaterCells` | Accepted sewer wall/water cells and native fallbacks. Water is collected before exploration clipping. |
+| `ARTWORK trimmed`, `blankSkipped`, `boundsHits`, `boundsDecoded`, `boundsFailures` | Occupied-bounds reuse, decoding and fallback. |
+| `OVERLAY opacity` | Custom fullscreen alpha scale. |
+| `ENTRANCES drawn`, `palettePasses`, `fallbacks` | Entrance submissions, grouped brightness passes and native fallback counts. |
+| `MARKERS sampled`, `added`, `alreadyNative` | Loaded-unit sampling, fallback icons and native duplicate skips. |
 
-- `mapMs`: CPU time between the paired automap callbacks, not GPU frame time or a whole-game frame measurement.
-- `workerBuildMs`: time spent on the most recently completed background build.
-- `revealLatencyMs`: time from that request being queued to its completion.
-- `rebuiltChunks` / `totalChunks`: affected regions rebuilt versus retained regions.
-- `townNativeCells`: native cells forwarded through town-footprint clipping.
-- `townPreviewPasses`: styled outdoor passes drawn while the player is still in town.
-- `previewLevel` / `townClipActive`: the remembered outdoor area and whether the native town exemption is active.
-- `HYBRID classified`: the number of ordinary wall frame IDs and separately scoped Poisoned Well contour IDs eligible for replacement after object protection.
-- `HYBRID wallsReplaced` / `detailsRetained` / `waterRetained`: cumulative native-cell classification counters, not per-frame timings. A retained count does not mean the primitive was within the visible explored region.
-- `Area detected` includes the native `layer` and shared `mapKey`. Adjoining campaign areas on the same layer should retain the same key; different layers and endgame level instances should not.
-- `sewerTraced` / `sewerFallbacks`: cumulative sewer wall cells replaced by validated straight profiles or retained natively when unavailable/budget-limited. `layerWaits` counts callbacks deferred during a native area/layer mismatch.
-- `sewerWaterCells`: cumulative recognized sewer water cells accepted for channel geometry, before exploration clipping; it is not a visible-pixel or FPS count.
-- `clipHits` / `clipMisses`: cumulative reused versus rebuilt clipping queries. Cache misses retain exact drawing; these counts do not measure FPS.
-- `ARTWORK trimmed` / `blankSkipped`: retained native sprites with reduced padding bounds or fully transparent frames suppressed. `boundsHits`, `boundsDecoded` and `boundsFailures` track metadata reuse, successful decoding and cached decode/read failures. Unsupported frame headers fall back before this cache.
-- `OVERLAY opacity`: startup setting for custom overlay alpha. Native symbols are unchanged; the tested D2GL corner target uses fixed opacity.
+Counters are cumulative unless stated otherwise. Periodic samples can repeat the latest worker result while standing still; they are not separate builds. Cache/classification counters do not measure FPS.
 
-The optional `PD2_AUTOMAP_ARTWORK_DIR` check also tests the six sewer wall forms at both automap sizes. Sampled straight-profile points must remain within two pixels of opaque source artwork. The synthetic runtime suite checks shared wall endpoints, full-width clipping, bounded batched submissions, owned cache reuse, and native fallback; a pixel-center raster is the clipping reference. Water checks cover scoped classification despite unrelated terrain aliases, object protection, duplicate tiles, removal of shared edges, bridge exclusion, retained native water drawing, fill/border clipping, and per-pass clearing. Wall-only drawing uses at most two batches; water adds one fill batch.
+## Gameplay checks
 
-Periodic log lines can repeat the most recent worker result when the player is still. Do not interpret every line as a separate rebuild. Review diagnostics before posting them and never include game saves, account data, or proprietary assets.
+Use the [documented offline launch](../README.md#install-and-run), retaining custom direct-file flags. Close the game before replacing the DLL and preserve the INI.
 
-The local Poisoned Well correction also audits 289 custom contour IDs from table group 46, scoped to level 202. Synthetic tests retain icons, textured water and unknown details, protect object/same-group alias conflicts, leave other areas unchanged and restore native artwork when modern geometry is unavailable. Both zooms verify that replaced contours skip native clipping while the modern outline draws once. See [large-map testing](map-growth-optimization.md) for the reported regression and benchmark limits.
+1. Cycle Native, Hybrid and Styled in both views. Check original drawing in Native, native details in Hybrid, and contour terrain with navigation artwork in Styled. Return to Hybrid and verify retained exploration and colors.
+2. Open both color lists. Check mouse/keyboard selection, headings, White, Back/Escape and saved preferences after restarting.
+3. Visit a road, waypoint, shrine/event, cave entrance and stair/exit symbol. Check the reveal edge and entrance emphasis in both views.
+4. Cross a town gate and an adjoining campaign boundary, then return. Repeat portal/waypoint travel and hide the map for several seconds. Save/exit and start a new game to check reset behavior.
+5. Inspect sewer walls, channels and bridges, then a nearly explored endgame map. Compare moving/stationary frame times and capture the log.
 
-The [native padding candidate](native-artwork-padding.md) checks occupied bounds against the silhouette decoder on every installed frame in both artwork sheets, plus exact visible-pixel/UV coverage before and after padding removal in synthetic rendering. Cache identity, malformed inputs, blank frames, fallback and area invalidation are also covered.
-
-The performance revision adds coverage comparisons for cold/cached queries, holes, negative pan, both zooms, growth invalidation, town unions, collisions and over-budget cells. A cross-caller regression switches wall/cell drawing between different area masks and back, checking that shared-cache coverage follows every transition. Water perimeters are compared with an independent edge-set reference across reordered/changed frames, duplicates and the tile limit. Opacity checks cover RGB preservation, line/point submission and native color restoration. Existing rendering contracts also run at 100% to verify that the optimization preserves prior output.
-
-## Boundary settings and fixed reveal distance
-
-The runtime suite checks thirteen exact RGB presets; independent boundary/wall persistence and reload; missing/invalid wall settings defaulting to Gray; save failure; list selection and Back/Escape; native label/value alignment, larger heading fonts and font restoration; native resource ownership and layout bounds; and menu signature rejection. Both floor paths retain their geometry and shading. Hybrid, styled and sewer wall/shoreline colors preserve clipped vertices, native state restoration and alpha at both zooms; native water fill and dark casings retain their own colors.
-
-The fixed-distance checks use the same appearance-settings reader as the runtime, with temporary INI files containing missing, zero, negative, oversized and malformed legacy radius values, paired with both old reveal modes. None changes the 33-subtile circle. The complete revealed mask matches an independent circular reference at multiple logical resolutions, including invalid view dimensions. Quarter-subtile movement, the outer radius, teleport gaps, all five town exemptions and retained outdoor history are checked. Color, style and opacity settings still load normally.
-
-`BOUNDARY` log lines report menu installation. `APPEARANCE` reports loaded/saved boundary and wall colors. The unpublished 33-subtile build reports `DISCOVERY mode=hardcoded` and `radiusSubtiles=33.00`; it no longer reads view dimensions to choose the radius. These are functional checks of the distributed client, not anti-tamper protection or proof of online compatibility. See [live validation and limits](boundary-settings.md).
-
-## Endgame shrine and event icons
-
-`map_marker_tests.hpp` checks active-table classification, guarded loaded-room/unit reads, malformed pointers and bounded cycles, 200 ms sample expiry, explored-location gating, primitive clipping, native registration and per-pass duplicate suppression in both map sizes and native/styled/hybrid modes. Campaign and town exclusions are checked. The optional `PD2_HYBRID_TABLE_DIR` audit also reads `MonStats.txt` and `MonStats2.txt` from the private fixture directory. No additional files are needed for the default synthetic suite. See [marker validation](map-markers.md#validation-and-gameplay-check) for the approved live test and log fields.
-
-## Local entrance visibility follow-up
-
-The [entrance visibility guide](entrance-visibility.md) describes the unpublished +75% boost and its renderer limits. `ENTRANCES drawn`, `palettePasses` and `fallbacks` are cumulative counters. There are at most two palette uploads per automap pass, independent of entrance count; the native sprite count does not increase. The new runtime tests cover owned context/clip data, both views, state restoration, queue budgets, masked campaign/endgame cells, hidden entrances and unchanged unrelated details. Live appearance and frame-time comparison remain pending.
+Historical offline checks confirmed native campaign details, the Harrogath gate, adjoining-area persistence, sewer wall/water appearance, archive/direct loading, shrine/event icons and color menus. Full campaign coverage, controlled entrance/style performance comparisons and long-session stability remain under test. See [performance](performance.md) for the scope of existing measurements.

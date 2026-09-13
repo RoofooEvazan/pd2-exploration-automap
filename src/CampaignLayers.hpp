@@ -1,5 +1,4 @@
-// Reads expected campaign automap layers from the user's own Levels.txt.
-// Native player area and automap layer can change on different callbacks.
+// Expected campaign layers; player area and automap layer can change separately.
 #pragma once
 #include <algorithm>
 #include <array>

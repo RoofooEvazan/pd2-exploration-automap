@@ -1,21 +1,16 @@
-# Documentation and screenshots
+# Documentation
 
-Guides to the automap's design, compatibility requirements, testing, and performance, plus gameplay screenshots.
+Start with the [installation instructions](../README.md#install-and-run).
 
-| Guide | What it explains |
+| Guide | Contents |
 | --- | --- |
-| [Map styles](map-styles.md) | Native, Hybrid and Styled menu choices, saved settings, preserved navigation details and live switching. |
-| [Entrance visibility](entrance-visibility.md) | The local entrance/exit visibility boost, minimap brightness, preserved native clipping and bounded rendering cost. |
-| [Boundary settings](boundary-settings.md) | Independent boundary/wall color lists, saved preferences, the native menu extension and the hardcoded 33-subtile circle in the unpublished follow-up. |
-| [Shrine and event icons](map-markers.md) | Native endgame shrine/event artwork, explored-only fallback, duplicate suppression and validation. |
-| [Campaign BETA guide](campaign-prototype.md) | Hybrid contours, preserved native details, settings, game-table requirements, session persistence and known limits. |
-| [Hybrid performance](hybrid-performance.md) | Clipping/water reuse, benchmark scope and overlay opacity. |
-| [Large-map optimization](map-growth-optimization.md) | prepared floors, joined wall runs, growth-aware clipping and hybrid endgame testing. |
-| [Native artwork padding](native-artwork-padding.md) | Endgame artwork optimization: avoids clipping transparent sprite margins while preserving water and details. |
-| [Automatic game tables](game-tables.md) | Removes manual table extraction by reading the active game's archives and direct overrides, with bounded reads and native fallback. |
-| [Architecture](architecture.md) | How exploration, floor shading, wall outlines, renderer hooks, and background updates fit together. |
-| [Performance](performance.md) | Why the map uses incremental updates, measured development results, and costs that remain. |
-| [Testing](testing.md) | What the tests cover, optional local fixtures, and how to interpret runtime diagnostics. |
-| [Screenshots](screenshots/) | Current endgame map and sewer views, the color menu, all five frontier colors, and earlier campaign/endgame examples. |
-
-For installation, start with the [main README](../README.md#install-and-run).
+| [Map styles](map-styles.md) | Native, Hybrid and Styled, live switching and legacy preferences. |
+| [Colors and reveal distance](boundary-settings.md) | Color lists, RGB values, menu compatibility and the fixed radius. |
+| [Entrance visibility](entrance-visibility.md) | Entrance emphasis, classification and renderer limits. |
+| [Shrine and event icons](map-markers.md) | Native symbols, loaded-unit fallback and duplicate suppression. |
+| [Campaign terrain](campaign-prototype.md) | Hybrid walls, sewer channels, towns and connected areas. |
+| [Game tables](game-tables.md) | Archive/direct loading, compatibility and missing-table diagnosis. |
+| [Architecture](architecture.md) | Rendering flow, hooks, session tracking and resource limits. |
+| [Performance](performance.md) | Caching, historical benchmarks and remaining costs. |
+| [Testing](testing.md) | Automated coverage, optional fixtures, logs and gameplay checks. |
+| [Screenshots](screenshots/) | Earlier-beta gameplay views and color comparisons. |

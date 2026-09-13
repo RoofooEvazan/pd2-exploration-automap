@@ -1,9 +1,8 @@
-# Shrine and event icons — BETA
+# Shrine and event icons
 
 Endgame automaps retain native shrine and PD2 event symbols. A small fallback
 also draws those symbols for already-loaded units whose locations are explored
-but which have not yet been registered on the native automap. It works in the
-native exploration, styled and hybrid map modes, in both map sizes.
+but which have not yet been registered on the native automap. It works in Hybrid, Styled and the legacy clipped-native mode, in both map sizes. Map Style Native uses only the game's original icon rendering.
 
 The active game's `Objects.txt` identifies shrines by their shrine subclass and
 positive `AutoMap` entry. The supported PD2 profile uses frame 1499 for event
@@ -12,7 +11,7 @@ This includes the existing event marker objects, altars, event NPCs and invasion
 portals that have that native symbol. No game artwork or tables are bundled.
 There are no new quest markers, exit arrows, boss pointers or chest markers.
 
-Icons use the same fixed exploration radius as terrain (33 subtiles in the unpublished follow-up; 31 in beta.6). The fallback checks the
+Icons use the same fixed exploration radius as terrain (33 subtiles). The fallback checks the
 unit's world location against the existing mask, then clips the icon's native
 textured primitives to explored pixels and the viewport. Walls, water, frontier
 color and opacity retain their existing behavior. Campaign and town behavior
@@ -52,10 +51,10 @@ Optional private fixtures validate the installed PD2 object and actor tables.
 Build with the existing Windows/Win32 steps in the main README, then run CTest
 in Release configuration. Close the game before replacing its plugin.
 
-For the local gameplay check, enter an endgame map with a shrine or native event
+For a gameplay check, enter an endgame map with a shrine or native event
 marker. Approach with the automap open, switch between the overlay and corner
 map, activate the shrine/event, and walk away and back. Confirm the native icon,
 placement, visibility and FPS. `ExplorationMask.log` includes marker-definition
 counts and `MARKERS sampled=... added=... alreadyNative=...` diagnostics.
 
-v0.2.0-beta.6 ships the exact DLL confirmed working by the user on 2026-09-12. All three Win32 Release suites passed with the private artwork/table/archive fixtures. The live log accepted 95 object definitions and seven event actor definitions, and recorded both fallback submissions and native-registration/duplicate skips. Those counts reflect the active development tables; other supported table sets can differ. This is a functional check of the tested build, not a broad performance or compatibility guarantee.
+An offline beta.6 check confirmed shrine/event display. Its log accepted 95 object definitions and seven event actor definitions, with both fallback submissions and native duplicate skips. Counts depend on the active tables. Beta.7 retains this path, with regression coverage for style switching and icon preservation.

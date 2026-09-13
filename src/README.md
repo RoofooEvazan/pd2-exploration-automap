@@ -20,9 +20,9 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [SewerWater.hpp](SewerWater.hpp) | Joins sewer water tiles into channel outlines and reuses unchanged perimeters without rebuilding internal seams each frame. |
 | [FrontierContacts.hpp](FrontierContacts.hpp) | Finds where the reveal edge touches visible artwork in fallback mode. |
 | [NativeFloorReader.hpp](NativeFloorReader.hpp) | Reads loaded room collision data for floor and wall geometry. |
-| [StyledMap.hpp](StyledMap.hpp) | Builds shaded floors, gray wall outlines, and red unexplored edges. |
+| [StyledMap.hpp](StyledMap.hpp) | Builds shaded floors, wall contours and open-frontier geometry. |
 | [StyledChunks.hpp](StyledChunks.hpp) | Reuses unchanged map regions and rebuilds regions affected by exploration. |
-| [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and constructs fractional-width contour quads for hybrid styling. |
+| [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and constructs fractional-width contour quads. |
 | [PreparedFloors.hpp](PreparedFloors.hpp) | Prepares bounded floor projection and bounds on the worker so each draw only pans and clips them. |
 | [StyledWorker.hpp](StyledWorker.hpp) | Builds geometry on one background worker using owned snapshots of the map data. |
 

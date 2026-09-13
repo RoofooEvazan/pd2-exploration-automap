@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "535E42FCDDD8FE9C6D6837F6E16836474066C677A8D66143DE2D1EF9A1ED76BD",
-  "validation": "All three Win32 Release suites passed with private artwork/table/archive fixtures. The user confirmed shrine/event icons work in the installed build on 2026-09-12; live logs accepted marker definitions and recorded fallback submissions and native duplicate skips. Ships that exact tested DLL. The hardcoded 31-subtile radius and existing appearance settings remain unchanged. Broader compatibility and long-session performance remain under test; this is not online approval or anti-tamper enforcement.",
+  "testedModuleSha256": "93490BC4419EECAFDA4B7CD01B70513AC9E9E26B3C237A7FAE8DFE7B5774EEAB",
+  "validation": "All three Win32 Release suites passed with optional artwork/table/archive fixtures. Includes fixed 33-subtile coverage, style switching, color menus, entrance rendering and icon preservation. The release uses the locally tested DLL; controlled long-session performance and broader map/version coverage remain under test. Offline testing only.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -14,7 +14,7 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.6",
+  "release": "v0.2.0-beta.7",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",
@@ -27,5 +27,5 @@
   "optionalMenuSha256": {
     "ProjectDiablo.dll": "538a77b7ccef3d5334e56c4e9e57a4d8fc69a1e27c46beb694c0dedfcfbf9cb3"
   },
-  "optionalMenuNote": "The native Boundary Color menu row requires the profiled expansion menu. A different menu layout leaves INI color selection available; this optional fingerprint does not replace runtime layout guards."
+  "optionalMenuNote": "Map Style and the wall/boundary color lists require the profiled expansion menu and runtime layout guards. Unsupported menu layouts retain INI style/color settings."
 }

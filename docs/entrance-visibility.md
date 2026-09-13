@@ -1,6 +1,6 @@
 # Entrance and exit visibility
 
-Local, unpublished follow-up to beta.6. Recognized native entrance/exit symbols and cave/stairway artwork are easier to see in both Hybrid and Styled campaign/endgame automaps. It changes the appearance of existing artwork only: no exit arrows, quest markers, added geometry or extra discovery.
+Recognized native entrance/exit symbols and cave/stairway artwork are easier to see in both Hybrid and Styled campaign/endgame automaps. It changes the appearance of existing artwork only: no exit arrows, quest markers, added geometry or extra discovery.
 
 ## How the boost works
 
@@ -20,10 +20,8 @@ For brightness, one temporary palette covers the entire entrance group. The vali
 
 The optional palette binding checks the supported D2Glide image, relocated palette references, call/import chain and D2GL export address. Binding failure leaves native entrances unchanged. Unknown view states and failed palette reads also retain native drawing. The boost applies to Hybrid and Styled; Map Style Native uses untouched game rendering.
 
-## Validation and local run
+## Validation
 
 Build the Win32 Release DLL and run all three suites using the [build instructions](../README.md#build-from-source). Tests exercise +75% alpha and RGB limits, both views, exact-once clipping and UVs, copied context/clip lifetime, bounded queues, grouped uploads, palette/alpha restoration on exceptions, signature rejection, unknown-state fallback, non-entrance preservation and hidden entrances. Optional installed-table fixtures cover native cave/stair symbols and alias exclusions.
 
-Close the game before replacing its plugin. Preserve `ExplorationMask.ini`, then use the normal offline Test PD2 launch: `Game.exe -3dfx -direct -exploration-test -log` from its ProjectD2 directory. Check an explored cave entrance and a small colored stair/exit icon in fullscreen and corner views, including at the reveal edge. Compare FPS while moving past several entrances. The log reports `Entrance visibility ready` at startup and cumulative `ENTRANCES drawn`, `palettePasses` and `fallbacks` counters.
-
-Automated tests pass with local artwork/table/archive fixtures. Live appearance and frame-time comparison are pending. Recognition follows the tested artwork/tables; custom aliases may intentionally retain native brightness. This does not change the compiled 33-subtile discovery radius or establish online compatibility.
+For a gameplay check, compare a cave entrance and a small colored stair/exit symbol in both views, including at the reveal edge. The log reports `Entrance visibility ready` at startup and cumulative `ENTRANCES drawn`, `palettePasses` and `fallbacks` counters. Automated tests pass with the optional artwork/table/archive fixtures; controlled live frame-time comparisons remain outstanding. Custom aliases may retain native brightness.

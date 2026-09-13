@@ -45,7 +45,7 @@ inline std::uint32_t boundaryRGBA(BoundaryColor color,unsigned shade,unsigned al
     auto channel=[&](unsigned value){auto scaled=shade*value/100;return scaled>255?255:scaled;};
     return (channel(p.r)<<24)|(channel(p.g)<<16)|(channel(p.b)<<8)|(alpha&255);
 }
-// Gray preserves the previous renderer-specific wall brightness. Other choices
+// Gray uses renderer-specific wall brightness. Other choices
 // use their exact RGB values; opacity and the dark contrast casing stay separate.
 inline std::uint32_t wallRGBA(BoundaryColor color,unsigned gray,unsigned alpha) {
     if(color==BoundaryColor::Gray)return (gray*0x01010100u)|(alpha&255);

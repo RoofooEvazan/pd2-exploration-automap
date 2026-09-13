@@ -1,5 +1,4 @@
-// Conservative native-artwork classification for the local hybrid renderer.
-// Definitions come from the user's active game files, never bundled.
+// Native terrain, navigation and entrance classification from active game tables.
 #pragma once
 #include <array>
 #include <algorithm>

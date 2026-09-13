@@ -1,137 +1,164 @@
 # Gameplay screenshots
 
-The current gallery shows the 31-subtile rounded reveal, hybrid map/campaign artwork, fullscreen and corner views, and the five boundary colors. The screenshots were captured with beta.4; beta.5 preserves that appearance while fixing the radius in the plugin. These are original-resolution screenshots supplied from the tested local setup. Visible FPS counters are individual moments, not a sustained performance benchmark.
+Original-resolution screenshots from earlier beta builds. They show Hybrid terrain and five frontier colors; beta.7 adds a 33-subtile radius, three style choices and thirteen wall/boundary colors. The older menu image is not a guide to the current layout. FPS counters show individual moments, not sustained benchmarks.
 
-## Current gameplay and settings
+Expand an image to view it at full size.
 
-| Screenshot | What it shows |
-| --- | --- |
-| [Endgame map: rounded reveal](endgame-map-rounded-reveal.png) | A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible. |
-| [Endgame map: corner minimap](endgame-map-hybrid-corner-minimap.png) | The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear. |
-| [Endgame map: hybrid overlay](endgame-map-hybrid-overlay.png) | Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath. |
-| [Act 3 Sewers: corner minimap](act3-sewers-corner-minimap.png) | A compact view of the explored sewer room shows its walls, interior structures and water-channel artwork, with green edges where exploration can continue. |
-| [Act 3 Sewers: hybrid overlay](act3-sewers-hybrid-overlay.png) | Straight wall outlines frame the room while the water channel, bridge detail and native symbols remain visible inside the explored boundary. |
-| [Automap Options: Boundary Color](automap-options-boundary-color.png) | Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green. |
+## Hybrid gameplay
 
-### Endgame map: rounded reveal
+<details>
+<summary>Endgame map: hybrid overlay</summary>
 
-A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
-
-![Endgame map: rounded reveal](endgame-map-rounded-reveal.png)
-
-### Endgame map: corner minimap
-
-The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
-
-![Endgame map: corner minimap](endgame-map-hybrid-corner-minimap.png)
-
-### Endgame map: hybrid overlay
-
-Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
+Contours with native water patterns, structures and symbols.
 
 ![Endgame map: hybrid overlay](endgame-map-hybrid-overlay.png)
 
-### Act 3 Sewers: corner minimap
+</details>
 
-A compact view of the explored sewer room shows its walls, interior structures and water-channel artwork, with green edges where exploration can continue.
+<details>
+<summary>Endgame map: corner minimap</summary>
 
-![Act 3 Sewers: corner minimap](act3-sewers-corner-minimap.png)
+Shaded terrain and a green frontier in the corner view.
 
-### Act 3 Sewers: hybrid overlay
+![Endgame map: corner minimap](endgame-map-hybrid-corner-minimap.png)
 
-Straight wall outlines frame the room while the water channel, bridge detail and native symbols remain visible inside the explored boundary.
+</details>
+
+<details>
+<summary>Endgame map: rounded reveal</summary>
+
+An earlier 31-subtile reveal circle; beta.7 uses 33.
+
+![Endgame map: rounded reveal](endgame-map-rounded-reveal.png)
+
+</details>
+
+<details>
+<summary>Act 3 Sewers: hybrid overlay</summary>
+
+Straight wall profiles, water channels, bridge details and native symbols.
 
 ![Act 3 Sewers: hybrid overlay](act3-sewers-hybrid-overlay.png)
 
-### Automap Options: Boundary Color
+</details>
 
-Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green.
+<details>
+<summary>Act 3 Sewers: corner minimap</summary>
 
-![Automap Options: Boundary Color](automap-options-boundary-color.png)
+Explored sewer terrain and an open green frontier.
+
+![Act 3 Sewers: corner minimap](act3-sewers-corner-minimap.png)
+
+</details>
+
+<details>
+<summary>Earlier Automap Options menu</summary>
+
+The former five-color cycling row. Beta.7 has Map Style and separate color lists.
+
+![Earlier Automap Options menu](automap-options-boundary-color.png)
+
+</details>
 
 ## Boundary color comparison
-
-The character remains in the same sewer location while the frontier color changes. Select a color below to expand its full-size screenshot. Only the exploration frontier uses the selected color; walls, water and native symbols keep their own appearance.
 
 <details>
 <summary>Red</summary>
 
-The same sewer frontier in the original muted Red, which remains the default color in the supplied INI.
+Same sewer location with a different frontier color.
 
-![Red exploration boundary in Act 3 Sewers](boundary-color-red.png)
+![Red](boundary-color-red.png)
 
 </details>
 
 <details>
 <summary>Neon Green</summary>
 
-The same sewer frontier in Neon Green, making the unfinished exploration edge easy to distinguish from gray walls.
+Same sewer location with a different frontier color.
 
-![Neon Green exploration boundary in Act 3 Sewers](boundary-color-neon-green.png)
+![Neon Green](boundary-color-neon-green.png)
 
 </details>
 
 <details>
 <summary>Magenta</summary>
 
-The same sewer frontier in Magenta; walls and retained native details keep their own colors.
+Same sewer location with a different frontier color.
 
-![Magenta exploration boundary in Act 3 Sewers](boundary-color-magenta.png)
+![Magenta](boundary-color-magenta.png)
 
 </details>
 
 <details>
 <summary>Cyan</summary>
 
-The same sewer frontier in Cyan, with the rounded exploration edge following the revealed room.
+Same sewer location with a different frontier color.
 
-![Cyan exploration boundary in Act 3 Sewers](boundary-color-cyan.png)
+![Cyan](boundary-color-cyan.png)
 
 </details>
 
 <details>
 <summary>Light Blue</summary>
 
-The same sewer frontier in Light Blue, alongside gray wall and water-channel outlines.
+Same sewer location with a different frontier color.
 
-![Light Blue exploration boundary in Act 3 Sewers](boundary-color-light-blue.png)
+![Light Blue](boundary-color-light-blue.png)
 
 </details>
 
-## Earlier screenshots
+## Earlier builds
 
-These retained images document earlier builds and are not current appearance references.
+<details>
+<summary>Spider Forest: campaign overlay</summary>
 
-### Spider Forest: campaign overlay
+Native river, bridge and symbol artwork alongside contours.
 
-Gray outlines and red exploration edges sit alongside the familiar blue water patterns, bridges and native symbols. The translucent map leaves the action visible underneath.
+![Spider Forest: campaign overlay](spider-forest-automap-overlay.png)
 
-![Spider Forest campaign overlay with gray outlines, blue water artwork, native symbols and red exploration edges](spider-forest-automap-overlay.png)
+</details>
 
-### Spider Forest: corner minimap
+<details>
+<summary>Spider Forest: corner minimap</summary>
 
-The explored route follows the river in the upper-right map, leaving the center of the screen clear.
+Exploration along the river.
 
-![Spider Forest gameplay beside a wooden bridge with the explored route in the upper-right minimap](spider-forest-corner-minimap.png)
+![Spider Forest: corner minimap](spider-forest-corner-minimap.png)
 
-### Poisoned Well: endgame overlay
+</details>
 
-Thin gray wall outlines and muted red exploration edges trace the revealed passages over the game world.
+<details>
+<summary>Poisoned Well: overlay</summary>
 
-![Poisoned Well overlay showing a larger explored route with gray walls and muted red unfinished edges](poisoned-well-automap-overlay.png)
+Explored passages with gray walls and red frontier accents.
 
-### Poisoned Well: corner minimap
+![Poisoned Well: overlay](poisoned-well-automap-overlay.png)
 
-Shaded passages, wall outlines and the exploration boundary stay visible in a compact map.
+</details>
 
-![Poisoned Well corner minimap with shaded passages, thin gray walls and red exploration edges](poisoned-well-corner-minimap.png)
+<details>
+<summary>Poisoned Well: corner minimap</summary>
 
-### Earlier example: Endgame map explored rooms
+Shaded passages in the corner view.
 
-![Endgame map overlay showing connected rooms, gray outlines and red unfinished passage edges](endgame-map-explored-rooms.png)
+![Poisoned Well: corner minimap](poisoned-well-corner-minimap.png)
 
-### Earlier example: Poisoned Well reveal-edge close-up
+</details>
 
-![Close-up of shaded floors, gray wall outlines and red reveal edges](poisoned-well-reveal-edge-detail.png)
+<details>
+<summary>Endgame map: explored rooms</summary>
 
-Return to the [documentation index](../README.md) or the [project overview](../../README.md).
+Connected rooms and unfinished passage edges.
+
+![Endgame map: explored rooms](endgame-map-explored-rooms.png)
+
+</details>
+
+<details>
+<summary>Poisoned Well: reveal-edge detail</summary>
+
+A close-up of floor shading, contours and the frontier.
+
+![Poisoned Well: reveal-edge detail](poisoned-well-reveal-edge-detail.png)
+
+</details>

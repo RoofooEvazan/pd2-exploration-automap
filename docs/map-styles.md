@@ -1,11 +1,11 @@
 # Map styles
 
-Local, unpublished follow-up to beta.6. Open the automap once, then choose **Options → Automap Options → Map Style**. Click the row, or select it with the keyboard and press Enter, to cycle **Native → Hybrid → Styled → Native**. One choice applies immediately to campaign areas and endgame maps, in both fullscreen and corner views.
+Open the automap once, then choose **Options → Automap Options → Map Style**. Click the row, or select it with the keyboard and press Enter, to cycle **Native → Hybrid → Styled → Native**. One choice applies immediately to campaign areas and endgame maps, in both fullscreen and corner views.
 
 | Choice | Appearance |
 | --- | --- |
 | Native | The game's original automap. No custom exploration clipping, floor shading, frontier, wall contours or entrance boost. Native discovery and normal icons draw as usual. |
-| Hybrid | The current modern contours, shaded floors and colored exploration frontier, together with native water patterns, roads, landmarks and icons. |
+| Hybrid | Modern contours, shaded floors and colored exploration frontier, together with native water patterns, roads, landmarks and icons. |
 | Styled | Modern wall/shore contours, shaded floors and the exploration frontier, with original terrain sprites removed. Existing waypoints, shrines, events, portals, entrances, exits, stairs and other recognized navigation/object artwork are retained and clipped to explored space. |
 
 Towns retain their fully revealed native appearance. The outdoor part of a town-gate preview follows the selected style. Boundary and Wall Color settings are shared by Hybrid and Styled and remain saved when using Native. The entrance visibility boost applies to retained eligible artwork in both custom styles. There are no added quest markers or exit arrows.
@@ -35,4 +35,4 @@ While geometry is first being prepared, the existing clipped-native fallback rem
 
 All three Win32 Release suites pass with optional local artwork/table/archive fixtures. Tests cover menu cycling and alignment, one-key persistence, legacy precedence, failed saves, unchanged colors, Native rendering bypass, discovery/cache preservation, both map zooms, campaign/endgame areas, hidden icons, terrain suppression, navigation artwork retention and warmup fallback. Existing clipping, water, worker, radius, color-menu and entrance-rendering tests remain included.
 
-For a live check, visit an area with a waypoint or entrance and cycle through all three choices in both views. Compare Native with the original map, inspect Styled icons and contours, then return to Hybrid and check exploration history, saved colors and FPS. Also check a town gate and reopen the game to confirm persistence. Live appearance and performance validation are pending; no GitHub update is included in this local test.
+The [gameplay checklist](testing.md#gameplay-checks) covers style switching, icon retention, town gates and saved preferences. Broader icon coverage and sustained performance remain under test.

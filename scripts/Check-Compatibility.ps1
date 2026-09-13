@@ -19,7 +19,6 @@ param(
     [string]$GamePath
 )
 
-# Read-only: this script never installs, patches, or downloads anything.
 $ErrorActionPreference = 'Stop'
 $gameDirectory = (Resolve-Path -LiteralPath $GamePath).Path
 if (-not (Test-Path -LiteralPath $gameDirectory -PathType Container)) {
@@ -39,13 +38,13 @@ $results = foreach ($file in $profile.engineSha256.PSObject.Properties) {
     [pscustomobject]@{ File = $file.Name; Status = $status }
 }
 $results | Format-Table -AutoSize | Out-Host
-# This extension is optional: an unrecognized PD2 menu retains INI colors.
+# Menu compatibility is optional; INI settings remain available.
 foreach ($file in $profile.optionalMenuSha256.PSObject.Properties) {
     $candidate = Join-Path $gameDirectory $file.Name
     $menuMatch = (Test-Path -LiteralPath $candidate -PathType Leaf) -and
         ((Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash -ieq $file.Value)
-    if ($menuMatch) { Write-Host 'Boundary Color menu: profiled PD2 file matches; runtime layout checks still apply.' }
-    else { Write-Host 'Boundary Color menu: unrecognized or missing PD2 file; use BoundaryColor in the INI if the row is unavailable.' }
+    if ($menuMatch) { Write-Host 'Automap settings menu: profiled PD2 file matches; runtime layout checks still apply.' }
+    else { Write-Host 'Automap settings menu: unrecognized or missing PD2 file; use MapStyle, BoundaryColor and WallColor in the INI if rows are unavailable.' }
 }
 if (-not $allMatch) {
     Write-Host 'This installation does not match the tested binary set. Do not install this build.'

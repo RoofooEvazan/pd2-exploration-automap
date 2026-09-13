@@ -1,5 +1,4 @@
-// Owned, bounded metadata for transparent padding in immutable DC6 frames.
-// Native texture generation, colors and UV coordinates remain authoritative.
+// Occupied bounds for immutable DC6 frames; cached metadata is owned and bounded.
 #pragma once
 #include "ExplorationMask.hpp"
 #include <array>

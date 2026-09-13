@@ -1,9 +1,4 @@
-// Game integration: initialize the DLL, validate the supported hook chain, read
-// player movement, bypass towns, and submit styled or clipped native automap
-// geometry. Related components and the drawing flow are indexed in README.md.
-
-// Experimental, build-specific, offline-test runtime. Original implementation.
-// No game artwork or engine DLL on disk is modified.
+// Build-specific PD2/D2GL hooks, session state and automap submissions.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -913,8 +908,7 @@ static void drawStyled(const Transform& t,Rect viewport) {
         originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,layer.alpha);
         styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     }
-    // Campaign native mode keeps the game's recognizable wall/stair shapes.
-    // The cached floor shading and red reveal bands still draw underneath.
+    // Legacy clipped-native mode retains native terrain over the shaded floor.
     if(activeStyle==MapStyle::Hybrid){
         // Sewer wall faces and floor-edge contours are offset from one another.
         // Their matching artwork traces are queued by cellHook and batched in
@@ -1154,8 +1148,7 @@ static void loadAppearanceSettings(const std::string& settings) {
     if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
 }
 static void loadStyles() {
-    // D2GL initializes us before PD2 finishes mounting its archives. Read the
-    // settings now, but resolve game tables only after a valid player exists.
+    // Initialization precedes PD2 archive mounting; defer table reads until a player exists.
     gameTablesPending=true;
     if(logfile){fprintf(logfile,"DISCOVERY mode=hardcoded; radius=%.2f subtiles; smooth circular reveal.\n",revealRadius*maskCellSize);fflush(logfile);}
     char path[MAX_PATH]{};
@@ -1216,7 +1209,7 @@ static void loadGameTables(const exploration::GameFiles& api) {
 }
 static void ensureGameTables() {
     if(!gameTablesPending)return;
-    gameTablesPending=false; // No table I/O, parsing or retries during exploration.
+    gameTablesPending=false; // One attempt per pending load; area updates do not retry.
     try {
         auto files=exploration::GameFiles::bind(GetModuleHandleA("Storm.dll"));
         // A table-only diagnostic reproduces missing loose TXT files without

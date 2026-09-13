@@ -1,7 +1,5 @@
-// Builds connected floor geometry from room flags and an exploration mask.
-// Produces shade bands, gray wall outlines, and red open exploration edges.
-// Its full rebuild also serves as the reference for incremental-cache tests.
-
+// Connected floors, shade bands, contours and frontier geometry.
+// Full rebuilds provide the incremental-cache reference.
 #pragma once
 #include "ExplorationMask.hpp"
 #include <array>
@@ -254,8 +252,7 @@ public:
         Drawing drawing;
         if(wallRevision_!=revision)buildWalls();
         const auto& visible=explored.rows();
-        // Color only edges with known open floor on BOTH sides of the mask.
-        // A mask edge that terminates at a real wall has no red seed.
+        // Frontier color requires known open floor on both sides of the mask edge.
         const auto open=openFrontier(visible);
         constexpr int radii[]={0,1,3,5,7,9,12};
         Rows outer=visible;

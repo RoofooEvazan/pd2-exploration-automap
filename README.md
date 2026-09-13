@@ -1,106 +1,61 @@
 # PD2 Exploration Automap — BETA
 
-**v0.2.0-beta.6 — BETA.** Endgame maps now support native **shrine and PD2 event icons** in explored areas, with a bounded fallback for loaded units that have not reached the native automap yet. Existing native icons take precedence to prevent duplicates. This release keeps the hardcoded 31-subtile circular reveal, five boundary colors, hybrid styling and screenshot gallery. See [shrine and event icons](docs/map-markers.md) for behavior and limits.
+An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Choose the original map, a hybrid view with native details, or a contour-based style.
 
-**Unpublished follow-up:** source builds use a hardcoded **33-subtile** radius, thirteen boundary/wall colors, and **Native / Hybrid / Styled** choices in Automap Options. Styled keeps navigation icons and entrance artwork while using contour terrain. Retained entrances also receive a visibility boost. See [map styles](docs/map-styles.md), [color settings](docs/boundary-settings.md) and [entrance visibility](docs/entrance-visibility.md). Color menus were approved locally; the latest style selector awaits a live check. The beta.6 download and existing screenshots show the previous version.
+**[Download v0.2.0-beta.7 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.7)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
-A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
+Beta.7 adds Native / Hybrid / Styled selection, separate wall and boundary color lists, brighter entrance artwork, and a fixed 33-subtile reveal radius.
 
-Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
+This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. The release contains no game or renderer binaries other than the plugin itself.
 
-[Download v0.2.0-beta.6 — Windows x86 BETA](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.6). The ZIP includes the DLL, settings, source, documentation, screenshots and checksums. This is a **prerelease**; compatibility is limited to the profiled PD2/D2GL files, and broader campaign coverage and long-session performance are still being tested.
+## Map styles
 
-This is an **experimental Windows x86 plugin for one tested PD2/D2GL binary set**. It has been tested in a local offline game. It is not an official PD2 feature, a general-purpose loader, or a claim of compatibility with online play or other game versions.
+Open the automap once in a game, then go to **Options → Automap Options → Map Style**. Select the row to cycle styles. Changes apply immediately to campaign areas and endgame maps, in both fullscreen and corner views.
 
-## Repository guide
-
-Each folder has its own guide to the files inside. The [screenshot gallery](docs/screenshots/) also includes captions and full-size previews of every map view.
-
-| File or folder | What's inside |
+| Style | Appearance |
 | --- | --- |
-| [docs](docs/) | Design notes, performance results, testing instructions, and gameplay screenshots. |
-| [scripts](scripts/) | A read-only checker that compares your game files with the tested build. |
-| [src](src/) | The plugin's exploration mask, floor shading, wall outlines, renderer hooks, and background updates. |
-| [tests](tests/) | Checks for exploration, clipping, drawing behavior, and incremental map updates. |
-| [ExplorationMask.ini](ExplorationMask.ini) | Campaign/map style, boundary color and overlay opacity settings; reveal distance is fixed in the plugin. |
-| [CMakeLists.txt](CMakeLists.txt) | Build settings for the 32-bit Windows DLL and its three test programs. |
-| [compatibility.json](compatibility.json) | Fingerprints of the tested game files and plugin, plus loader and launch settings. |
-| [LICENSE](LICENSE) | The MIT license for this project's original source code. |
-| [.gitattributes](.gitattributes) | Line-ending rules for source files, documentation, and Windows scripts. |
-| [.gitignore](.gitignore) | Files kept out of version control, including local builds, logs, and credentials. |
-| [README.md](README.md) | Project overview, screenshots, installation, building, and known limitations. |
+| **Native** | Original game automap, without custom clipping, shading, contours or entrance emphasis. |
+| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. |
+| **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
+
+Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
+
+Connected campaign areas on the same native map layer retain their explored terrain across zone transitions. Exploration lasts for the current game session and is not saved to disk. See [map styles](docs/map-styles.md) for fallback behavior and legacy INI compatibility.
 
 ## Screenshots
 
-**Endgame map: hybrid overlay.** Modern gray outlines and soft exploration edges sit alongside native blue water patterns, structures and symbols. The translucent overlay keeps the game world visible underneath.
+Hybrid overlay with native water and landmarks:
 
-![Endgame map: hybrid overlay](docs/screenshots/endgame-map-hybrid-overlay.png)
+![Endgame hybrid overlay](docs/screenshots/endgame-map-hybrid-overlay.png)
 
-**Endgame map: corner minimap.** The upper-right minimap keeps gray contours, shaded floors, native water artwork and neon green exploration edges visible while leaving the center clear.
+Corner minimap:
 
-![Endgame map: corner minimap](docs/screenshots/endgame-map-hybrid-corner-minimap.png)
+![Endgame corner minimap](docs/screenshots/endgame-map-hybrid-corner-minimap.png)
 
-**Endgame map: rounded reveal.** A freshly revealed patch around the character shows the 31-subtile circular radius and neon green frontier. Only the explored portion of the automap is visible.
-
-![Endgame map: rounded reveal](docs/screenshots/endgame-map-rounded-reveal.png)
-
-**Automap Options: Boundary Color.** Boundary Color appears in the existing Automap Options menu. Select the row to cycle through the five saved colors; this screenshot shows Neon Green.
-
-![Automap Options: Boundary Color](docs/screenshots/automap-options-boundary-color.png)
-
-Compare the same sewer frontier in [Red](docs/screenshots/boundary-color-red.png), [Neon Green](docs/screenshots/boundary-color-neon-green.png), [Magenta](docs/screenshots/boundary-color-magenta.png), [Cyan](docs/screenshots/boundary-color-cyan.png) and [Light Blue](docs/screenshots/boundary-color-light-blue.png). The [full gallery](docs/screenshots/) includes all five previews, sewer overlay and corner views, and earlier campaign/endgame examples.
-
-## Features
-
-- Native shrine and PD2 event icons on explored endgame maps, with duplicate protection and bounded loaded-unit sampling.
-- Hybrid campaign styling: gray contours and shaded floors with native roads, entrances, water patterns and icons.
-- Straight Act 3 sewer wall profiles, highlighted water channels and retained bridge artwork.
-- Five boundary colors in the existing Automap Options menu, saved immediately.
-- Hybrid styling for both campaign and maps, independent style settings, and adjustable full-screen overlay opacity.
-- Prepared floor coordinates, reused fully explored clips and occupied artwork bounds reduce repeated drawing work.
-- Connected campaign areas retain their explored map when crossing zone boundaries.
-- Exploration survives automap pauses, temporary loading and travel within the same tracked session.
-- Reused artwork clipping and water perimeters reduce repeated CPU work.
-- Dark gray floor shading and thin gray wall outlines for endgame maps.
-- Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
-- A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
-- A smooth 33-subtile circular reveal fixed in the plugin; INI entries and resolution changes cannot change the distance.
-- Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
-- Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
-- Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
-
-The mask is separate from `Wall1`, `Wall2`, `Wall3`, `Wall4`, and other native automap definitions. No artwork or engine DLL is edited on disk. Styled mode draws its floor and outline replacement during the terrain pass; fallback mode clips the existing artwork before it is submitted to the renderer.
-
-## Compatibility
-
-You need your own installed copy of Diablo II / Project Diablo 2 and the matching D2GL renderer. No game binaries, extracted game assets, saves, or third-party renderer binaries are included here.
-
-Check [compatibility.json](compatibility.json) for SHA-256 hashes of the tested `D2Client.dll`, `D2gfx.dll`, `D2Glide.dll`, and `glide3x.dll`. This beta also requires the listed `D2Win.dll` for menu/session tracking. These hashes identify the actual tested files more precisely than a season or launcher label.
-
-The plugin reads its automap, object, campaign-layer and event-actor definitions through the already loaded native `Storm.dll`. Your installed PD2 archives supply these automatically. Active `-direct` overrides remain supported. No game tables, additional archive library or extraction utility are bundled or required. Missing or malformed definitions retain the documented native/per-area fallbacks. The checker now also verifies the supported Storm build. See [automatic table loading](docs/game-tables.md).
-
-**Upgrading from an earlier beta:** close the game and replace `ExplorationMask.dll` with the DLL in the beta.6 Windows x86 release ZIP. The radius is always 31; old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and may be removed. Keep your color and other preferences, loader entry and normal launch flags. Set `MapsStyle=hybrid` if an older INI says `styled` and you want the current map appearance. GitHub's automatic source ZIP does not include a compiled DLL.
-
-From PowerShell in this repository, check an installation without changing it:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Check-Compatibility.ps1 -GamePath "D:\Games\Diablo II\ProjectD2"
-```
-
-The runtime also checks hook instructions and renderer entry points. Those checks are limited; they are **not** a complete version or ABI check. Use the listed binary set. An update can disable the plugin or require a source port. See [the hook and architecture notes](docs/architecture.md).
+The [full gallery](docs/screenshots/) includes campaign areas, sewer channels and boundary colors. These images are from earlier betas; the radius and settings menu have since changed.
 
 ## Install and run
 
-1. Close the game. Keep a copy of your current `d2gl.json` before editing it.
-2. Obtain `ExplorationMask.dll` from this repository's release, or [build it below](#build-from-source). Check your engine files against `compatibility.json` first.
-3. Copy `ExplorationMask.dll` and `ExplorationMask.ini` into your PD2 game folder, alongside `Game.exe` and `d2gl.json`. If updating an existing INI, merge the settings below to keep your preferences.
-4. In `d2gl.json`, append this entry to the comma-separated string `other.load_dlls_late`, keeping every existing entry:
+Requirements: an installed copy of Diablo II / Project Diablo 2, the supported D2GL renderer, and the engine files listed in [compatibility.json](compatibility.json).
+
+1. Download the **Windows x86 release ZIP** linked above and extract it. GitHub's automatic source ZIP does not contain a compiled DLL.
+2. Check your installation from the extracted folder:
+
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Check-Compatibility.ps1 -GamePath "D:\Games\Diablo II\ProjectD2"
+   ```
+
+   Replace the example path with your game folder. Required engine files must report `MATCH`. The optional menu check controls availability of the in-game settings extension; INI settings remain available on unsupported menu layouts.
+
+3. Close the game. Back up `d2gl.json` and any existing `ExplorationMask.dll` and `ExplorationMask.ini`.
+4. Copy `ExplorationMask.dll` and, for a first installation, `ExplorationMask.ini` alongside `Game.exe`. **When upgrading, keep your INI to preserve preferences.**
+5. Append this entry to the comma-separated `other.load_dlls_late` string in `d2gl.json`:
 
    ```text
    ExplorationMask.dll:cdecl:InitExplorationMask
    ```
 
-   For example, if the existing value is `SGD2FreeRes.dll`, the resulting section includes:
+   For example, an existing `SGD2FreeRes.dll` entry becomes:
 
    ```json
    "other": {
@@ -108,43 +63,49 @@ The runtime also checks hook instructions and renderer entry points. Those check
    }
    ```
 
-   This is a fragment: preserve the rest of the JSON and its existing settings.
+   Preserve the rest of the JSON and every existing loader entry. Add the plugin only once.
 
-5. Launch `Game.exe` with the game folder as the working directory:
+6. Launch with the game folder as the working directory:
 
    ```text
    Game.exe -3dfx -direct -exploration-test -log
    ```
 
-   For a Windows shortcut, the **Target** should be `"D:\Games\Diablo II\ProjectD2\Game.exe" -3dfx -direct -exploration-test -log` and **Start in** should be `D:\Games\Diablo II\ProjectD2` (replace that path with yours). Use your normal D2GL HD settings. **Do not add `-w`: the D2GL Glide wrapper rejects it.**
+   For a shortcut, set **Target** to `"D:\Games\Diablo II\ProjectD2\Game.exe" -3dfx -direct -exploration-test -log` and **Start in** to the same game folder. Keep your normal D2GL HD settings. Do not add `-w`; the Glide wrapper rejects it. Keep `-direct` if your setup uses custom loose files.
 
-6. Enter an offline game, open the automap, and explore a non-town area. `ExplorationMask.log` in the game folder reports whether initialization and hooks succeeded.
+7. Enter an offline game and open the automap. `ExplorationMask.log` reports initialization, loaded definitions and rendering diagnostics.
 
-### Appearance settings
+The plugin reads tables automatically from the installed game's archives or active direct overrides. No manual extraction or separate table download is needed. See [table loading](docs/game-tables.md) if hooks install but styling is missing.
 
-Settings are read at game startup:
+**Upgrading:** replace the DLL with the game closed. Existing style/color preferences continue to load. Choosing Map Style in the menu saves one preference for both campaign and maps, overriding older separate style keys. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
+
+**Uninstalling:** close the game, remove only the plugin's loader entry, and remove its DLL and INI. The DLL is dormant without `-exploration-test`; unloading it from a running game is unsupported.
+
+## Appearance settings
+
+**Boundary Color** and **Wall Color** open separate lists in Automap Options. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
+
+Both lists offer Red, Neon Green, Magenta, Cyan, Light Blue, Orange, Pale Blue, Pale Yellow, Pale Green, Pale Peach, Pale Lemon, Gray and White. Wall color affects custom contours; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+
+Default `ExplorationMask.ini`:
 
 ```ini
 [Automap]
-CampaignStyle=hybrid
-MapsStyle=hybrid
+MapStyle=hybrid
 OverlayOpacity=80
 BoundaryColor=red
+WallColor=gray
 ```
 
-`hybrid` combines modern contours with native campaign details. `native` keeps native artwork with exploration shading, `styled` uses simplified terrain, and `original` disables the exploration effect for that group. Campaign and endgame settings are independent. `OverlayOpacity` accepts 10-100; 80 uses 20% less alpha for custom full-screen drawing, and 100 restores the previous opacity. Native symbols keep their own rendering. The tested D2GL corner minimap uses fixed capture opacity and is unaffected. Restart after edits. See the [campaign guide](docs/campaign-prototype.md) for details.
+`OverlayOpacity` scales custom fullscreen alpha from 10–100%. The default is 80%. D2GL's corner minimap uses fixed capture opacity. Manual INI edits require a restart; menu changes do not.
 
-Open the automap once in an offline game, then use **Options → Automap Options → Boundary Color** to cycle Red, Neon Green, Magenta, Cyan and Light Blue. Each selection changes the edge immediately and saves the INI. `BoundaryColor` also accepts `red`, `neon-green`, `magenta`, `cyan` or `light-blue` directly; restart after manual INI edits. The menu extension supports the profiled `ProjectDiablo.dll`; on other menu layouts, color selection remains available through the INI. See [boundary settings and compatibility](docs/boundary-settings.md).
-
-The reveal radius is hardcoded at **33 world subtiles**, with quarter-subtile movement precision and the same smooth edge. Neither INI entries, menu options nor display resolution can alter it. Towns remain fully explored. This is distance-based exploration, not exact native tile discovery or line of sight. Hardcoding removes the supported configuration override; it does not prevent modifying the open-source client or establish online compatibility.
-
-The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
+Recognized entrance/exit symbols and cave/stair artwork receive **75% more alpha**, capped at full opacity. Already-solid artwork and the fixed-alpha corner view use a brightness boost instead. See [entrance visibility](docs/entrance-visibility.md) for classification and renderer limits.
 
 ## Build from source
 
-Requirements: Windows, CMake 3.20 or newer, and Visual Studio 2019 or newer with **Desktop development with C++**, the MSVC x86 toolchain, and a Windows SDK. No game SDK or game assets are required to compile or run the default tests.
+Requirements: Windows, CMake 3.20+, Visual Studio 2019+ with **Desktop development with C++**, the MSVC x86 toolchain and a Windows SDK. The default tests need no game assets or game installation.
 
-For Visual Studio 2022, run these commands from the repository directory:
+From the repository directory, using Visual Studio 2022:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
@@ -152,36 +113,39 @@ cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-For Visual Studio 2019, use `-G "Visual Studio 16 2019"`. CMake must be on your PATH; the Visual Studio CMake component also supplies it. The game requires **32-bit** output even on 64-bit Windows.
+For Visual Studio 2019, use `-G "Visual Studio 16 2019"`. Output must be **32-bit**, even on 64-bit Windows. The DLL is written to `build/Release/ExplorationMask.dll`; builds use C++17, the static MSVC runtime and warnings as errors. A rebuilt DLL may have a different file hash from the release binary.
 
-The resulting module is `build/Release/ExplorationMask.dll`. CMake uses C++17, the static MSVC runtime, and warnings as errors. A fresh build is not expected to have the same hash as the supplied tested DLL.
+The three suites check mask geometry, rendering contracts, menu behavior and worker updates. See [testing](docs/testing.md) for optional fixtures and gameplay checks.
 
-The three test executables cover the mask, native primitive clipping, fractional rendering, town footprints and gate transitions, shading and red-frontier coverage, cached-versus-full geometry equivalence, and worker snapshot handling. They use synthetic data and mocked renderer calls; they do not establish compatibility with a running game. Optional local integration checks are described in [testing.md](docs/testing.md).
+## Performance and limitations
 
-## Performance
+Unchanged geometry, clipping results and water perimeters are cached. A background worker builds new terrain while the renderer uses the latest completed result. Drawing still runs each automap pass. [Performance notes](docs/performance.md) record historical benchmarks and remaining costs; they are not FPS guarantees for this release.
 
-The renderer rebuilds changed regions on a single background worker and draws the latest completed geometry. In one development test with more than 1.4 million explored fine cells, sampled worker builds averaged about **11.4 ms** and automap CPU work averaged about **1.45 ms**, with an observed 240 FPS game display. Earlier full rebuilds in that test had grown to roughly 300 ms.
+- Discovery is distance-based and can reveal through nearby walls. It is not native tile discovery or line of sight. Hardcoding the radius removes its configuration override, but does not prevent modification of an open-source client.
+- Contours depend on loaded collision data. Small obstacles may appear, unfamiliar artwork may retain native rendering, and decorative water may lack an outline. Styled can omit roads or bridges that are not classified as navigation artwork.
+- New geometry can lag behind movement. Initial builds, large maps, cache eviction and capture limits can affect performance or omit later styled terrain.
+- Town exemptions use level rectangles, with one already-loaded outdoor neighbor previewed at a time. The plugin does not load or reveal extra rooms.
+- Some independently drawn plugin markers and text bypass the terrain hook. They need separate compatibility checks.
+- Long-session stability and full campaign coverage remain under test. An older prototype hit a D2Glide texture-cache assertion whose cause was not confirmed.
 
-Those historical endgame measurements do not establish beta campaign FPS. The beta's clipping/water optimization reduced synthetic CPU rendering time by about 21% in the sewer scene, 40% in a town-preview scene and 19% outdoors, with matching geometry counts and checksums. These are benchmark results, not guaranteed FPS gains. Beta.3 additionally reuses prepared floor coordinates, retains fully explored clipping results, removes duplicate Poisoned Well contours, and avoids clipping transparent artwork margins. See [large-map improvements](docs/map-growth-optimization.md), [Endgame artwork optimization](docs/native-artwork-padding.md), [hybrid performance](docs/hybrid-performance.md) and [earlier measurements](docs/performance.md) for scope and remaining costs.
+## Repository guide
 
-## Limitations
-
-- Exploration is distance-based, not the game's native revealed state or a line-of-sight simulation. It can reveal through nearby walls.
-- Native town artwork is retained within the town's level rectangle. Outdoor previews use already-loaded floor data for one neighboring area at a time; the plugin does not force room loading or reveal every town room. Irregular town footprints may need a more detailed boundary.
-- Exploration is not saved to disk. Menu returns, changed player identity, or a changed seed in a previously visited act reset the session. Automap pauses and temporary loading do not reset it by themselves.
-- The soft edge uses discrete shade bands, not a continuous blur. Renderer behavior still affects the final color and smoothness.
-- Collision-derived outlines can include small obstacles. Sewer water receives a specific enhancement, but other decorative water may lack a modern contour. Hybrid styling protects recognized native details; styled mode replaces some cell-based feature artwork. Separately drawn plugin markers and text are not all covered by the mask.
-- New geometry can briefly lag behind movement. Initial area builds, very large maps, and cache eviction can still cost more time.
-- This is a BETA. Long-session stability and broad campaign coverage are not established. An older test hit a D2Glide texture-cache assertion; its cause was not confirmed, and this release does not claim to resolve that engine failure.
+| Path | Contents |
+| --- | --- |
+| [src/](src/) | Runtime hooks, exploration, geometry, colors and menus. |
+| [tests/](tests/) | Synthetic suites and optional fixture checks. |
+| [docs/](docs/) | Architecture, feature guides, benchmarks and screenshots. |
+| [scripts/](scripts/) | Read-only installation compatibility checker. |
+| [compatibility.json](compatibility.json) | Tested binary fingerprints, loader entry and release hash. |
 
 ## Contributing
 
-Bug reports, performance measurements, and patches are welcome. Include the profiled engine hashes, renderer configuration, whether the issue occurs offline, and clear reproduction steps. Review logs before sharing them; do not upload saves, proprietary game files, or personal information.
+For a bug report, include the plugin version, engine hashes, renderer settings, map style and reproduction steps. Performance reports should compare early and late exploration in the same area and distinguish `mapMs` from total frame time. Remove personal data before sharing logs; do not upload saves or proprietary game files.
 
-For a new game build, port and validate the addresses, structures, calling conventions, and render-state assumptions together. Do not simply remove the compatibility guards. The code layout and current interception points are in [architecture.md](docs/architecture.md).
+A port to another game build must validate addresses, data layouts, calling conventions and rendering state together. See [architecture](docs/architecture.md) before changing compatibility guards.
 
 ## License and acknowledgments
 
-The original source in this repository is available under the [MIT License](LICENSE). This license does not cover Diablo II, Project Diablo 2, D2GL, BH, or their assets.
+Original source is available under the [MIT License](LICENSE). This license does not cover Diablo II, Project Diablo 2, D2GL, BH or their assets.
 
-Thanks to the [PD2 D2GL](https://github.com/Project-Diablo-2/d2gl), [PD2 BH](https://github.com/Project-Diablo-2/BH), and [D2MOO](https://github.com/ThePhrozenKeep/D2MOO) projects for publicly documented interoperability references. Their code and licenses remain separate; this repository does not vendor their implementations. Diablo II and Project Diablo 2 belong to their respective owners and contributors.
+[PD2 D2GL](https://github.com/Project-Diablo-2/d2gl), [PD2 BH](https://github.com/Project-Diablo-2/BH) and [D2MOO](https://github.com/ThePhrozenKeep/D2MOO) provided interoperability references. Their implementations are not vendored here. Diablo II and Project Diablo 2 belong to their respective owners and contributors.

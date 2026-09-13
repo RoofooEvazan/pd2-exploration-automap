@@ -1,6 +1,4 @@
-// Read-only access to tables through the game's already mounted archives.
-// Storm owns file resolution, including -direct overrides; no MPQ is mounted
-// here and no game data or third-party archive library is redistributed.
+// Owned table reads through native Storm archives and active -direct overrides.
 #pragma once
 #include <windows.h>
 #include <cstdint>
@@ -81,7 +79,7 @@ inline TableRead readGameTable(const GameFiles& api,const char* path,std::string
     HANDLE file=nullptr;
     // SFileOpenFile consults Storm's current direct-access setting before
     // delegating to its mounted archive search. OpenFileEx with a hardcoded
-    // scope 0 would incorrectly ignore the user's -direct overrides.
+    // scope 0 would bypass active -direct overrides.
     const bool opened=api.archiveOnly?api.openArchive(nullptr,path,0,&file)!=FALSE:api.open(path,&file)!=FALSE;
     if(!opened)return TableRead::OpenFailed;
     if(!file || file==INVALID_HANDLE_VALUE)return TableRead::OpenFailed;

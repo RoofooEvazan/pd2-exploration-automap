@@ -1,6 +1,5 @@
-// Optional extension of the supported PD2 Automap Options menu. The native
-// menu owns navigation, hit testing and resources; our rows use live text.
-// All edits are in process memory, validated and installed on the game thread.
+// In-memory extension of the profiled Automap Options menu.
+// Native code owns navigation/resources; custom rows supply live text.
 #pragma once
 #include <windows.h>
 #include <array>

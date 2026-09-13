@@ -1,7 +1,4 @@
-// Synthetic geometry tests cover floor shades, red open edges, wall outlines,
-// viewport clipping, incremental/full-build equivalence, and worker snapshots.
-// Optional development-fixture input is documented in ../docs/testing.md.
-
+// Floor, contour, projection and incremental-worker regression tests.
 #include "StyledProjection.hpp"
 #include "StyledWorker.hpp"
 #include <cstdlib>

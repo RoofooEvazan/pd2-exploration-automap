@@ -1,7 +1,4 @@
-// Mocked game and renderer calls exercise native artwork clipping, texture
-// coordinates, fractional lines, color restoration, and town bypasses.
-// The optional local artwork check is described in ../docs/testing.md.
-
+// Mocked native/Glide rendering, menu and integration contracts.
 #include "ExplorationRuntime.cpp"
 #include <iostream>
 #include <cstdlib>
@@ -357,7 +354,7 @@ template<class T> static void put(std::vector<unsigned char>& data,size_t offset
     require(offset+sizeof(T)<=data.size());memcpy(data.data()+offset,&value,sizeof(T));
 }
 static void testTownBoundary() {
-    campaignStyle=MapStyle::Styled; // Keep the v0.1.1 town regression as well.
+    campaignStyle=MapStyle::Styled; // Exercise town transitions with contour terrain.
     std::istringstream townLayers("Id\tAct\tLayer\n109\t0\t5\n110\t0\t5\n111\t0\t5\n");
     require(campaignLayers.load(townLayers));
     testTownProjection();
@@ -1127,7 +1124,7 @@ static void testWaterReuse() {
 #include "map_style_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
-    mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
+    mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
     testOverlayOpacity(); // Existing rendering contracts then run at 100%.
     testContacts();testInstalledArtwork();
     originalQuad=captureQuad;

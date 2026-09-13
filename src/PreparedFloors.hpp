@@ -1,5 +1,4 @@
-// Prepare floor projection and bounds on the existing worker. Screen pan only
-// translates these owned doubles; crossing polygons keep the exact clipper.
+// Worker-prepared floor projection; per-frame drawing translates and clips.
 #pragma once
 #include "StyledProjection.hpp"
 #include <memory>
