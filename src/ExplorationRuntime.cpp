@@ -95,6 +95,7 @@ static DWORD overlayColor(DWORD color){return (color&0xffffff00u)|overlayAlpha(c
 struct StyledState {
     styled_map::FloorCopies floor;
     styled_map::Drawing drawing;
+    std::shared_ptr<const styled_map::TerrainCoverage> coverage;
     std::size_t queuedRooms=0,queuedMask=0,floorCells=0,drawingRooms=0;
     bool captureIncomplete=false;
     bool queuedTownExcluded=false,drawingTownExcluded=false;
@@ -208,6 +209,7 @@ static bool nativeTownActive=false;
 static bool townInViewport=true;
 static unsigned long townClippedCells=0,townPreviewPasses=0;
 static exploration::RasterClipCache rasterClips;
+static exploration::RasterClipCache unfinishedClips;
 // Reuse exact clipping in stable automap coordinates. Exploration is monotonic
 // within a session/layer; growth refreshes partial coverage, retaining full clips.
 static void prepareRasterCache(int divisor) {
@@ -217,8 +219,8 @@ static void prepareRasterCache(int divisor) {
     static decltype(context) previous{};
     static std::size_t previousSize=0;
     const auto size=explored->size();
-    if(context!=previous || size<previousSize){rasterClips.invalidate();previous=context;}
-    else if(size>previousSize)rasterClips.grow();
+    if(context!=previous || size<previousSize){rasterClips.invalidate();unfinishedClips.invalidate();previous=context;}
+    else if(size>previousSize){rasterClips.grow();unfinishedClips.grow();}
     previousSize=size;
 }
 template<class Emit> static void cachedRasterClips(Rect bounds,int divisor,int shiftX,int shiftY,int coverage,Emit emit) {
@@ -243,6 +245,18 @@ template<class Emit> static void cachedRasterClips(Rect bounds,int divisor,int s
             }
             if(have)append(run);
         }
+    },[&](Rect r){emit(Rect{r.left-shiftX,r.top-shiftY,r.right-shiftX,r.bottom-shiftY});});
+}
+template<class Emit> static void cachedUnfinishedClips(Rect bounds,int divisor,int shiftX,int shiftY,Emit emit) {
+    prepareRasterCache(divisor);
+    static std::shared_ptr<const styled_map::TerrainCoverage> previous;
+    const auto coverage=styledCurrent?styledCurrent->coverage:nullptr;
+    if(coverage!=previous){unfinishedClips.invalidate();previous=coverage;}
+    Rect stable{bounds.left+shiftX,bounds.top+shiftY,bounds.right+shiftX,bounds.bottom+shiftY};
+    unfinishedClips.query({stable.left,stable.top,stable.right,stable.bottom,0},[&](auto append){
+        cachedRasterClips(stable,divisor,0,0,nativeTownActive?2:0,[&](Rect r){
+            if(coverage)coverage->uncovered(r,divisor,append);else append(r);
+        });
     },[&](Rect r){emit(Rect{r.left-shiftX,r.top-shiftY,r.right-shiftX,r.bottom-shiftY});});
 }
 static void log(const char* msg) { if(logfile) {fprintf(logfile,"%s\n",msg);fflush(logfile);} }
@@ -463,6 +477,7 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
             if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
                 it->second.drawing=std::move(result->drawing);it->second.floorCells=result->floorCells;
                 it->second.drawingRooms=result->roomCount;
+                it->second.coverage=std::move(result->coverage);
                 it->second.drawingTownExcluded=result->excludesTown;
                 preparedFloors=std::move(result->preparedFloors);preparedOwner=&it->second;preparedSerial=gameSerial;
                 styledBuildMs=result->milliseconds;
@@ -761,7 +776,8 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
     try {
         DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
         const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
-        const bool terrainReady=styledActive && wallSnapshotReady() && styledCurrent->floorCells>0;
+        const bool terrainReady=styledActive && styledCurrent && styledCurrent->floorCells>0;
+        const bool pendingTerrain=!wallSnapshotReady();
         const bool styledOnly=activeStyle==MapStyle::Styled && terrainReady;
         const bool importantDetail=knownFrame && (hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id));
         if(mapMarkersActive() && !markerArtworkFile) {
@@ -779,9 +795,9 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                     drawStyled(t,passViewport);haveViewport=true;++styledPasses;
                 }
             }
-            if(styledActive && styledOnly && !importantDetail && (!nativeTownActive || !townInViewport)){++suppressed;return;}
+            if(styledActive && styledOnly && !importantDetail && !pendingTerrain && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
-        const bool townOnly=nativeTownActive && styledOnly && !importantDetail;
+        const bool townOnly=nativeTownActive && styledOnly && !importantDetail && !pendingTerrain;
         const bool hybrid=activeStyle==MapStyle::Hybrid && terrainReady && hybridArtwork.loaded();
         bool replaceWall=false,traceSewer=false,traceWater=false;
         if(hybrid) {
@@ -790,7 +806,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
             replaceWall=!marker && role==exploration::HybridArtwork::Role::Wall;
-            if(replaceWall){++hybridWallsReplaced;if(!nativeTownActive || !townInViewport){++suppressed;return;}}
+            if(replaceWall){++hybridWallsReplaced;if(!pendingTerrain && (!nativeTownActive || !townInViewport)){++suppressed;return;}}
             else if(role==exploration::HybridArtwork::Role::Water || traceWater)++hybridWater;else ++hybridDetails;
         }
         Transform t{};Rect bounds{};
@@ -835,7 +851,11 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             else clips.push_back(r);
         };
         const int coverage=nativeTownActive && !townOnly && !replaceWall?2:(townOnly || replaceWall?1:0);
-        cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,coverage,appendClip);
+        // Keep the previous contour mesh visible. Only native pixels outside
+        // its completed collision coverage fill newly loaded terrain.
+        if(pendingTerrain && (replaceWall || (styledOnly && !importantDetail)))
+            cachedUnfinishedClips(bounds,int(t.divisor),shiftX,shiftY,appendClip);
+        else cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,coverage,appendClip);
         if(clips.empty()){++suppressed;return;}
         if(traceSewer) {
             if(queueSewerWall(ctx,id,assetBounds,clips)){++sewerTraced;++suppressed;return;}
@@ -964,10 +984,10 @@ static void drawStyled(const Transform& t,Rect viewport) {
         // Sewer wall faces and floor-edge contours are offset from one another.
         // Their matching artwork traces are queued by cellHook and batched in
         // endPass; unsupported frames keep their native wall instead.
-        if(wallSnapshotReady() && observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
+        if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
         return;
     }
-    if(activeStyle==MapStyle::Styled){if(wallSnapshotReady())drawHybridWalls(t,viewport);return;}
+    if(activeStyle==MapStyle::Styled){drawHybridWalls(t,viewport);return;}
     // Native retains the original artwork and adds only the reveal boundary.
 }
 static void queueWaterGeometry(const Transform& t,Rect viewport) {

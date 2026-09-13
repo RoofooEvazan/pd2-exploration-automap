@@ -61,5 +61,22 @@ public:
                 emit(std::max(left,s->first),row->first,std::min(right,s->second),row->first+1);
         }
     }
+    // Complement within a bounded primitive, without testing individual pixels.
+    template<class Emit> void clipOutside(int left,int top,int right,int bottom,Emit emit) const {
+        if(left>=right || top>=bottom)return;
+        auto row=rows_.lower_bound(top);
+        for(int y=top;y<bottom;++y) {
+            int x=left;
+            if(row!=rows_.end() && row->first==y) {
+                auto first=std::upper_bound(row->second.begin(),row->second.end(),left,[](int v,Span s){return v<s.second;});
+                for(auto s=first;s!=row->second.end() && s->first<right;++s) {
+                    if(x<s->first)emit(x,y,std::min(right,s->first),y+1);
+                    x=std::max(x,s->second);if(x>=right)break;
+                }
+                ++row;
+            }
+            if(x<right)emit(x,y,right,y+1);
+        }
+    }
 };
 }

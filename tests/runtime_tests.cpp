@@ -1200,5 +1200,6 @@ int main() {
     testMapStyles();
     testEmptyAreaPass();
     testAreaEntryWalls();
+    testStableWallRefresh();
     return 0;
 }

@@ -4,7 +4,7 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 
 | Test | What it checks |
 | --- | --- |
-| [area_entry_tests.hpp](area_entry_tests.hpp) | Neighboring wall capture before zone entry, native fallback during pending or failed capture, return trips, fixed discovery, and layer/act/town/endgame isolation. |
+| [area_entry_tests.hpp](area_entry_tests.hpp) | Neighboring wall capture before zone entry, unchanged contour vertices during pending or failed capture, local native fallback, coverage-cache invalidation, return trips, fixed discovery, and layer/act/town/endgame isolation. |
 | [map_style_tests.hpp](map_style_tests.hpp) | Style cycling, saving, legacy precedence, Original bypass, retained discovery/caches and Styled navigation/terrain clipping. |
 | [entrance_visibility_tests.hpp](entrance_visibility_tests.hpp) | Entrance classification, palette signatures, capped opacity/brightness, both views, unchanged clips/UVs, bounded batches and state restoration. |
 | [mask_tests.cpp](mask_tests.cpp) | Explored cells, reveal boundaries, clipping coverage, movement, and session state. |

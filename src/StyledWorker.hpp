@@ -3,6 +3,7 @@
 #include "StyledMap.hpp"
 #include "StyledChunks.hpp"
 #include "PreparedFloors.hpp"
+#include "TerrainCoverage.hpp"
 #include <chrono>
 #include <condition_variable>
 #include <memory>
@@ -60,6 +61,7 @@ struct BuildResult {
     double milliseconds=0,latencyMilliseconds=0;
     bool success=false;
     Drawing drawing;
+    std::shared_ptr<const TerrainCoverage> coverage;
     std::unique_ptr<PreparedFloors> preparedFloors;
 };
 // Towns can share an automap layer with outdoor areas. Remove only colored
@@ -92,7 +94,12 @@ class Worker {
     std::thread thread_;
     void run() {
         std::uint64_t session=0;
-        std::map<std::uint64_t,ChunkedMap> levels;
+        struct CachedLevel {
+            ChunkedMap map;
+            std::size_t coverageRooms=0;
+            std::shared_ptr<const TerrainCoverage> coverage;
+        };
+        std::map<std::uint64_t,CachedLevel> levels;
         for(;;) {
             std::unique_ptr<BuildRequest> request;
             {
@@ -112,11 +119,16 @@ class Worker {
                 if(session!=request->session){levels.clear();session=request->session;}
                 // These caches can be reconstructed from retained room copies.
                 if(levels.size()>=32 && !levels.count(request->level))levels.erase(levels.begin());
-                auto& map=levels[request->level];auto& floor=map.floor();
+                auto& cached=levels[request->level];auto& map=cached.map;auto& floor=map.floor();
                 for(const auto& room:request->rooms)
                     floor.ingest(room->x,room->y,room->w,room->h,room->flags);
                 if(floor.connect(request->player) || request->boundaryThroughUnknown) {
                     result->drawing=map.build(request->visible,request->boundaryWidth,request->boundaryThroughUnknown);
+                    if(!cached.coverage || cached.coverageRooms!=floor.roomCount()) {
+                        cached.coverage=std::make_shared<TerrainCoverage>(floor.knownRows());
+                        cached.coverageRooms=floor.roomCount();
+                    }
+                    result->coverage=cached.coverage;
                     if(request->excludeTown)excludeTownBoundary(result->drawing,request->townBounds);
                     result->preparedFloors=PreparedFloors::build(result->drawing);
                     result->floorCells=floor.size();result->success=true;

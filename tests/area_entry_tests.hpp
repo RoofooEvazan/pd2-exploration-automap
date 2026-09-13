@@ -45,7 +45,9 @@ static void testAreaEntryWalls() {
     nativeTownActive=false;inPass=haveViewport=true;
     for(auto style:{MapStyle::Hybrid,MapStyle::Styled}) {
         activeStyle=style;styleFrames.clear();cellHook(context.data(),48,52,&viewport,5);
-        require(styleFrames==std::vector<DWORD>{10}); // Keep native walls until this room is built.
+        require(styleFrames.empty()); // Completed terrain never switches back to native.
+        cellHook(context.data(),80,68,&viewport,5);
+        require(styleFrames==std::vector<DWORD>{10}); // Only the new room needs fallback.
     }
     state.submitted=0;finish(760,2);
     require(observedLevel==6 && lastLevelKey==key && explored->size()==discovered);
@@ -58,7 +60,7 @@ static void testAreaEntryWalls() {
     for(auto style:{MapStyle::Hybrid,MapStyle::Styled}) {
         activeStyle=style;styleFrames.clear();cellHook(context.data(),48,52,&viewport,5);require(styleFrames.empty());
         state.captureIncomplete=true;styleFrames.clear();cellHook(context.data(),48,52,&viewport,5);
-        require(styleFrames==std::vector<DWORD>{10});state.captureIncomplete=false;
+        require(styleFrames.empty());state.captureIncomplete=false;
     }
     // Current-area collision disappears temporarily; old floor count must not
     // hide native terrain. A successful later sample restores readiness.
@@ -88,4 +90,53 @@ static void testAreaEntryWalls() {
     client=nullptr;explored=&emptyMask;maskActive=styledActive=inPass=haveViewport=false;
     campaignLayers=exploration::CampaignLayers{};hybridArtwork=exploration::HybridArtwork{};activeStyle=MapStyle::Styled;
     std::cout<<"PASS: walls captured before adjoining-area entry, native fallback while pending/failed, return trips, fixed discovery and layer/act/town/endgame isolation\n";
+}
+static void testStableWallRefresh() {
+    checkContext="stable contours and local native fallback during room refresh";
+    std::vector<unsigned char> memory(0x135000);client=memory.data();
+    put(memory,0xdbc48,200);put(memory,0xdbc4c,200);
+    std::istringstream artwork(artworkFixture());require(hybridArtwork.load(artwork));
+    std::vector<DWORD> frame(8),file(30),context(18);frame[1]=4;frame[2]=4;file[5]=24;
+    for(int i=0;i<24;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
+    context[0]=10;context[13]=reinterpret_cast<DWORD>(file.data());
+    originalCell=captureStyleCell;styledArray=captureAppearanceArray;styledColor=captureColor;originalLine=appearanceNativeLine;
+    NativeRect viewport{0,200,0,199};Rect view{0,0,200,200};
+    nativeTownActive=false;observedLevel=6;enabled=maskActive=inPass=haveViewport=styledActive=true;
+    preparedFloors.reset();preparedOwner=nullptr;
+    for(int divisor:{10,20})for(auto style:{MapStyle::Hybrid,MapStyle::Styled}) {
+        put(memory,0xf16b0,divisor);put(memory,0x11c1f8,-42);put(memory,0x11c1fc,-42);
+        styleTransform={double(divisor),-42,-42};activeStyle=style;
+        Mask mask(.25);mask.revealAround({10,10},132);explored=&mask;++gameSerial;
+        styled_map::Level level;level.ingest(0,0,20,20,std::vector<std::uint16_t>(400));
+        StyledState state;state.floor.ingest(0,0,20,20,std::vector<std::uint16_t>(400));
+        state.floorCells=400;state.drawingRooms=1;state.coverage=std::make_shared<styled_map::TerrainCoverage>(level.knownRows());
+        state.drawing.walls.push_back({{5,2},{15,2}});styledCurrent=&state;
+        appearancePositions.clear();drawStyled(styleTransform,view);const auto completed=appearancePositions;require(!completed.empty());
+        auto nativeAt=[&](Point world) {
+            const auto p=project(world,styleTransform);styleFrames.clear();
+            cellHook(context.data(),int(lround(p.x))-2,int(lround(p.y))+2,&viewport,5);
+            return !styleFrames.empty();
+        };
+        require(!nativeAt({10,10}));
+        state.floor.ingest(20,0,20,20,std::vector<std::uint16_t>(400));
+        const auto firstCoverage=state.coverage;
+        for(int refresh=0;refresh<6;++refresh) {
+            state.captureIncomplete=refresh%2!=0;require(!wallSnapshotReady());
+            appearancePositions.clear();drawStyled(styleTransform,view);require(appearancePositions==completed);
+            require(!nativeAt({10,10}) && nativeAt({30,10}));
+            require(!nativeAt({60,10})); // Unknown also stays clipped to discovery.
+        }
+        const auto hits=unfinishedClips.hits();require(nativeAt({30,10}) && unfinishedClips.hits()>hits);
+        // Publishing a new coverage snapshot removes even fully cached native
+        // fallback clips, without changing the already-completed contour mesh.
+        level.ingest(20,0,20,20,std::vector<std::uint16_t>(400));
+        state.coverage=std::make_shared<styled_map::TerrainCoverage>(level.knownRows());
+        require(state.coverage!=firstCoverage && !nativeAt({30,10}));
+        state.drawingRooms=2;state.captureIncomplete=false;require(wallSnapshotReady());
+        appearancePositions.clear();drawStyled(styleTransform,view);require(appearancePositions==completed);
+        require(!nativeAt({10,10}) && !nativeAt({30,10}));
+    }
+    client=nullptr;styledCurrent=nullptr;explored=&emptyMask;maskActive=styledActive=inPass=haveViewport=false;
+    hybridArtwork=exploration::HybridArtwork{};
+    std::cout<<"PASS: identical contour vertices through pending/failed room captures, local explored-only native fallback, both styles/zooms and coverage-cache invalidation\n";
 }

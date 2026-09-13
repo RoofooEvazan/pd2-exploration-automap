@@ -31,7 +31,7 @@ Town IDs `1`, `40`, `75`, `103`, and `109` retain native artwork within their le
 
 Near a town exit, the game thread samples already-loaded outdoor floor grids every 250 ms. The nearest walkable outdoor cell supplies the connectivity seed, while exploration still grows around the actual player position. This preview selects the same seeded outdoor area mask and geometry cache used after crossing the gate, preserving exploration when walking out and back. Only one neighboring area is previewed at a time; no room loading or native reveal calls are added.
 
-Town bounds come from guarded level reads, are converted from DRLG tiles to world subtiles, and must enclose the current room's collision grid. The cached footprint is scoped to the session, act, seed, and automap layer. A projected rectangle clips native town pixels; fallback drawing unions that coverage with explored coverage without drawing overlapping pixels twice. An off-screen town is rejected before inspecting native frame data. If the outdoor styled result is not ready while the player is in town, outside artwork stays hidden until that result arrives.
+Town bounds come from guarded level reads, are converted from DRLG tiles to world subtiles, and must enclose the current room's collision grid. The cached footprint is scoped to the session, act, seed, and automap layer. A projected rectangle clips native town pixels; fallback drawing unions that coverage with explored coverage without drawing overlapping pixels twice. An off-screen town is rejected before inspecting native frame data. While the outdoor result is being prepared, explored outdoor terrain retains its native artwork.
 
 ## Styled map
 
@@ -45,7 +45,9 @@ One background worker owns the derived floor/geometry cache. It has one replacea
 
 Campaign capture includes already-loaded neighboring rooms on the same verified act/layer, matching the shared exploration mask. It does not wait for the player's area label to change. Town rooms and rooms on different layers stay separate; endgame capture remains per level. Capture does not reveal cells or load additional rooms.
 
-The completed drawing records its room count. If new rooms are waiting for a rebuild, a collision read fails, or the current area's collision is unavailable, Hybrid and Styled temporarily retain clipped native terrain and pause contour replacement. The exploration boundary continues drawing. This avoids hiding native walls based solely on old floor data elsewhere on a shared layer. Normal replacement resumes after capture and construction finish.
+The completed drawing records its room count and immutable collision coverage at both map sizes. Pending or failed room capture leaves the completed contours visible. Only native pixels outside that completed coverage fill unfinished terrain, still clipped to exploration. A one-subtile rim allows native fallback at unknown room edges; eroding the union of known rooms prevents seams between captured rooms. This avoids switching the whole map's walls during walking.
+
+Coverage is prepared on the worker only when its room set changes and is shared with completed results. Movement-only rebuilds reuse it. A separate bounded clip cache handles unfinished terrain; a new coverage snapshot invalidates its full and partial entries. Settled frames retain the early native-wall suppression path.
 
 ## Native artwork fallback
 

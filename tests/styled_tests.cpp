@@ -63,7 +63,32 @@ static void testPreparedFloors() {
     CHECK(!styled_map::PreparedFloors::build(source)); // The runtime retains its uncached drawing path.
     std::cout<<"PASS: prepared floor projection matches reference vertices/order across colors, zooms, pans, distant coordinates, clipping and empty views; bounded fallback\n";
 }
+static void testTerrainCoverage() {
+    styled_map::Level level;
+    level.ingest(-12,-10,20,25,std::vector<std::uint16_t>(500));
+    level.ingest(8,-10,16,25,std::vector<std::uint16_t>(400));
+    level.ingest(30,0,5,5,std::vector<std::uint16_t>(25));
+    const auto& known=level.knownRows();styled_map::TerrainCoverage coverage(known);
+    auto divide=[](int a,int b){return a/b-((a%b)<0);};
+    for(int divisor:{10,20}) {
+        int pixels[10000]{};
+        coverage.uncovered({-50,-50,50,50},divisor,[&](exploration::Rect r){
+            CHECK(r.left>=-50 && r.right<=50 && r.top>=-50 && r.bottom<=50);
+            for(int y=r.top;y<r.bottom;++y)for(int x=r.left;x<r.right;++x)++pixels[(y+50)*100+x+50];
+        });
+        for(int y=-50;y<50;++y)for(int x=-50;x<50;++x) {
+            const int wx=divide(divisor*(2*x+4*y+3),64),wy=divide(divisor*(-2*x+4*y+1),64);
+            const bool ready=has(known,wx,wy) && has(known,wx-1,wy) && has(known,wx+1,wy) && has(known,wx,wy-1) && has(known,wx,wy+1);
+            CHECK(pixels[(y+50)*100+x+50]==int(!ready));
+        }
+    }
+    styled_map::TerrainCoverage empty({});int area=0;
+    empty.uncovered({-2,-3,4,5},10,[&](exploration::Rect r){area+=(r.right-r.left)*(r.bottom-r.top);});CHECK(area==48);
+    empty.uncovered({0,0,0,5},20,[&](exploration::Rect){CHECK(false);});
+    std::cout<<"PASS: completed terrain coverage and bounded complement match independent world-cell oracle at both zooms, joined rooms, gaps and empty snapshots\n";
+}
 int main() {
+    testTerrainCoverage();
     testPreparedFloors();
     styled_map::Drawing split;
     split.walls={{{0,0},{4,0}},{{8,0},{4,0}},{{9,0},{12,0}},
@@ -143,15 +168,28 @@ int main() {
             worker.submit(std::move(request));
         }
         const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
-        bool received=false;
+        bool received=false;std::shared_ptr<const styled_map::TerrainCoverage> completedCoverage;
         while(std::chrono::steady_clock::now()<deadline) {
             if(auto result=worker.take())if(result->maskSize==60) {
                 CHECK(result->session==2 && result->level==203 && result->success);
-                CHECK(result->floorCells==floor.size());sameDrawing(result->drawing,draw);received=true;break;
+                CHECK(result->floorCells==floor.size());sameDrawing(result->drawing,draw);
+                completedCoverage=result->coverage;CHECK(completedCoverage);received=true;break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         CHECK(received);
+        auto repeated=std::make_unique<styled_map::BuildRequest>();
+        repeated->session=2;repeated->level=203;repeated->maskSize=61;repeated->player={0,0};
+        repeated->visible.spans=mask.rows();repeated->rooms=copies.rooms;worker.submit(std::move(repeated));
+        received=false;const auto reuseDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+        while(std::chrono::steady_clock::now()<reuseDeadline) {
+            if(auto result=worker.take()) {
+                CHECK(result->success && result->maskSize==61 && result->coverage==completedCoverage);
+                received=true;break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        CHECK(received); // Movement-only rebuilds reuse the immutable coverage.
         styled_map::Drawing townDrawing;
         townDrawing.layers[0].redQuads.push_back({{0,0},{10,0},{10,10},{0,10}});
         townDrawing.layers[0].quads=townDrawing.layers[0].redQuads;

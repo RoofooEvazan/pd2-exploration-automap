@@ -25,5 +25,6 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and constructs fractional-width contour quads. |
 | [PreparedFloors.hpp](PreparedFloors.hpp) | Prepares bounded floor projection and bounds on the worker so each draw only pans and clips them. |
 | [StyledWorker.hpp](StyledWorker.hpp) | Builds geometry on one background worker using owned snapshots of the map data. |
+| [TerrainCoverage.hpp](TerrainCoverage.hpp) | Marks completed collision coverage so pending room updates keep existing contours and limit native fallback to unfinished terrain. |
 
 Start with the [architecture guide](../docs/architecture.md) to follow the drawing path. The [build instructions](../README.md#build-from-source) produce the 32-bit Windows DLL. Engine addresses and data layouts are specific to the tested binary set.
