@@ -1187,7 +1187,7 @@ int main() {
     testPaddedArtworkRendering();
     testRasterCache();testWaterReuse();
     testGameTables();
-    testBoundaryMenu();
+    testBoundaryMenu();testPersonalizedDrawing();
     testFixedDistance();
     testMapMarkers();
     return 0;

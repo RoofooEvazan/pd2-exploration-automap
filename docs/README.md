@@ -4,7 +4,7 @@ Guides to the automap's design, compatibility requirements, testing, and perform
 
 | Guide | What it explains |
 | --- | --- |
-| [Boundary settings](boundary-settings.md) | Five saved frontier colors, the native menu extension and the hardcoded 33-subtile circle in the unpublished follow-up. |
+| [Boundary settings](boundary-settings.md) | Independent boundary/wall color lists, saved preferences, the native menu extension and the hardcoded 33-subtile circle in the unpublished follow-up. |
 | [Shrine and event icons](map-markers.md) | Native endgame shrine/event artwork, explored-only fallback, duplicate suppression and validation. |
 | [Campaign BETA guide](campaign-prototype.md) | Hybrid contours, preserved native details, settings, game-table requirements, session persistence and known limits. |
 | [Hybrid performance](hybrid-performance.md) | Clipping/water reuse, benchmark scope and overlay opacity. |

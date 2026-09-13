@@ -2,7 +2,7 @@ static void testFixedDistance() {
     static_assert(revealRadius==132 && maskCellSize==0.25,"33-subtile compiled reveal policy");
     checkContext="hardcoded circle ignores legacy INI radius/mode and logical view dimensions";
     const auto campaignBefore=campaignStyle,mapsBefore=mapsStyle;
-    const auto colorBefore=boundaryColor;
+    const auto colorBefore=boundaryColor,wallBefore=wallColor;
     const auto opacityBefore=overlayOpacity;
     const auto settingsBefore=settingsPath;
     char temp[MAX_PATH]{},file[MAX_PATH]{};
@@ -11,6 +11,7 @@ static void testFixedDistance() {
     require(WritePrivateProfileStringA("Automap","MapsStyle","styled",file)!=0);
     require(WritePrivateProfileStringA("Automap","BoundaryColor","cyan",file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","70",file)!=0);
+    require(WritePrivateProfileStringA("Automap","WallColor","pale-peach",file)!=0);
     std::vector<unsigned char> memory(0x11c210);client=memory.data();enabled=true;
     PlayerState p{100.125,100.125,202,876543,876543};
     DWORD now=500000;
@@ -19,7 +20,7 @@ static void testFixedDistance() {
         for(const char* mode:{"circle","native-average","invalid"}) {
             require(WritePrivateProfileStringA("Automap","RevealMode",mode,file)!=0);
             loadAppearanceSettings(file);
-            require(boundaryColor==exploration::BoundaryColor::Cyan && overlayOpacity==70);
+            require(boundaryColor==exploration::BoundaryColor::Cyan && wallColor==exploration::BoundaryColor::PalePeach && overlayOpacity==70);
             require(campaignStyle==MapStyle::Native && mapsStyle==MapStyle::Styled);
             ++p.id; // Fresh exploration exposes any oversized circle.
             for(auto dims:{std::pair<int,int>{1068,600},{4096,4096},{640,480},{0,INT_MAX}}) {
@@ -45,6 +46,6 @@ static void testFixedDistance() {
     require(explored->rows()==reference.rows() && !explored->contains({500,100}));
     require(DeleteFileA(file)!=0);
     client=nullptr;explored=&emptyMask;campaignStyle=campaignBefore;mapsStyle=mapsBefore;
-    boundaryColor=colorBefore;overlayOpacity=opacityBefore;settingsPath=settingsBefore;
+    boundaryColor=colorBefore;wallColor=wallBefore;overlayOpacity=opacityBefore;settingsPath=settingsBefore;
     std::cout<<"PASS: hardcoded 33-subtile circle, ignored legacy INI settings, independent of logical resolution, quarter-cell movement, teleport gaps, towns and preserved appearance settings\n";
 }

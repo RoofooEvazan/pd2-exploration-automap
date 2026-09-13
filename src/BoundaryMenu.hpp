@@ -1,5 +1,5 @@
 // Optional extension of the supported PD2 Automap Options menu. The native
-// menu owns navigation, hit testing and resources; only our row uses live text.
+// menu owns navigation, hit testing and resources; our rows use live text.
 // All edits are in process memory, validated and installed on the game thread.
 #pragma once
 #include <windows.h>
@@ -31,47 +31,107 @@ using TextSize=DWORD(__fastcall*)(DWORD);
 using TextWidth=void(__fastcall*)(const wchar_t*,DWORD*,DWORD*);
 using SelectColor=bool(*)(BoundaryColor);
 using CurrentColor=BoundaryColor(*)();
-inline std::array<Entry,10> entries{};
-inline Menu menu{};
+inline std::array<Entry,11> entries{};
+inline std::array<Entry,boundaryPresets.size()+2> pickerEntries{};
+inline Menu menu{},pickerMenu{};
 inline Entry** activeEntries=nullptr;
+inline Menu** activeMenu=nullptr;
+inline DWORD* selection=nullptr;
+inline DWORD* escapeSelection=nullptr;
 inline CellText originalText=nullptr;
 inline DrawText drawText=nullptr;
 inline TextSize textSize=nullptr;
 inline TextWidth textWidth=nullptr;
 inline SelectColor selectColor=nullptr;
 inline CurrentColor currentColor=nullptr;
+inline SelectColor selectWallColor=nullptr;
+inline CurrentColor currentWallColor=nullptr;
 inline bool installed=false,saveFailed=false;
-inline BOOL __fastcall refresh(Entry* row,void*) {
-    row->value=static_cast<unsigned>(currentColor());return TRUE;
+inline bool pickingWalls=false;
+inline void activate(Menu& descriptor,Entry* rows,DWORD selected) {
+    *activeEntries=rows;*activeMenu=&descriptor;
+    *selection=selected;*escapeSelection=descriptor.count-1;
 }
-inline BOOL __fastcall press(Entry* row,void*) {
-    const auto next=static_cast<BoundaryColor>((static_cast<unsigned>(currentColor())+1)%boundaryPresets.size());
-    saveFailed=!selectColor(next);refresh(row,nullptr);return TRUE;
+inline BOOL __fastcall back(Entry*,void*) {
+    if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
+       *activeEntries!=pickerEntries.data() || *activeMenu!=&pickerMenu)return FALSE;
+    activate(menu,entries.data(),pickingWalls?9:8);saveFailed=false;return TRUE;
+}
+inline BOOL __fastcall choose(Entry* row,void*) {
+    if(!activeEntries || *activeEntries!=pickerEntries.data())return FALSE;
+    for(unsigned i=0;i<boundaryPresets.size();++i)if(row==&pickerEntries[i+1]) {
+        const auto color=static_cast<BoundaryColor>(i);
+        saveFailed=!(pickingWalls?selectWallColor:selectColor)(color);
+        if(!saveFailed)back(nullptr,nullptr);
+        return TRUE;
+    }
+    return FALSE;
+}
+inline BOOL openPicker(bool walls) {
+    if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
+       *activeEntries!=entries.data() || *activeMenu!=&menu)return FALSE;
+    pickingWalls=walls;saveFailed=false;
+    auto color=static_cast<unsigned>((walls?currentWallColor:currentColor)());
+    if(color>=boundaryPresets.size())color=walls?static_cast<unsigned>(BoundaryColor::Gray):0;
+    activate(pickerMenu,pickerEntries.data(),color+1);return TRUE;
+}
+inline BOOL __fastcall openBoundary(Entry*,void*) {return openPicker(false);}
+inline BOOL __fastcall openWalls(Entry*,void*) {return openPicker(true);}
+inline void bindActive(unsigned char* pd,unsigned char* client) {
+    activeEntries=reinterpret_cast<Entry**>(client+0x11c060);
+    activeMenu=reinterpret_cast<Menu**>(client+0x11c05c);
+    selection=reinterpret_cast<DWORD*>(client+0x11c058);
+    escapeSelection=reinterpret_cast<DWORD*>(pd+0x3d98e4);
+    // The copied main table is the sole owner used by native load/free.
+    // The picker has no resources and is never passed to either operation.
+    if(*activeMenu==reinterpret_cast<Menu*>(pd+0x39da90) &&
+       *activeEntries==reinterpret_cast<Entry*>(pd+0x3a3fb0)) {
+        const auto selected=*selection==8?10:*selection;
+        activate(menu,entries.data(),selected<menu.count?selected:10);
+    }
 }
 inline void makeMenu(const Menu& source,const Entry* sourceEntries) {
-    menu=source;menu.count=10;
+    menu=source;menu.count=DWORD(entries.size());menu.spacing=36;
     std::copy_n(sourceEntries,8,entries.begin());
-    entries[8]=Entry{};entries[8].type=0;
-    entries[8].press=press;entries[8].initialize=refresh;entries[8].refresh=refresh;
-    entries[9]=sourceEntries[8];
+    entries[8]=Entry{};entries[8].press=openBoundary;
+    entries[9]=Entry{};entries[9].press=openWalls;
+    entries[10]=sourceEntries[8];
+    pickerMenu=source;pickerMenu.count=DWORD(pickerEntries.size());
+    pickerMenu.spacing=26;pickerMenu.textHeight=22;pickerMenu.barHeight=24;
+    pickerEntries={};pickerEntries[0].type=0xffffffff;
+    for(unsigned i=0;i<boundaryPresets.size();++i)pickerEntries[i+1].press=choose;
+    pickerEntries.back().press=back;
 }
 inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int extra) {
-    // Our type-0 row deliberately has no DC6 resource, so normal menu teardown
-    // has nothing extra to release. The label uses the game's existing font.
-    if(cell || !activeEntries || *activeEntries!=entries.data() ||
-       y!=int(entries[8].y+menu.textHeight)) {
+    if(cell || !activeEntries) {
         originalText(cell,x,y,align,mode,extra);return;
     }
     wchar_t label[96]{};
-    swprintf_s(label,L"Boundary Color: %s",boundaryPreset(currentColor()).label);
-    auto old=textSize(7); // Native Font24, matching the options' scale.
-    DWORD width=0,file=0;textWidth(label,&width,&file);
-    drawText(label,x-int(width)/2,y,4,0); // Native gold, consistent with options.
-    if(saveFailed) {
-        textSize(0);
-        constexpr auto error=L"Could not save boundary color";
-        textWidth(error,&width,&file);drawText(error,x-int(width)/2,y+11,1,0);
+    DWORD font=7,color=4;
+    if(*activeEntries==entries.data()) {
+        if(y==int(entries[8].y+menu.textHeight))
+            swprintf_s(label,L"Boundary Color: %s",boundaryPreset(currentColor()).label);
+        else if(y==int(entries[9].y+menu.textHeight))
+            swprintf_s(label,L"Wall Color: %s",boundaryPreset(currentWallColor()).label);
+    } else if(*activeEntries==pickerEntries.data()) {
+        font=0; // Compact native font: the full list fits 480- and 600-high views.
+        for(unsigned i=0;i<pickerEntries.size();++i)if(y==int(pickerEntries[i].y+pickerMenu.textHeight)) {
+            if(i==0) {
+                swprintf_s(label,L"%s",saveFailed?L"Could not save color":(pickingWalls?L"Wall Color":L"Boundary Color"));
+                color=saveFailed?1:4;
+            } else if(i==pickerEntries.size()-1)swprintf_s(label,L"Back");
+            else {
+                const auto preset=static_cast<BoundaryColor>(i-1);
+                const bool selected=preset==(pickingWalls?currentWallColor:currentColor)();
+                swprintf_s(label,L"%s%s",boundaryPreset(preset).label,selected?L" (Selected)":L"");
+            }
+            break;
+        }
     }
+    if(!label[0]){originalText(cell,x,y,align,mode,extra);return;}
+    auto old=textSize(font);
+    DWORD width=0,file=0;textWidth(label,&width,&file);
+    drawText(label,x-int(width)/2,y,color,0);
     textSize(old);
 }
 template<class T> inline T at(const unsigned char* p,std::size_t offset) {
@@ -103,9 +163,17 @@ inline bool compatible(const unsigned char* pd,const unsigned char* client) {
     if(std::memcmp(client+0x653a7,before,sizeof(before)))return false;
     if(client[0x65395]!=0xa1 || at<const void*>(client,0x65396)!=client+0xdbc48 ||
        client[0x65300]!=0xa1 || at<const void*>(client,0x65301)!=client+0x11c060)return false;
+    // PD2 Escape invokes the last row of the active table. Keep that index in
+    // sync on both submenu transitions, so Escape cannot call a color by mistake.
+    if(at<const void*>(pd,0x22e7e1)!=pd+0x3d98e4 ||
+       at<const void*>(client,0x65182)!=client+0x11c058 ||
+       at<const void*>(client,0x65232)!=client+0x11c05c)return false;
+    const unsigned char escapeCall[]={0x8b,0x84,0x30,0x14,0x01,0,0,0xff,0xd0};
+    if(std::memcmp(pd+0x22e7ef,escapeCall,sizeof(escapeCall)))return false;
     return true;
 }
-inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,SelectColor select,CurrentColor current) {
+inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,
+                    SelectColor select,CurrentColor current,SelectColor selectWall,CurrentColor currentWall) {
     if(installed)return true;
     if(!client || !win || !compatible(pd,client) || !profile(win,0xcf000,0x4b95c21d))return false;
     const auto d=GetProcAddress(reinterpret_cast<HMODULE>(win),MAKEINTRESOURCEA(10150));
@@ -124,20 +192,14 @@ inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,S
         ++ready;
     }
     if(ready==std::size(patches)) {
-        selectColor=select;currentColor=current;
+        selectColor=select;currentColor=current;selectWallColor=selectWall;currentWallColor=currentWall;
         makeMenu(*reinterpret_cast<Menu*>(pd+0x39da90),reinterpret_cast<Entry*>(pd+0x3a3fb0));
         originalText=reinterpret_cast<CellText>(client+0xd372);
         drawText=reinterpret_cast<DrawText>(d);textSize=reinterpret_cast<TextSize>(s);textWidth=reinterpret_cast<TextWidth>(w);
-        activeEntries=reinterpret_cast<Entry**>(client+0x11c060);
         // Transfer already-loaded resources if initialization happened after
         // the native menu load. All three native load/select/free references
         // then use the owned table; no second owner frees these resources.
-        auto activeMenu=reinterpret_cast<Menu**>(client+0x11c05c);
-        if(*activeMenu==reinterpret_cast<Menu*>(pd+0x39da90))*activeMenu=&menu;
-        if(*activeEntries==reinterpret_cast<Entry*>(pd+0x3a3fb0)) {
-            *activeEntries=entries.data();
-            auto selection=reinterpret_cast<DWORD*>(client+0x11c058);if(*selection==8)*selection=9;
-        }
+        bindActive(pd,client);
         for(auto& patch:patches){std::memcpy(patch.site,&patch.value,4);FlushInstructionCache(GetCurrentProcess(),patch.site,4);}
         installed=true;
     }

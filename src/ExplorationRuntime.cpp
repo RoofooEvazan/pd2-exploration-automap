@@ -60,6 +60,8 @@ static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
+static exploration::BoundaryColor wallColor=exploration::BoundaryColor::Gray;
+static DWORD fractionalTint=0;
 static std::string settingsPath;
 static DWORD overlayAlpha(DWORD alpha){return (alpha*overlayOpacity+50)/100;}
 static DWORD overlayColor(DWORD color){return (color&0xffffff00u)|overlayAlpha(color&255);}
@@ -724,8 +726,10 @@ static void submitLine(Point start,Point end) {
     InterlockedIncrement(&fractionalCount);
 }
 static void submitFractionalLine() {
+    if(fractionalTint && styledColor)styledColor(overlayColor(fractionalTint));
     if(frontierBatch)for(const auto& line:*frontierBatch)submitLine(line.first,line.second);
     else submitLine(frontierA,frontierB);
+    if(fractionalTint && styledColor)styledColor(0x84848400u|overlayAlpha(255));
 }
 static void __stdcall floatLineHook(const void* a,const void* b) {
     if(styledBatch) {
@@ -738,12 +742,12 @@ static void __stdcall floatPointHook(const void* a) {
         styledColor(overlayColor(styledBatchColor));styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatPoint(a);
 }
-static void drawFrontier(Point a,Point b) {
-    frontierA=a;frontierB=b;fractionalFrontier=true;
+static void drawFrontier(Point a,Point b,DWORD tint=0) {
+    frontierA=a;frontierB=b;fractionalFrontier=true;fractionalTint=tint;
+    struct ResetTint { ~ResetTint(){fractionalFrontier=false;fractionalTint=0;} } resetTint;
     // The native path sets/restores its own color and blend state. Replace only
     // its final vertex positions, after integer conversion, with fractional ones.
     originalLine(int(lround(a.x)),int(lround(a.y)),int(lround(b.x)),int(lround(b.y)),frontierColor,overlayAlpha(255));
-    fractionalFrontier=false;
 }
 static void drawHybridWalls(const Transform& t,Rect viewport) {
     static std::vector<GlideVertex> casing,core;
@@ -782,7 +786,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
         originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,color&255);
         styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     };
-    submit(casing,0x181818c0);submit(core,0x949494e0);
+    submit(casing,0x181818c0);submit(core,exploration::wallRGBA(wallColor,148,224));
 }
 static void drawStyled(const Transform& t,Rect viewport) {
     if(viewport.left>=viewport.right || viewport.top>=viewport.bottom)return;
@@ -828,7 +832,10 @@ static void drawStyled(const Transform& t,Rect viewport) {
         if(styled_map::clipStroke(a,b,viewport))walls.push_back({a,b});
     }
     if(!walls.empty()) {
-        frontierBatch=&walls;drawFrontier(walls[0].first,walls[0].second);frontierBatch=nullptr;
+        frontierBatch=&walls;
+        drawFrontier(walls[0].first,walls[0].second,
+            wallColor==exploration::BoundaryColor::Gray?0:exploration::wallRGBA(wallColor,132,255));
+        frontierBatch=nullptr;
     }
 }
 static void queueWaterGeometry(const Transform& t,Rect viewport) {
@@ -888,14 +895,17 @@ static void endPass() {
                 originalLine(passViewport.left,passViewport.top,passViewport.left+1,passViewport.top,frontierColor,color&255);
                 styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
             };
-            submit(sewerWaterFill,0x56606438);submit(sewerCasing,0x181818c0);submit(sewerCore,0x949494e0);
+            submit(sewerWaterFill,0x56606438);submit(sewerCasing,0x181818c0);
+            submit(sewerCore,exploration::wallRGBA(wallColor,148,224));
         }
         sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
         if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
             std::vector<std::pair<Point,Point>> lines;
             contactFrontier.emit([&](Point a,Point b){lines.push_back({a,b});InterlockedIncrement(&frontierCount);});
             if(!lines.empty()) {
-                frontierBatch=&lines;drawFrontier(lines[0].first,lines[0].second);frontierBatch=nullptr;
+                frontierBatch=&lines;
+                drawFrontier(lines[0].first,lines[0].second,exploration::boundaryRGBA(boundaryColor,100,255));
+                frontierBatch=nullptr;
             }
         }
         drawMapMarkers();
@@ -984,17 +994,19 @@ static MapStyle parseStyle(const char* value,MapStyle fallback) {
     if(_stricmp(value,"original")==0)return MapStyle::Original;
     return fallback;
 }
-static bool selectBoundaryColor(exploration::BoundaryColor color) {
+static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current) {
     if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
-    if(color==boundaryColor)return true;
+    if(color==current)return true;
     const auto& preset=exploration::boundaryPreset(color);
-    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap","BoundaryColor",preset.key,settingsPath.c_str())) {
-        log("Boundary color unchanged: unable to save ExplorationMask.ini.");return false;
+    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap",key,preset.key,settingsPath.c_str())) {
+        log("Map color unchanged: unable to save ExplorationMask.ini.");return false;
     }
-    boundaryColor=color;
-    if(logfile){fprintf(logfile,"BOUNDARY color=%s; saved, geometry unchanged.\n",preset.key);fflush(logfile);}
+    current=color;
+    if(logfile){fprintf(logfile,"APPEARANCE %s=%s; saved, geometry unchanged.\n",key,preset.key);fflush(logfile);}
     return true;
 }
+static bool selectBoundaryColor(exploration::BoundaryColor color) {return saveMapColor("BoundaryColor",color,boundaryColor);}
+static bool selectWallColor(exploration::BoundaryColor color) {return saveMapColor("WallColor",color,wallColor);}
 static void ensureBoundaryMenu() {
     static bool attempted=false;
     if(attempted)return;
@@ -1002,8 +1014,9 @@ static void ensureBoundaryMenu() {
     if(!pd)return;
     attempted=true;
     const auto ok=exploration::boundary_menu::install(pd,client,
-        reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,[]{return boundaryColor;});
-    log(ok?"BOUNDARY menu installed in native Automap Options; five colors, red default.":
+        reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,[]{return boundaryColor;},
+        selectWallColor,[]{return wallColor;});
+    log(ok?"BOUNDARY menu installed in native Automap Options; boundary and wall color lists.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI color remains available.");
 }
 static void loadAppearanceSettings(const std::string& settings) {
@@ -1011,6 +1024,11 @@ static void loadAppearanceSettings(const std::string& settings) {
     char boundary[32]{};
     GetPrivateProfileStringA("Automap","BoundaryColor","red",boundary,32,settings.c_str());
     boundaryColor=exploration::parseBoundaryColor(boundary);
+    char wall[32]{};
+    GetPrivateProfileStringA("Automap","WallColor","gray",wall,32,settings.c_str());
+    wallColor=exploration::parseBoundaryColor(wall,exploration::BoundaryColor::Gray);
+    if(logfile){fprintf(logfile,"APPEARANCE BoundaryColor=%s WallColor=%s\n",
+        exploration::boundaryPreset(boundaryColor).key,exploration::boundaryPreset(wallColor).key);fflush(logfile);}
     char campaign[32]{},maps[32]{};
     GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
     GetPrivateProfileStringA("Automap","MapsStyle","hybrid",maps,32,settings.c_str());

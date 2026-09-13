@@ -8,8 +8,8 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [GameTables.hpp](GameTables.hpp) | Loads owned, size-limited table data through the verified Storm file resolver, using archives or active direct overrides. |
 | [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
-| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines five frontier colors while preserving the original red shades and opacity. |
-| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds a guarded color row to the supported native Automap Options menu. |
+| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines twelve boundary/wall presets, exact RGB values and renderer-specific default gray. |
+| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent boundary/wall color lists with native navigation, Escape handling and guarded resource ownership. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |
 | [RasterClipCache.hpp](RasterClipCache.hpp) | Reuses exact artwork clipping across frames and map panning, with bounded storage and immediate coverage invalidation. |
