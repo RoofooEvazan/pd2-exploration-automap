@@ -88,9 +88,9 @@ The performance revision adds coverage comparisons for cold/cached queries, hole
 
 The runtime suite includes five-color persistence and save failures, menu layout/pointer guards, native resource ownership, label routing, and unchanged wall/alpha colors in both floor rendering paths.
 
-The fixed-distance checks use the same appearance-settings reader as the runtime, with temporary INI files containing missing, zero, negative, oversized and malformed legacy radius values, paired with both old reveal modes. None changes the 31-subtile circle. The complete revealed mask matches an independent circular reference at multiple logical resolutions, including invalid view dimensions. Quarter-subtile movement, the outer radius, teleport gaps, all five town exemptions and retained outdoor history are checked. Color, style and opacity settings still load normally.
+The fixed-distance checks use the same appearance-settings reader as the runtime, with temporary INI files containing missing, zero, negative, oversized and malformed legacy radius values, paired with both old reveal modes. None changes the 33-subtile circle. The complete revealed mask matches an independent circular reference at multiple logical resolutions, including invalid view dimensions. Quarter-subtile movement, the outer radius, teleport gaps, all five town exemptions and retained outdoor history are checked. Color, style and opacity settings still load normally.
 
-`BOUNDARY` log lines report menu installation and saved colors. The hardcoded build reports `DISCOVERY mode=hardcoded` and `radiusSubtiles=31.00`; it no longer reads view dimensions to choose the radius. These are functional checks of the distributed client, not anti-tamper protection or proof of online compatibility. See [live validation and limits](boundary-settings.md).
+`BOUNDARY` log lines report menu installation and saved colors. The unpublished 33-subtile build reports `DISCOVERY mode=hardcoded` and `radiusSubtiles=33.00`; it no longer reads view dimensions to choose the radius. These are functional checks of the distributed client, not anti-tamper protection or proof of online compatibility. See [live validation and limits](boundary-settings.md).
 
 ## Endgame shrine and event icons
 

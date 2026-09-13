@@ -12,7 +12,7 @@ This includes the existing event marker objects, altars, event NPCs and invasion
 portals that have that native symbol. No game artwork or tables are bundled.
 There are no new quest markers, exit arrows, boss pointers or chest markers.
 
-The fixed 31-subtile exploration policy is unchanged. The fallback checks the
+Icons use the same fixed exploration radius as terrain (33 subtiles in the unpublished follow-up; 31 in beta.6). The fallback checks the
 unit's world location against the existing mask, then clips the icon's native
 textured primitives to explored pixels and the viewport. Walls, water, frontier
 color and opacity retain their existing behavior. Campaign and town behavior

@@ -8,7 +8,7 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 | [runtime_tests.cpp](runtime_tests.cpp) | Native clipping, hybrid contours and protected details, sewer styling, towns, shared campaign areas, session guards, and bounded native game-table reads. |
 | [boundary_menu_tests.hpp](boundary_menu_tests.hpp) | Five-color persistence, native menu compatibility guards, resource ownership and drawing behavior. |
 | [map_marker_tests.hpp](map_marker_tests.hpp) | Shrine/event tables, guarded loaded-unit reads, sample expiry, visibility, native registration and duplicate suppression in both sizes. |
-| [fixed_distance_tests.hpp](fixed_distance_tests.hpp) | Hardcoded 31-subtile coverage, ignored legacy distance settings, resolution independence, movement, teleport gaps, towns and preserved appearance settings. |
+| [fixed_distance_tests.hpp](fixed_distance_tests.hpp) | Hardcoded 33-subtile coverage, ignored legacy distance settings, resolution independence, movement, teleport gaps, towns and preserved appearance settings. |
 | [styled_tests.cpp](styled_tests.cpp) | Floor shading, red open edges, wall outlines, cached-versus-full geometry, and background worker snapshots. |
 
 After [building the project](../README.md#build-from-source), run from the repository folder:

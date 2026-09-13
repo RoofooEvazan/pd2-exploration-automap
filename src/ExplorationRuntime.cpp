@@ -127,8 +127,8 @@ static constexpr DWORD targetLevel=0; // Zero applies to every area in the opt-i
 // source gray muted instead of using a near-white pale palette entry.
 static constexpr DWORD frontierColor=29;
 static constexpr double maskCellSize=0.25; // Quarter-subtile: 20x finer per axis.
-// Compiled policy: 31 world subtiles. No INI, menu or view-size override.
-static constexpr int revealRadius=124; // Quarter-subtile mask cells.
+// Compiled policy: 33 world subtiles. No INI, menu or view-size override.
+static constexpr int revealRadius=132; // Quarter-subtile mask cells.
 static Rect passViewport{};
 static bool haveViewport=false;
 static exploration::FrontierContacts contactFrontier;

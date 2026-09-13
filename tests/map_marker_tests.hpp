@@ -59,7 +59,7 @@ static void testMapMarkers() {
         activeStyle=style;observedLevel=202;inPass=maskActive=enabled=haveViewport=true;nativeTownActive=false;
         StyledState state;styledCurrent=&state;styledActive=style!=MapStyle::Native;
         markerTransform={double(divisor),-100,0};put(memory,0xf16b0,divisor);put(memory,0x11c1f8,-100);put(memory,0x11c1fc,0);
-        Mask mask(.25);mask.revealAround({100,100},124);explored=&mask;
+        Mask mask(.25);mask.revealAround({100,100},revealRadius);explored=&mask;
         mapMarkers=markers;mapMarkers.push_back({1499,200,200,1,317}); // Undiscovered, even if the icon overlaps a known pixel.
         passViewport={0,0,300,300};markerArtworkFile=file.data();nativeMarkers.clear();markerCalls=0;markerFrames.clear();
         drawMapMarkers();require(markerCalls==2 && markerFrames==std::vector<unsigned>({310,1499}));

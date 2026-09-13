@@ -22,7 +22,7 @@ automap end callback
   -> finish timing and restore per-pass state
 ```
 
-Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a hardcoded disk of 124 fine cells (31 world subtiles). Display resolution and old distance settings cannot change it. See [boundary settings](boundary-settings.md) for the compiled policy. The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This remains a distance mask, not exact native tile exploration or visibility through doors and walls.
+Exploration uses a sparse grid with 0.25-subtile cells. Player coordinates come from the path's unsigned 16.16 world positions. Movement reveals a hardcoded disk of 132 fine cells (33 world subtiles). Display resolution and old distance settings cannot change it. See [boundary settings](boundary-settings.md) for the compiled policy. The mask belongs to a tracked game session and area/seed key; it is independent of native automap sprite IDs and wall layers. This remains a distance mask, not exact native tile exploration or visibility through doors and walls.
 
 Town IDs `1`, `40`, `75`, `103`, and `109` retain native artwork within their level rectangle. The exemption follows the terrain footprint instead of applying to every native cell while the player is in town. Nearby outdoor terrain can therefore use the styled map before the player's area ID changes.
 

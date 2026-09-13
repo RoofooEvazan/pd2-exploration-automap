@@ -2,6 +2,8 @@
 
 **v0.2.0-beta.6 — BETA.** Endgame maps now support native **shrine and PD2 event icons** in explored areas, with a bounded fallback for loaded units that have not reached the native automap yet. Existing native icons take precedence to prevent duplicates. This release keeps the hardcoded 31-subtile circular reveal, five boundary colors, hybrid styling and screenshot gallery. See [shrine and event icons](docs/map-markers.md) for behavior and limits.
 
+**Unpublished follow-up:** source builds now use a hardcoded **33-subtile** radius. The beta.6 download and existing screenshots still use 31. Local gameplay confirmation is pending.
+
 A community experiment that gives **Project Diablo 2** an expanding exploration map: shaded floors, simple gray wall outlines, a soft reveal edge, and colored edges that show where there is still room to explore.
 
 Unexplored terrain stays blank. As you move, the map opens around you. Towns use their normal automap without the exploration mask.
@@ -62,7 +64,7 @@ Compare the same sewer frontier in [Red](docs/screenshots/boundary-color-red.png
 - Dark gray floor shading and thin gray wall outlines for endgame maps.
 - Muted red reveal edges where explored floor continues into unexplored space; edges against known walls remain gray.
 - A quarter-subtile exploration grid, fractional draw coordinates, and seven shade bands for a softer reveal edge.
-- A smooth 31-subtile circular reveal fixed in the plugin; INI entries and resolution changes cannot change the distance.
+- A smooth 33-subtile circular reveal fixed in the plugin; INI entries and resolution changes cannot change the distance.
 - Native artwork for all five towns, with the exploration style applied to nearby outdoor terrain before crossing a gate.
 - Incremental geometry caching and a background worker so a growing map does not require a full rebuild with every movement.
 - Primitive clipping of normal automap artwork as a fallback when the styled map is unavailable.
@@ -134,7 +136,7 @@ BoundaryColor=red
 
 Open the automap once in an offline game, then use **Options → Automap Options → Boundary Color** to cycle Red, Neon Green, Magenta, Cyan and Light Blue. Each selection changes the edge immediately and saves the INI. `BoundaryColor` also accepts `red`, `neon-green`, `magenta`, `cyan` or `light-blue` directly; restart after manual INI edits. The menu extension supports the profiled `ProjectDiablo.dll`; on other menu layouts, color selection remains available through the INI. See [boundary settings and compatibility](docs/boundary-settings.md).
 
-The reveal radius is hardcoded at **31 world subtiles**, with quarter-subtile movement precision and the same smooth edge. Neither INI entries, menu options nor display resolution can alter it. Towns remain fully explored. This is distance-based exploration, not exact native tile discovery or line of sight. Hardcoding removes the supported configuration override; it does not prevent modifying the open-source client or establish online compatibility.
+The reveal radius is hardcoded at **33 world subtiles**, with quarter-subtile movement precision and the same smooth edge. Neither INI entries, menu options nor display resolution can alter it. Towns remain fully explored. This is distance-based exploration, not exact native tile discovery or line of sight. Hardcoding removes the supported configuration override; it does not prevent modifying the open-source client or establish online compatibility.
 
 The DLL remains dormant without `-exploration-test`. To remove it completely, close the game, remove only its entry from `other.load_dlls_late`, and delete `ExplorationMask.dll` and its INI if no longer needed. Restart the game after any change; live unloading is unsupported.
 

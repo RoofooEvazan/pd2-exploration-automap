@@ -1,6 +1,6 @@
 # Boundary settings — BETA
 
-v0.2.0-beta.5 fixes the reveal radius in the plugin at **31 world subtiles**. The same smooth circular edge and quarter-subtile movement precision are retained. The existing color menu remains available; distance settings from older builds are ignored.
+The unpublished follow-up fixes the reveal radius in the plugin at **33 world subtiles**. Public beta.6 and the existing screenshots use 31. The same smooth circular edge and quarter-subtile movement precision are retained. The existing color menu remains available; distance settings from older builds are ignored.
 
 ## Color
 
@@ -10,12 +10,12 @@ The menu supports the profiled expansion menu in `ProjectDiablo.dll` (SHA-256 `5
 
 ## Fixed reveal distance
 
-The runtime uses a compile-time constant of 124 quarter-subtile cells, equivalent to 31 world subtiles. There is no radius input in the INI or menu and no automatic resolution-based distance. Old `RevealRadiusSubtiles` and `RevealMode` keys are ignored, including oversized values; they can be removed when upgrading. Town-gate previews use the same compiled circle, and towns keep their existing full-exploration exemption.
+The runtime uses a compile-time constant of 132 quarter-subtile cells, equivalent to 33 world subtiles. There is no radius input in the INI or menu and no automatic resolution-based distance. Old `RevealRadiusSubtiles` and `RevealMode` keys are ignored, including oversized values; they can be removed when upgrading. Town-gate previews use the same compiled circle, and towns keep their existing full-exploration exemption.
 
 This removes the supported configuration override. It is not anti-tamper enforcement: an open-source client can be modified or replaced. Online use would require separate compatibility approval and controls appropriate to the server/client trust model. This change alone does not establish online support. Distance-based discovery can reveal through nearby walls and is not native tile discovery or line of sight.
 
 ## Build and validation
 
-Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. The fixed-distance suite loads legacy INI entries through the real appearance-settings reader and confirms exact circular coverage, the 31-subtile outer limit, resolution independence, quarter-cell movement, teleport gaps and town history. Existing color/menu, geometry, clipping, water and worker tests remain included.
+Use the [Win32 Release build steps](../README.md#build-from-source), then run all three CTest suites. The fixed-distance suite loads legacy INI entries through the real appearance-settings reader and confirms exact circular coverage, the 33-subtile outer limit, resolution independence, quarter-cell movement, teleport gaps and town history. Existing color/menu, geometry, clipping, water and worker tests remain included.
 
-All three suites pass with the optional local artwork/table/archive fixtures. The user confirmed the installed hardcoded build works on 2026-09-12. Live campaign logs report `DISCOVERY mode=hardcoded` and `radiusSubtiles=31.00`, with town and outdoor drawing active. The release ships that exact tested DLL. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Keep a backup of the previous DLL and INI for comparison.
+All three suites pass for the 33-subtile candidate with the optional local artwork/table/archive fixtures. Local gameplay confirmation is pending. Its log should report `DISCOVERY mode=hardcoded` and `radiusSubtiles=33.00`. The public beta.6 DLL retains the previously approved 31-subtile radius. Run the normal offline Test PD2 setup (`-3dfx -direct -exploration-test -log`). Keep a backup of the previous DLL and INI for comparison.

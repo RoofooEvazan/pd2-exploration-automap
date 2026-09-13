@@ -591,8 +591,8 @@ static void testJoinedCampaignAreas() {
     finish(800);
     require(styledCurrent==joinedDrawing && styledCurrent->floor.rooms.size()==2);
     require(drawingCovers(styledCurrent->drawing,{100,110}) && drawingCovers(styledCurrent->drawing,{135,110}));
-    // The old room sample is farther away than the compiled 31-subtile radius.
-    Mask currentOnly(.25);currentOnly.revealAround({135,110},124);require(!currentOnly.contains({100,110}));
+    // The old room sample is farther away than the compiled 33-subtile radius.
+    Mask currentOnly(.25);currentOnly.revealAround({135,110},132);require(!currentOnly.contains({100,110}));
     // Previously explored native details still pass through the joined mask.
     std::vector<DWORD> frame(8),file(7),ctx(14);frame[1]=20;frame[2]=20;file[5]=1;
     file[6]=reinterpret_cast<DWORD>(frame.data());ctx[13]=reinterpret_cast<DWORD>(file.data());
@@ -1160,8 +1160,8 @@ int main() {
     require(floatCalls==5 && capturedA.x==6.25f && capturedB.y==9.125f && !fractionalFrontier);
     PlayerState state{100.125,100.125,202,999,77};
     updateForPlayer(state,1000);require(maskActive && explored->cellSize()==0.25);
-    require(explored->contains({131.125,100.125}) && !explored->contains({131.375,100.125}));
-    state.x+=0.25;updateForPlayer(state,1010);require(explored->contains({131.375,100.125}));
+    require(explored->contains({133.125,100.125}) && !explored->contains({133.375,100.125}));
+    state.x+=0.25;updateForPlayer(state,1010);require(explored->contains({133.375,100.125}));
     auto wildernessSize=explored->size();
     originalCell=captureCell;inPass=true;
     for(DWORD level:{1u,40u,75u,103u,109u}) {
