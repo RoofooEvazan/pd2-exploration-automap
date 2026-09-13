@@ -41,12 +41,16 @@ static void testWaterTint() {
     require(artwork.waterTile(12) && !artwork.waterTile(10) && !artwork.waterTile(20) && !artwork.waterTile(21) && !artwork.waterTile(22) && !artwork.waterTile(65536));
     std::istringstream banks(artworkFixture()+
         "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n"
-        "Test\tfl\t0\t0\t0\tC_WTLL\t22\tbridgeLt\t23\tStn_WR a\t24\tF_WR\t25\n");
+        "Test\tfl\t0\t0\t0\tC_WTLL\t22\tbridgeLt\t23\tStn_WR a\t24\tF_WR\t25\n"
+        "Test\tfl\t0\t0\t0\tStn_WL b\t26\tStn_X\t27\tStn_L R E\t28\tStn_U R E\t29\n"
+        "Test\tfl\t0\t0\t0\tWR A\t30\tWL A\t31\tWTLL\t32\tStn_WR stairs\t33\n");
     require(artwork.load(banks));
-    for(unsigned id:{18u,19u,20u,21u,22u})require(artwork.blueTerrainTile(id));
-    for(unsigned id:{10u,23u,24u,25u,65536u})require(!artwork.blueTerrainTile(id));
+    for(unsigned id:{18u,19u,20u,21u,22u,24u,26u,27u,28u,29u})require(artwork.blueTerrainTile(id));
+    for(unsigned id:{10u,23u,25u,30u,31u,32u,33u,65536u})require(!artwork.blueTerrainTile(id));
     std::istringstream protectedBank("Name\tAutoMap\nShrine\t18\n");
     require(artwork.protectObjects(protectedBank) && !artwork.blueTerrainTile(18));
+    std::istringstream protectedLedge("Name\tAutoMap\nShrine\t24\n");
+    require(artwork.protectObjects(protectedLedge) && !artwork.blueTerrainTile(24));
 
     checkContext="hybrid blue shorelines preserve walls, geometry, alpha and other styles";
     auto oldStyle=activeStyle;auto oldWall=wallColor;auto oldOpacity=overlayOpacity;
@@ -90,11 +94,12 @@ static void testWaterTint() {
         require(waterTint.size()==std::size_t(style==MapStyle::Hybrid?1:0));
         require(forwardedCells==before+(style==MapStyle::Styled?0:1));
     }
-    checkContext="riverbanks and suppressed cliff cells both register blue terrain";
+    checkContext="riverbanks, cliffs and Act 1 grassy banks register blue terrain";
     std::istringstream runtimeBanks(artworkFixture()+
-        "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n");
+        "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n"
+        "Test\tfl\t0\t0\t0\tStn_WR a\t22\tStn_WL b\t23\tStn_X\t16\tStn_L R E\t17\n");
     require(hybridArtwork.load(runtimeBanks));
-    for(int divisor:{10,20})for(DWORD id:{18u,19u,20u,21u}) {
+    for(int divisor:{10,20})for(DWORD id:{16u,17u,18u,19u,20u,21u,22u,23u}) {
         const int w=divisor==10?16:8;
         frame[1]=w;frame[2]=w*2;put(memory,0xf16b0,divisor);ctx[0]=id;
         Mask mask(.25);mask.revealAround({0,0},132);explored=&mask;
@@ -110,6 +115,14 @@ static void testWaterTint() {
         state.captureIncomplete=true;state.coverage.reset();
         cellHook(ctx.data(),-sx,w*2-sy,&nativeView,0);
         require(waterTint.size()==1 && forwardedCells==before+(id<20?2:1));
+        // A native bank cell must reach the colored drawing, including when
+        // its ordinary wall sprite was replaced before frame clipping.
+        Transform stable{double(divisor),divisor==10?8.0:7.0,divisor==10?-8.0:-3.0};
+        state.drawing.walls={{inverse({-3,w*1.75},stable),inverse({double(w+3),w*1.75},stable)}};
+        wallColor=BoundaryColor::White;overlayOpacity=80;
+        appearanceColors.clear();appearancePositions.clear();drawHybridWalls({double(divisor),-40,-20},{0,0,150,150});
+        require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224)),overlayColor(0x50a5dce0)}));
+        state.drawing.walls.clear();
     }
     waterTint.select(++gameSerial,lastLevelKey,10);client=nullptr;inPass=haveViewport=maskActive=styledActive=false;
     activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;styledCurrent=nullptr;explored=&emptyMask;

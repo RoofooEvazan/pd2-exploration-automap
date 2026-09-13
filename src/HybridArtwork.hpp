@@ -61,6 +61,11 @@ public:
         if(text.compare(0,3,"rb_")==0)return 4;
         for(const char* prefix:{"c_wr","c_wl","c_wbr","c_wbl","c_wtr","c_wtll"})
             if(text.compare(0,std::char_traits<char>::length(prefix),prefix)==0)return 8;
+        // Low grassy banks in Act 1 use stonewall.dt1 and the Stn_ artwork,
+        // including separate corners and end caps. C_ denotes tall cliffs.
+        for(const char* prefix:{"stn_wr ","stn_wl "})
+            if(text.compare(0,std::char_traits<char>::length(prefix),prefix)==0)return 16;
+        if(oneOf(text,{"stn_x","stn_l r e","stn_u r e"}))return 16;
         return 0;
     }
     enum class SewerShape { None, Down, Up, Peak, Cap };
@@ -173,7 +178,7 @@ public:
         return loaded_ && id<flags_.size() && waterTiles_[id]==1 && !(flags_[id]&8) && !styledDetail(id);
     }
     bool blueTerrainTile(std::uint32_t id) const {
-        return loaded_ && id<flags_.size() && !(waterTiles_[id]&2) && (waterTiles_[id]&13) && !(flags_[id]&8) && !styledDetail(id);
+        return loaded_ && id<flags_.size() && !(waterTiles_[id]&2) && (waterTiles_[id]&29) && !(flags_[id]&8) && !styledDetail(id);
     }
     bool entrance(std::uint32_t id) const {
         if(!loaded_ || id>=entrances_.size())return false;

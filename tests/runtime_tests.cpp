@@ -904,9 +904,9 @@ static void testLocalHybridTables() {
     for(DWORD id:{4u,5u,6u,7u,8u,266u,520u})require(policy.role(id)==Role::Water);
     for(DWORD id:{4u,5u,6u,7u,8u,266u,267u,520u,521u,522u})require(policy.waterTile(id));
     require(!policy.waterTile(1259) && !policy.waterTile(290) && !policy.waterTile(308));
-    for(DWORD id:{46u,47u,48u,49u,50u,51u,52u,53u,54u,55u,56u,57u,58u,59u,
+    for(DWORD id:{10u,11u,12u,13u,14u,16u,18u,46u,47u,48u,49u,50u,51u,52u,53u,54u,55u,56u,57u,58u,59u,
         523u,524u,525u,526u,527u,528u,529u,530u,531u,532u,536u,537u})require(policy.blueTerrainTile(id));
-    for(DWORD id:{11u,20u,60u,80u,283u,290u,308u,491u,568u,1259u})require(!policy.blueTerrainTile(id));
+    for(DWORD id:{20u,21u,24u,60u,80u,283u,290u,308u,491u,568u,1259u})require(!policy.blueTerrainTile(id));
     require(policy.poisonedWellContours()==289);
     for(DWORD id=0;id<1974;++id) {
         const bool contour=(id>=1572 && id<=1578) || (id>=1692 && id<=1973);
