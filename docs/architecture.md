@@ -7,8 +7,9 @@ Runtime hooks, data ownership and cache limits for the tested binary set. The [s
 ```text
 automap begin
   -> read player/session state; update exploration history
-  -> Native: leave game rendering unchanged
-  -> Hybrid/Styled: capture loaded collision data; submit worker snapshot
+  -> Original: leave game rendering unchanged
+  -> Native: clip original artwork and draw the exploration boundary
+  -> Native/Hybrid/Styled: capture loaded collision data; submit worker snapshot
 
 native terrain cell
   -> draw completed floor/contour geometry once per pass
@@ -19,7 +20,8 @@ native terrain cell
 automap end
   -> submit queued sewer geometry and entrance artwork
   -> supply missing shrine/event icons from loaded-unit snapshot
-  -> draw artwork-contact frontier accents in fallback mode
+  -> draw completed geometry even when no native tiles arrived
+  -> draw a clipped entry boundary during worker warmup
   -> restore per-pass state and record timing
 ```
 
@@ -37,9 +39,9 @@ The render thread reads only already-loaded room collision grids, copying them i
 
 The worker combines connected floor with the explored region. Seven shade layers form the reveal band. Open floor beyond the mask seeds the colored frontier; a boundary against known walls does not. Colors are selected at draw time. Wall strokes use the configured core RGB and a dark casing; source brightness also matters in D2GL's fixed-opacity minimap. The edge uses layered geometry, not a continuous blur.
 
-`StyledChunks.hpp` caches 64-by-64 fine-cell regions (16-by-16 world subtiles). Snapshot differences invalidate affected regions with 14 fine cells of filter padding. Half-open ownership prevents repeated shade and wall coverage at cache boundaries. Adjacent matching quads are compacted before publication. Projection quickly accepts contained quads, rejects off-screen quads, and clips only viewport crossings.
+`StyledChunks.hpp` caches 64-by-64 fine-cell regions (16-by-16 world subtiles). Snapshot differences invalidate affected regions with filter padding sized to the boundary width (14 fine cells at the default, up to 26). Half-open ownership prevents repeated shade and wall coverage at cache boundaries. Adjacent matching quads are compacted before publication. Projection quickly accepts contained quads, rejects off-screen quads, and clips only viewport crossings.
 
-One background worker owns the derived floor/geometry cache. It has one replaceable pending request and one completed result. Requests contain owned data and shared immutable room copies, never borrowed game pointers. Results include session and area identifiers. The render thread uses the last completed drawing while work continues. Submission is limited to once per 40 ms; room capture is sampled at 250 ms intervals.
+One background worker owns the derived floor/geometry cache. It has one replaceable pending request and one completed result. Requests contain owned data and shared immutable room copies, never borrowed game pointers. Results include session and area identifiers. The render thread uses the last completed drawing while work continues. Submission is limited to once per 40 ms; room capture is sampled at 250 ms intervals and immediately on area entry.
 
 ## Native artwork fallback
 

@@ -18,7 +18,7 @@ Eligible visible cells are collected during the native automap pass and drawn on
 
 For brightness, one temporary palette covers the entire entrance group. The validated D2GL palette export flushes preceding vertices before changing palette state; the original palette is restored immediately after the group. The game's palette array is never modified. This adds at most two palette uploads per automap pass, not per entrance, with no extra sprite draws or texture copies. The queue accepts at most 64 cells, 512 clips per cell and 8,192 total clips per pass. Retained clip capacity is bounded to 512 KiB. Overflow keeps the original immediate native drawing.
 
-The optional palette binding checks the supported D2Glide image, relocated palette references, call/import chain and D2GL export address. Binding failure leaves native entrances unchanged. Unknown view states and failed palette reads also retain native drawing. The boost applies to Hybrid and Styled; Map Style Native uses untouched game rendering.
+The optional palette binding checks the supported D2Glide image, relocated palette references, call/import chain and D2GL export address. Binding failure leaves native entrances unchanged. Unknown view states and failed palette reads also retain native drawing. The boost applies to Hybrid and Styled. Original and Native keep the game's entrance brightness.
 
 ## Validation
 

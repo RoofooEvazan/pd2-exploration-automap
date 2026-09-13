@@ -2,7 +2,7 @@
 
 Endgame automaps retain native shrine and PD2 event symbols. A small fallback
 also draws those symbols for already-loaded units whose locations are explored
-but which have not yet been registered on the native automap. It works in Hybrid, Styled and the legacy clipped-native mode, in both map sizes. Map Style Native uses only the game's original icon rendering.
+but which have not yet been registered on the native automap. It works in Hybrid, Styled and Native, in both map sizes. Original uses only the game's original icon rendering.
 
 The active game's `Objects.txt` identifies shrines by their shrine subclass and
 positive `AutoMap` entry. The supported PD2 profile uses frame 1499 for event

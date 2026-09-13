@@ -4,9 +4,9 @@ Boundary and wall colors are independent. Reveal distance is fixed at **33 world
 
 ## Color lists
 
-Independent **Boundary Color** and **Wall Color** list pickers are available in **Options → Automap Options**. Open the automap once in an offline game to initialize the extension. Click either row, then click a named color or use Up/Down and Enter. The current color is marked **(Selected)**. Choosing a color saves it immediately and returns to Automap Options. **Back** or **Escape** returns without changing it. If saving fails, the picker stays open and the previous color remains active.
+Independent **Boundary Color** and **Wall Color** list pickers are available under **Options → Automap Options → Maps Styling** or **Campaign Styling**. Open the automap once in an offline game to initialize the extension. Click either row, then click a named color or use Up/Down and Enter. The current color is marked **(Selected)**. Choosing a color saves it immediately and returns to its Styling submenu. **Back** or **Escape** returns without changing it. If saving fails, the picker stays open and the previous color remains active.
 
-Both lists offer thirteen colors, including Gray and White. Boundary Color defaults to Red; Wall Color defaults to Gray so existing installations retain their previous wall appearance. Existing INIs do not need replacement. Choices save separately as `BoundaryColor` and `WallColor` in `ExplorationMask.ini`. A separate [Map Style](map-styles.md) row cycles Native, Hybrid and Styled for both campaign areas and maps. The Automap Options rows align their labels and values with the native settings; each color list has a larger centered heading above its compact choices.
+Both lists offer thirteen colors, including Gray and White. Each styling group saves its own `BoundaryColor` and `WallColor`; omitted keys inherit legacy preferences or the Red/Gray defaults. [Stylization](map-styles.md) selects Original, Native, Hybrid or Styled independently for each group. Labels and values use native formatting, with larger headings in the color lists.
 
 | Color | INI value | Base RGB |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Both lists offer thirteen colors, including Gray and White. Boundary Color defau
 
 The hex values are the exact base colors. Boundary bands retain their existing shade multipliers and opacity; wall cores use the selected RGB with the existing opacity and dark contrast casing. Gray preserves the previous brightness in each wall renderer. Screen appearance therefore also depends on the game background and overlay transparency.
 
-Wall Color changes the plugin's modern wall and shoreline outlines in hybrid mode, its straight sewer outlines, and the matching contour strokes in styled mode. Retained native artwork, shrine/event icons, floor shading, and water fill keep their existing colors. Native/original modes do not gain replacement wall outlines from this setting. The fallback reveal accents also follow Boundary Color.
+Wall Color changes the plugin's modern wall and shoreline outlines in hybrid mode, its straight sewer outlines, and the matching contour strokes in styled mode. Retained native artwork, shrine/event icons, floor shading, and water fill keep their existing colors. Original and Native modes do not gain replacement wall outlines from this setting. The fallback reveal accents also follow Boundary Color.
 
 Colors are applied during drawing without geometry rebuilds or additional texture uploads.
 

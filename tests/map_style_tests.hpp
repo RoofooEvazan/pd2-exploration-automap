@@ -9,46 +9,47 @@ static void __stdcall captureStyleCell(void* context,int x,int y,NativeRect*,int
     if(terrainClips)for(auto clip:*terrainClips)check(clip);else check(bounds);
 }
 static void testMapStyles() {
-    checkContext="global map style menu, persistence, save failure and color preservation";
+    checkContext="group style persistence, legacy migration and thickness bounds";
     namespace ui=exploration::boundary_menu;
     char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"ems",0,file)!=0);
     const auto oldPath=settingsPath;settingsPath=file;
     require(WritePrivateProfileStringA("Automap","BoundaryColor","cyan",file)!=0);
     require(WritePrivateProfileStringA("Automap","WallColor","white",file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","63",file)!=0);
-    // Legacy keys are still readable; the new single setting overrides both.
-    require(WritePrivateProfileStringA("Automap","CampaignStyle","native",file)!=0);
-    require(WritePrivateProfileStringA("Automap","MapsStyle","styled",file)!=0);
-    loadAppearanceSettings(file);require(campaignStyle==MapStyle::Native && mapsStyle==MapStyle::Styled);
-    require(selectMapStyle(1));observedLevel=2;
-    ui::selectStyle=selectMapStyle;ui::currentStyle=currentMapStyle;
-    ui::selectColor=selectBoundaryColor;ui::currentColor=[]{return boundaryColor;};
-    ui::selectWallColor=selectWallColor;ui::currentWallColor=[]{return wallColor;};
-    ui::Entry* active=ui::entries.data();ui::Menu* descriptor=&ui::menu;DWORD selected=ui::styleRow,last=ui::backRow;
-    ui::activeEntries=&active;ui::activeMenu=&descriptor;ui::selection=&selected;ui::escapeSelection=&last;
-    ui::drawText=captureMenuText;ui::textSize=captureMenuFont;ui::textWidth=captureMenuWidth;ui::originalText=captureMenuCell;
-    auto& row=ui::entries[ui::styleRow];
-    for(unsigned expected:{2u,0u,1u,2u,0u,1u}) {
-        require(row.press(&row,nullptr) && !ui::styleSaveFailed && currentMapStyle()==expected);
-        for(DWORD level:{2u,92u,109u,132u,203u})require(styleForLevel(level)==menuStyles[expected]);
-        campaignStyle=mapsStyle=MapStyle::Native;loadAppearanceSettings(file);
-        require(campaignStyle==menuStyles[expected] && mapsStyle==menuStyles[expected]);
-        require(boundaryColor==exploration::BoundaryColor::Cyan && wallColor==exploration::BoundaryColor::White && overlayOpacity==63);
-        const int baseline=int(row.y+ui::menu.textHeight);menuTextCalls.clear();
-        ui::drawRow(nullptr,400,baseline,1,5,-1);
-        require(menuTextCalls.size()==2 && menuTextCalls[0].text==L"Map Style" && menuTextCalls[0].x==170);
-        require(menuTextCalls[1].text==ui::styleLabels[expected] && menuTextCalls[1].x+int(menuTextCalls[1].text.size()*10)==630);
-        require(menuTextCalls[0].font==2 && menuTextCalls[1].font==2 && menuFont==1 && last==ui::backRow);
+    require(WritePrivateProfileStringA("Automap","MapStyle","native",file)!=0);
+    loadAppearanceSettings(file);require(campaignStyle==MapStyle::Original && mapsStyle==MapStyle::Original);
+    for(bool maps:{true,false}) {
+        ui::editingMaps=maps;const auto other=maps?campaignStyle:mapsStyle;
+        for(unsigned choice=0;choice<4;++choice) {
+            require(selectMapStyle(choice));loadAppearanceSettings(file);
+            require(currentMapStyle()==choice && (maps?mapsStyle:campaignStyle)==menuStyles[choice]);
+            require((maps?campaignStyle:mapsStyle)==other);
+            require(currentBoundaryColor()==exploration::BoundaryColor::Cyan && currentWallColor()==exploration::BoundaryColor::White);
+        }
     }
-    settingsPath.clear();const auto before=campaignStyle;
-    require(row.press(&row,nullptr) && ui::styleSaveFailed && campaignStyle==before);
-    require(!selectMapStyle(3) && !ui::cycleStyle(&ui::entries[ui::backRow],nullptr));
-    require(ui::openPicker(false));require(!ui::cycleStyle(&row,nullptr));
-    require(ui::back(nullptr,nullptr) && selected==ui::boundaryRow && last==ui::backRow);
-    settingsPath=file;require(selectMapStyle(1));ui::styleSaveFailed=false;
+    for(const char* width:{"0.5","1","1.5","2"}) {
+        require(WritePrivateProfileStringA("Automap","BoundaryThickness",width,file)!=0);loadAppearanceSettings(file);
+        require(boundaryThickness==atof(width) && boundaryBandWidth==int(lround(12*atof(width))));
+    }
+    for(const char* width:{"0","-1","99","NaN","Inf","1.2bad",""}) {
+        require(WritePrivateProfileStringA("Automap","BoundaryThickness",width,file)!=0);loadAppearanceSettings(file);
+        require(boundaryThickness==1 && boundaryBandWidth==12);
+    }
+    ui::editingMaps=true;ui::selectStyle=selectMapStyle;ui::currentStyle=currentMapStyle;
+    ui::Entry* active=ui::stylingEntries.data();ui::Menu* descriptor=&ui::stylingMenu;DWORD selected=ui::styleRow,last=ui::stylingBackRow;
+    ui::activeEntries=&active;ui::activeMenu=&descriptor;ui::selection=&selected;ui::escapeSelection=&last;
+    auto& row=ui::stylingEntries[ui::styleRow];
+    for(unsigned choice:{0u,1u,2u,3u}) {
+        require(row.press(&row,nullptr) && !ui::styleSaveFailed && currentMapStyle()==choice);
+        menuTextCalls.clear();ui::drawRow(nullptr,400,int(row.y+ui::stylingMenu.textHeight),1,5,-1);
+        require(menuTextCalls.size()==2 && menuTextCalls[0].text==L"Stylization" && menuTextCalls[1].text==ui::styleLabels[choice]);
+    }
+    settingsPath.clear();const auto before=mapsStyle;
+    require(row.press(&row,nullptr) && ui::styleSaveFailed && mapsStyle==before);
+    require(!selectMapStyle(4) && !ui::cycleStyle(&ui::stylingEntries[ui::stylingBackRow],nullptr));
+    settingsPath=file;require(selectMapStyle(2));ui::styleSaveFailed=false;
     ui::activeEntries=nullptr;ui::activeMenu=nullptr;ui::selection=ui::escapeSelection=nullptr;
-
-    checkContext="style changes preserve discovery and completed geometry; Native bypasses rendering";
+    checkContext="style changes preserve discovery and completed geometry; Original bypasses rendering";
     std::vector<unsigned char> memory(0x11c8bc);client=memory.data();campaignLayers=exploration::CampaignLayers{};
     PlayerState player{100,100,203,123456,987654};enabled=true;
     updateForPlayer(player,900000);auto* history=explored;const auto serial=gameSerial,key=lastLevelKey;
@@ -59,9 +60,9 @@ static void testMapStyles() {
     NativeRect viewport{0,100,-1,99};originalCell=captureStyleCell;
     DWORD context[18]{};context[0]=10;inPass=true;styleFrames.clear();
     cellHook(context,0,0,&viewport,5);require(styleFrames==std::vector<DWORD>{10} && entranceCount==0);
-    require(selectMapStyle(2));updateForPlayer(player,900020);
+    require(selectMapStyle(3));updateForPlayer(player,900020);
     require(maskActive && explored==history && gameSerial==serial && cached.floorCells==77 && history->contains({100,100}));
-    require(selectMapStyle(1));updateForPlayer(player,900030);require(explored==history && history->contains({148,100}));
+    require(selectMapStyle(2));updateForPlayer(player,900030);require(explored==history && history->contains({148,100}));
 
     checkContext="Styled hides terrain and retains native navigation artwork, with exploration clipping";
     std::istringstream table(artworkFixture()+
@@ -73,7 +74,7 @@ static void testMapStyles() {
     std::vector<DWORD> frame(8),art(406);frame[1]=20;frame[2]=20;art[5]=400;
     for(unsigned i=0;i<400;++i)art[6+i]=reinterpret_cast<DWORD>(frame.data());
     context[13]=reinterpret_cast<DWORD>(art.data());
-    StyledState drawing;styledCurrent=&drawing;originalCell=captureStyleCell;
+    StyledState drawing;drawing.floorCells=1;styledCurrent=&drawing;originalCell=captureStyleCell;
     entrancePaletteDraw=nullptr;nativePalette=nullptr; // Classification/clipping tested separately from the boost.
     for(int divisor:{10,20})for(LONG level:{2L,92L,203L}) {
         put(memory,0xf16b0,divisor);put(memory,0x11c1f8,0);put(memory,0x11c1fc,0);
@@ -89,6 +90,9 @@ static void testMapStyles() {
         Mask hidden(.25);explored=&hidden;++gameSerial;styleFrames.clear();
         for(DWORD id:{13u,42u,43u,301u,310u,333u}){context[0]=id;cellHook(context,10,40,&viewport,5);}
         require(styleFrames.empty());
+        // A boundary-only result cannot suppress terrain before floors arrive.
+        drawing.floorCells=0;explored=&mask;++gameSerial;context[0]=10;cellHook(context,10,40,&viewport,5);
+        require(styleFrames==std::vector<DWORD>{10});styleFrames.clear();drawing.floorCells=1;
         // During worker warmup use the existing native fallback, never holes.
         styledActive=false;explored=&mask;++gameSerial;context[0]=10;cellHook(context,10,40,&viewport,5);
         require(styleFrames==std::vector<DWORD>{10});
@@ -96,5 +100,45 @@ static void testMapStyles() {
     require(DeleteFileA(file)!=0);settingsPath=oldPath;client=nullptr;styledCurrent=nullptr;explored=&emptyMask;
     campaignStyle=mapsStyle=MapStyle::Hybrid;activeStyle=MapStyle::Styled;
     maskActive=styledActive=inPass=haveViewport=false;gameTablesPending=false;styledLevels.clear();
-    std::cout<<"PASS: Native/Hybrid/Styled menu cycle and persistence, navigation artwork, terrain suppression, mask/history/cache preservation and safe fallback\n";
+    std::cout<<"PASS: Original/Native/Hybrid/Styled menu cycle and persistence, navigation artwork, terrain suppression, mask/history/cache preservation and safe fallback\n";
+}
+static void testEmptyAreaPass() {
+    checkContext="area-entry boundary before native tiles, both viewports and renderer warmup";
+    std::vector<unsigned char> memory(0x135000);client=memory.data();
+    put(memory,0xdbc48,100);put(memory,0xdbc4c,100);put(memory,0xf9e14,100);put(memory,0xf9e18,100);
+    styledArray=captureAppearanceArray;styledColor=captureColor;originalLine=appearanceNativeLine;
+    preparedFloors.reset();preparedOwner=nullptr;overlayOpacity=100;nativeTownActive=false;
+    observedLevel=2;entranceCount=entranceClipCount=0;
+    for(int divisor:{10,20})for(int mini:{0,1}) {
+        put(memory,0xf16b0,divisor);put(memory,0x11c1f8,0);put(memory,0x11c1fc,0);
+        put(memory,0x11c1b0,mini);put(memory,0x11c23c,30);put(memory,0x11c238,20);
+        Transform t{double(divisor),0,0};Mask mask(.25);mask.revealAround(inverse({50,40},t),40);
+        explored=&mask;++gameSerial;Rect bounds{};require(emptyPassViewport(bounds));
+        if(mini)require(bounds.left==22 && bounds.top==5 && bounds.right==71 && bounds.bottom==70);
+        else require(bounds.left==0 && bounds.top==0 && bounds.right==100 && bounds.bottom==100);
+        styled_map::Level unknown;StyledState drawing;
+        drawing.drawing=unknown.build(mask,nullptr,12,true);styledCurrent=&drawing;
+        for(auto style:{MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled})for(bool ready:{false,true}) {
+            activeStyle=style;maskActive=inPass=true;haveViewport=false;styledActive=ready;
+            appearancePositions.clear();appearanceColors.clear();endPass();
+            require(haveViewport && !appearancePositions.empty() && !styledBatch && !inPass);
+            for(std::size_t i=0;i<appearancePositions.size();i+=2) {
+                require(appearancePositions[i]>=bounds.left && appearancePositions[i]<=bounds.right);
+                require(appearancePositions[i+1]>=bounds.top && appearancePositions[i+1]<=bounds.bottom);
+            }
+        }
+        // Original has no custom submissions even with cached geometry.
+        activeStyle=MapStyle::Original;inPass=true;maskActive=false;haveViewport=false;
+        appearancePositions.clear();endPass();require(appearancePositions.empty());
+        // Native emits boundary color only; cached gray floor and wall data
+        // remain available for a subsequent Hybrid or Styled switch.
+        drawing.drawing.layers[0].quads.push_back({inverse({40,30},t),inverse({60,30},t),inverse({60,50},t),inverse({40,50},t)});
+        drawing.drawing.walls.push_back({inverse({30,30},t),inverse({60,30},t)});
+        activeStyle=MapStyle::Native;appearanceColors.clear();drawStyled(t,bounds);
+        for(auto color:appearanceColors)require(std::any_of(drawing.drawing.layers.begin(),drawing.drawing.layers.end(),
+            [&](const styled_map::Layer& layer){return color==exploration::boundaryRGBA(boundaryColor,layer.gray,layer.alpha);}));
+    }
+    client=nullptr;styledCurrent=nullptr;explored=&emptyMask;maskActive=styledActive=inPass=haveViewport=false;
+    activeStyle=MapStyle::Styled;
+    std::cout<<"PASS: entry boundary with no native tile callbacks, worker warmup, both zooms/viewports, no Original submissions or Native floor/contour overlay\n";
 }

@@ -39,6 +39,10 @@ public:
     }
 };
 struct BuildRequest {
+    int boundaryWidth=12;
+    bool boundaryThroughUnknown=false;
+    bool excludeTown=false;
+    exploration::Rect townBounds{};
     std::chrono::steady_clock::time_point queuedAt=std::chrono::steady_clock::now();
     std::uint64_t session=0,level=0;
     std::size_t maskSize=0;
@@ -47,6 +51,8 @@ struct BuildRequest {
     std::vector<std::shared_ptr<const CapturedRoom>> rooms;
 };
 struct BuildResult {
+    bool boundaryThroughUnknown=false;
+    bool excludesTown=false;
     std::uint64_t session=0,level=0;
     std::size_t maskSize=0,floorCells=0;
     std::size_t rebuiltChunks=0,totalChunks=0;
@@ -55,6 +61,25 @@ struct BuildResult {
     Drawing drawing;
     std::unique_ptr<PreparedFloors> preparedFloors;
 };
+// Towns can share an automap layer with outdoor areas. Remove only colored
+// boundary quads inside their world rectangle; the underlying cache stays shared.
+inline void excludeTownBoundary(Drawing& drawing,exploration::Rect town) {
+    drawing.quads=0;
+    for(auto& layer:drawing.layers) {
+        std::vector<Quad> kept;
+        for(const auto& q:layer.redQuads) {
+            const double l=std::max(q.a.x,double(town.left)),r=std::min(q.c.x,double(town.right));
+            const double t=std::max(q.a.y,double(town.top)),b=std::min(q.c.y,double(town.bottom));
+            if(l>=r || t>=b){kept.push_back(q);continue;}
+            auto add=[&](double left,double top,double right,double bottom){
+                if(left<right && top<bottom)kept.push_back({{left,top},{right,top},{right,bottom},{left,bottom}});
+            };
+            add(q.a.x,q.a.y,q.c.x,t);add(q.a.x,b,q.c.x,q.c.y);
+            add(q.a.x,t,l,b);add(r,t,q.c.x,b);
+        }
+        layer.redQuads=std::move(kept);drawing.quads+=layer.quads.size()+layer.redQuads.size();
+    }
+}
 // One worker, one replaceable pending snapshot, one completed result. A slow
 // rebuild cannot create an unbounded queue or block the game's drawing thread.
 class Worker {
@@ -79,6 +104,8 @@ class Worker {
             try {
                 result=std::make_unique<BuildResult>();
                 result->session=request->session;result->level=request->level;result->maskSize=request->maskSize;
+                result->boundaryThroughUnknown=request->boundaryThroughUnknown;
+                result->excludesTown=request->excludeTown;
                 auto start=std::chrono::steady_clock::now();
                 if(session!=request->session){levels.clear();session=request->session;}
                 // These caches can be reconstructed from retained room copies.
@@ -86,8 +113,9 @@ class Worker {
                 auto& map=levels[request->level];auto& floor=map.floor();
                 for(const auto& room:request->rooms)
                     floor.ingest(room->x,room->y,room->w,room->h,room->flags);
-                if(floor.connect(request->player)) {
-                    result->drawing=map.build(request->visible);
+                if(floor.connect(request->player) || request->boundaryThroughUnknown) {
+                    result->drawing=map.build(request->visible,request->boundaryWidth,request->boundaryThroughUnknown);
+                    if(request->excludeTown)excludeTownBoundary(result->drawing,request->townBounds);
                     result->preparedFloors=PreparedFloors::build(result->drawing);
                     result->floorCells=floor.size();result->success=true;
                     result->rebuiltChunks=map.rebuiltChunks;result->totalChunks=map.chunkCount();

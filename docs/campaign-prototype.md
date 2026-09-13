@@ -1,6 +1,6 @@
 # Campaign terrain
 
-Hybrid combines contour walls and shaded floors with native roads, water, bridges, entrances and symbols. Styled uses floor-derived contours while retaining recognized navigation artwork. Both use the same exploration history as endgame maps. Choose a view through [Map Style](map-styles.md); colors and opacity are described in the [main settings guide](../README.md#appearance-settings).
+Hybrid combines contour walls and shaded floors with native roads, water, bridges, entrances and symbols. Styled uses floor-derived contours while retaining recognized navigation artwork. Both use the same exploration history as endgame maps. Choose a view through [Campaign Styling](map-styles.md); colors and opacity are described in the [main settings guide](../README.md#appearance-settings).
 
 ## Hybrid walls and shores
 

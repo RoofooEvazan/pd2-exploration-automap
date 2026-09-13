@@ -9,7 +9,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
 | [BoundaryColors.hpp](BoundaryColors.hpp) | Defines thirteen boundary/wall presets, exact RGB values and renderer-specific default gray. |
-| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds the Map Style selector and independent boundary/wall color lists with native navigation, Escape handling and guarded resource ownership. |
+| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent Maps Styling and Campaign Styling submenus, each with style and color choices with native navigation, Escape handling and guarded resource ownership. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |
 | [RasterClipCache.hpp](RasterClipCache.hpp) | Reuses exact artwork clipping across frames and map panning, with bounded storage and immediate coverage invalidation. |

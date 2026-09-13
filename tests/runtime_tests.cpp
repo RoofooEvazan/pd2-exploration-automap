@@ -5,7 +5,8 @@
 #include <fstream>
 #include <sstream>
 static const char* checkContext="runtime";
-static void require(bool ok){if(!ok){std::cerr<<"FAILED: "<<checkContext<<"\n";std::exit(1);}}
+static void requireAt(bool ok,const char* file,int line){if(!ok){std::cerr<<"FAILED: "<<checkContext<<" at "<<file<<":"<<line<<"\n";std::exit(1);}}
+#define require(...) requireAt((__VA_ARGS__),__FILE__,__LINE__)
 static std::map<std::string,std::string> gameTestFiles;
 static const std::string* gameTestCurrent=nullptr;
 static unsigned gameOpens=0,gameArchiveOpens=0,gameCloses=0,gameReads=0;
@@ -283,7 +284,7 @@ static void __stdcall simulateStyledLine(int x1,int y1,int x2,int y2,DWORD color
     if(!fractionalFrontier)require(batchColor==(0x84848400u|alpha));
 }
 static void testStyledBatches() {
-    StyledState state;
+    StyledState state;state.floorCells=1;
     for(auto& layer:state.drawing.layers)layer.quads.push_back({{0,0},{10,0},{10,10},{0,10}});
     state.drawing.layers[0].redQuads.push_back({{10,0},{20,0},{20,10},{10,10}});
     state.drawing.walls.push_back({{0,0},{10,0}});
@@ -420,7 +421,7 @@ static void testTownBoundary() {
         require(townPixels[(y-20)*20+x-10]==int(inTownBounds(world)||small.contains(world)));
     }
     // A finished outdoor drawing is submitted once, with only town art forwarded.
-    StyledState drawing;drawing.drawing.layers[0].quads.push_back({{105,75},{110,75},{110,80},{105,80}});
+    StyledState drawing;drawing.floorCells=1;drawing.drawing.layers[0].quads.push_back({{105,75},{110,75},{110,80},{105,80}});
     drawing.drawing.quads=1;styledCurrent=&drawing;styledActive=true;haveViewport=false;
     townArrayCalls=0;cellHook(ctx.data(),10,40,&viewport,0);cellHook(ctx.data(),10,40,&viewport,0);
     require(townArrayCalls==1 && haveViewport);
@@ -455,7 +456,7 @@ static void testCampaignArtwork() {
     frame[1]=20;frame[2]=20;file[5]=3;
     for(int i=0;i<3;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
     ctx[13]=reinterpret_cast<DWORD>(file.data());
-    NativeRect viewport{0,100,0,99};StyledState drawing;
+    NativeRect viewport{0,100,0,99};StyledState drawing;drawing.floorCells=1;
     styledCurrent=&drawing;styledArray=captureTownArray;styledColor=captureColor;
     originalLine=townLine;originalQuad=captureTownQuad;originalCell=prepareAndDrawCell;
     for(int divisor:{10,20}) {
@@ -483,7 +484,7 @@ static void testCampaignArtwork() {
             }
             require(covered>0 && covered<400);
         }
-        require(townArrayCalls==2 && nativeCellCalls==nativeBefore+3 && shapesDecoded==decodedBefore && floatCalls==lineBefore);
+        require(townArrayCalls==1 && nativeCellCalls==nativeBefore+3 && shapesDecoded==decodedBefore && floatCalls==lineBefore);
         // Native campaign drawing at a gate unions full town and explored pixels.
         nativeTownActive=true;observedLevel=109;
         setTownBounds({center.x,center.y,109,1,1},5,{int(center.x)-6,int(center.y)-6,6,12});
@@ -699,7 +700,7 @@ static void testHybridRendering() {
     std::vector<DWORD> frame(8),file(1980),ctx(14);frame[1]=20;frame[2]=20;file[5]=1974;
     for(int i=0;i<1974;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
     ctx[13]=reinterpret_cast<DWORD>(file.data());NativeRect viewport{0,100,0,99};
-    StyledState drawing;styledCurrent=&drawing;styledArray=captureHybridArray;styledColor=captureColor;
+    StyledState drawing;drawing.floorCells=1;styledCurrent=&drawing;styledArray=captureHybridArray;styledColor=captureColor;
     originalLine=townLine;originalQuad=captureTownQuad;originalCell=prepareAndDrawCell;
     for(int divisor:{10,20})for(DWORD target:{2u,202u,203u,205u}) {
         hybridTransform={double(divisor),36,106};auto t=hybridTransform;
@@ -801,7 +802,7 @@ static void testNativeWallTrace() {
     std::vector<DWORD> frame(256),file(306),ctx(14);
     file[0]=6;file[5]=300;for(int i=0;i<300;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
     ctx[0]=283;ctx[13]=reinterpret_cast<DWORD>(file.data());NativeRect viewport{0,100,0,99};
-    StyledState drawing;drawing.drawing.quads=1;styledCurrent=&drawing;
+    StyledState drawing;drawing.floorCells=1;drawing.drawing.quads=1;styledCurrent=&drawing;
     styledArray=captureHybridArray;styledColor=captureColor;originalLine=townLine;originalCell=captureCell;
     sewerWallTraces.clear();
     for(int divisor:{10,20}) {
@@ -863,7 +864,7 @@ static void testSewerWater() {
     hybridTransform={10,36,106};Mask mask(.25);mask.revealAround(inverse({22,30},hybridTransform),24);explored=&mask;
     std::vector<DWORD> frame(8),file(306),ctx(14);frame[1]=16;frame[2]=32;file[5]=300;
     for(int i=0;i<300;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());ctx[13]=reinterpret_cast<DWORD>(file.data());ctx[0]=289;
-    StyledState drawing;drawing.drawing.quads=1;styledCurrent=&drawing;styledActive=true;activeStyle=MapStyle::Hybrid;observedLevel=92;
+    StyledState drawing;drawing.floorCells=1;drawing.drawing.quads=1;styledCurrent=&drawing;styledActive=true;activeStyle=MapStyle::Hybrid;observedLevel=92;
     maskActive=true;inPass=true;enabled=true;nativeTownActive=false;haveViewport=true;passViewport={0,0,100,100};
     NativeRect viewport{0,100,0,99};originalCell=captureCell;originalLine=townLine;styledArray=captureWaterArray;styledColor=captureColor;
     sewerWater.clear();sewerWaterFill.clear();sewerCasing.clear();sewerCore.clear();casingCalls=coreCalls=waterFillCalls=0;
@@ -982,7 +983,7 @@ static void testPaddedArtworkRendering() {
     frame[1]=16;frame[2]=32;frame[7]=DWORD(encoded.size());memcpy(frame.data()+8,encoded.data(),encoded.size());
     file[0]=6;file[5]=100;for(int i=0;i<100;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
     ctx[13]=reinterpret_cast<DWORD>(file.data());
-    StyledState state;styledCurrent=&state;originalCell=drawPaddedCell;originalQuad=capturePaddedQuad;
+    StyledState state;state.floorCells=1;styledCurrent=&state;originalCell=drawPaddedCell;originalQuad=capturePaddedQuad;
     unsigned beforeQuads=0,afterQuads=0;
     for(int divisor:{10,20})for(int pan:{-20,0,17})for(int x:{-4,23,74})for(int centerY:{20,40,49})for(DWORD id:{11u,12u,13u,99u}) {
         Transform t{double(divisor),double(pan),-30};put(memory,0xf16b0,divisor);put(memory,0x11c1f8,pan);put(memory,0x11c1fc,-30);
@@ -1195,5 +1196,6 @@ int main() {
     testMapMarkers();
     testEntranceVisibility();
     testMapStyles();
+    testEmptyAreaPass();
     return 0;
 }

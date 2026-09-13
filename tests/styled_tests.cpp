@@ -152,6 +152,17 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         CHECK(received);
+        styled_map::Drawing townDrawing;
+        townDrawing.layers[0].redQuads.push_back({{0,0},{10,0},{10,10},{0,10}});
+        townDrawing.layers[0].quads=townDrawing.layers[0].redQuads;
+        styled_map::excludeTownBoundary(townDrawing,{2,3,8,7});
+        double outsideArea=0;
+        CHECK(townDrawing.layers[0].quads.size()==1 && townDrawing.quads==5);
+        for(auto q:townDrawing.layers[0].redQuads) {
+            outsideArea+=(q.c.x-q.a.x)*(q.c.y-q.a.y);
+            CHECK(q.c.x<=2 || q.a.x>=8 || q.c.y<=3 || q.a.y>=7);
+        }
+        CHECK(outsideArea==76);
     }
     {
         styled_map::ChunkedMap cached;
@@ -169,6 +180,48 @@ int main() {
         cached.floor().ingest(48,-32,20,64,std::vector<std::uint16_t>(20*64,0));
         CHECK(cached.floor().connect({50,0}));growing.revealAround({50,0},60);
         sameDrawing(cached.build(growing),cached.floor().build(growing));
+    }
+    // Boundary width changes cannot alter discovery or invent unloaded floors.
+    {
+        styled_map::ChunkedMap cached;
+        exploration::Mask visible(.25);visible.revealAround({-2,3},60);
+        const auto cells=visible.size();
+        CHECK(cached.build(visible).quads==0);
+        double lastArea=0;
+        for(int width:{6,12,18,24}) {
+            const auto drawing=cached.build(visible,width,true);
+            sameDrawing(drawing,cached.floor().build(visible,nullptr,width,true));
+            CHECK(drawing.quads>0 && drawing.walls.empty() && visible.size()==cells);
+            double area=0;
+            for(const auto& layer:drawing.layers) {
+                CHECK(layer.quads.empty());
+                for(const auto& q:layer.redQuads) {
+                    area+=(q.c.x-q.a.x)*(q.c.y-q.a.y);
+                    for(double y=q.a.y+.125;y<q.c.y;y+=.25)for(double x=q.a.x+.125;x<q.c.x;x+=.25)
+                        CHECK(visible.contains({x,y}));
+                }
+            }
+            CHECK(area>lastArea);lastArea=area;
+            sameDrawing(cached.build(visible,width,true),drawing);CHECK(cached.rebuiltChunks==0);
+        }
+        // Loaded wall cells replace provisional unknown-space boundary, never
+        // become floor or retain stale chunk geometry after ingestion.
+        cached.floor().ingest(-20,-20,40,40,std::vector<std::uint16_t>(1600,1));
+        sameDrawing(cached.build(visible,24,true),cached.floor().build(visible,nullptr,24,true));
+        CHECK(cached.build(visible,24,true).quads==0);
+        CHECK(cached.build(visible,12,false).quads==0);
+        styled_map::Worker worker;auto request=std::make_unique<styled_map::BuildRequest>();
+        request->session=4;request->level=2;request->boundaryThroughUnknown=true;request->boundaryWidth=18;
+        request->visible.spans=visible.rows();request->player={-2,3};worker.submit(std::move(request));
+        bool received=false;const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+        while(std::chrono::steady_clock::now()<deadline) {
+            if(auto result=worker.take()) {
+                CHECK(result->success && result->boundaryThroughUnknown && result->floorCells==0 && result->drawing.quads>0);
+                received=true;break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        CHECK(received);
     }
     // Optional original development fixture; synthetic coverage above is mandatory.
     char* probeValue=nullptr;std::size_t probeLength=0;

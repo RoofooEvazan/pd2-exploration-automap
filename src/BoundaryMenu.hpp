@@ -32,11 +32,13 @@ using SelectColor=bool(*)(BoundaryColor);
 using CurrentColor=BoundaryColor(*)();
 using SelectStyle=bool(*)(unsigned);
 using CurrentStyle=unsigned(*)();
-inline constexpr unsigned styleRow=8,boundaryRow=9,wallRow=10,backRow=11;
-inline constexpr std::array<const wchar_t*,3> styleLabels{L"Native",L"Hybrid",L"Styled"};
-inline std::array<Entry,12> entries{};
+inline constexpr unsigned mapsRow=8,campaignRow=9,backRow=10;
+inline constexpr unsigned boundaryRow=1,wallRow=2,styleRow=3,stylingBackRow=4;
+inline constexpr std::array<const wchar_t*,4> styleLabels{L"Original",L"Native",L"Hybrid",L"Styled"};
+inline std::array<Entry,11> entries{};
+inline std::array<Entry,5> stylingEntries{};
 inline std::array<Entry,boundaryPresets.size()+2> pickerEntries{};
-inline Menu menu{},pickerMenu{};
+inline Menu menu{},stylingMenu{},pickerMenu{};
 inline Entry** activeEntries=nullptr;
 inline Menu** activeMenu=nullptr;
 inline DWORD* selection=nullptr;
@@ -54,15 +56,28 @@ inline CurrentStyle currentStyle=nullptr;
 inline bool styleSaveFailed=false;
 inline bool installed=false,saveFailed=false;
 inline bool pickingWalls=false;
+inline bool editingMaps=true;
 inline void activate(Menu& descriptor,Entry* rows,DWORD selected) {
     *activeEntries=rows;*activeMenu=&descriptor;
     *selection=selected;*escapeSelection=descriptor.count-1;
 }
 inline BOOL __fastcall back(Entry*,void*) {
-    if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
-       *activeEntries!=pickerEntries.data() || *activeMenu!=&pickerMenu)return FALSE;
-    activate(menu,entries.data(),pickingWalls?wallRow:boundaryRow);saveFailed=false;return TRUE;
+    if(!activeEntries || !activeMenu || !selection || !escapeSelection)return FALSE;
+    if(*activeEntries==pickerEntries.data() && *activeMenu==&pickerMenu)
+        activate(stylingMenu,stylingEntries.data(),pickingWalls?wallRow:boundaryRow);
+    else if(*activeEntries==stylingEntries.data() && *activeMenu==&stylingMenu)
+        activate(menu,entries.data(),editingMaps?mapsRow:campaignRow);
+    else return FALSE;
+    saveFailed=styleSaveFailed=false;return TRUE;
 }
+inline BOOL openStyling(bool maps) {
+    if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
+       *activeEntries!=entries.data() || *activeMenu!=&menu)return FALSE;
+    editingMaps=maps;styleSaveFailed=false;
+    activate(stylingMenu,stylingEntries.data(),boundaryRow);return TRUE;
+}
+inline BOOL __fastcall openMaps(Entry*,void*) {return openStyling(true);}
+inline BOOL __fastcall openCampaign(Entry*,void*) {return openStyling(false);}
 inline BOOL __fastcall choose(Entry* row,void*) {
     if(!activeEntries || *activeEntries!=pickerEntries.data())return FALSE;
     for(unsigned i=0;i<boundaryPresets.size();++i)if(row==&pickerEntries[i+1]) {
@@ -75,7 +90,7 @@ inline BOOL __fastcall choose(Entry* row,void*) {
 }
 inline BOOL openPicker(bool walls) {
     if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
-       *activeEntries!=entries.data() || *activeMenu!=&menu)return FALSE;
+       *activeEntries!=stylingEntries.data() || *activeMenu!=&stylingMenu)return FALSE;
     pickingWalls=walls;saveFailed=false;
     auto color=static_cast<unsigned>((walls?currentWallColor:currentColor)());
     if(color>=boundaryPresets.size())color=walls?static_cast<unsigned>(BoundaryColor::Gray):0;
@@ -84,8 +99,8 @@ inline BOOL openPicker(bool walls) {
 inline BOOL __fastcall openBoundary(Entry*,void*) {return openPicker(false);}
 inline BOOL __fastcall openWalls(Entry*,void*) {return openPicker(true);}
 inline BOOL __fastcall cycleStyle(Entry* row,void*) {
-    if(!activeEntries || !activeMenu || *activeEntries!=entries.data() || *activeMenu!=&menu ||
-       row!=&entries[styleRow] || !selectStyle || !currentStyle)return FALSE;
+    if(!activeEntries || !activeMenu || *activeEntries!=stylingEntries.data() || *activeMenu!=&stylingMenu ||
+       row!=&stylingEntries[styleRow] || !selectStyle || !currentStyle)return FALSE;
     styleSaveFailed=!selectStyle((currentStyle()+1)%styleLabels.size());return TRUE;
 }
 inline void bindActive(unsigned char* pd,unsigned char* client) {
@@ -102,12 +117,15 @@ inline void bindActive(unsigned char* pd,unsigned char* client) {
     }
 }
 inline void makeMenu(const Menu& source,const Entry* sourceEntries) {
-    menu=source;menu.count=DWORD(entries.size());menu.spacing=33;menu.textHeight=32;menu.barHeight=32;
+    menu=source;menu.count=DWORD(entries.size());menu.spacing=36;menu.textHeight=32;menu.barHeight=32;
     std::copy_n(sourceEntries,8,entries.begin());
-    entries[styleRow]=Entry{};entries[styleRow].press=cycleStyle;
-    entries[boundaryRow]=Entry{};entries[boundaryRow].press=openBoundary;
-    entries[wallRow]=Entry{};entries[wallRow].press=openWalls;
+    entries[mapsRow]=Entry{};entries[mapsRow].press=openMaps;
+    entries[campaignRow]=Entry{};entries[campaignRow].press=openCampaign;
     entries[backRow]=sourceEntries[8];
+    stylingMenu=source;stylingMenu.count=DWORD(stylingEntries.size());
+    stylingEntries={};stylingEntries[0].type=0xffffffff;
+    stylingEntries[boundaryRow].press=openBoundary;stylingEntries[wallRow].press=openWalls;
+    stylingEntries[styleRow].press=cycleStyle;stylingEntries[stylingBackRow].press=back;
     pickerMenu=source;pickerMenu.count=DWORD(pickerEntries.size());
     pickerMenu.spacing=25;pickerMenu.textHeight=22;pickerMenu.barHeight=24;
     pickerEntries={};pickerEntries[0].type=0xffffffff;
@@ -121,15 +139,21 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
     wchar_t label[96]{};
     DWORD font=2,color=4; // Native Font30 matches the existing option artwork.
     if(*activeEntries==entries.data()) {
+        if(y==int(entries[mapsRow].y+menu.textHeight))swprintf_s(label,L"Maps Styling");
+        else if(y==int(entries[campaignRow].y+menu.textHeight))swprintf_s(label,L"Campaign Styling");
+    } else if(*activeEntries==stylingEntries.data()) {
         const wchar_t* value=nullptr;
-        if(y==int(entries[styleRow].y+menu.textHeight) && currentStyle) {
-            swprintf_s(label,L"Map Style");
+        if(y==int(stylingEntries[0].y+stylingMenu.textHeight))
+            swprintf_s(label,L"%s",editingMaps?L"Maps Styling":L"Campaign Styling");
+        else if(y==int(stylingEntries[stylingBackRow].y+stylingMenu.textHeight))swprintf_s(label,L"Back");
+        else if(y==int(stylingEntries[styleRow].y+stylingMenu.textHeight) && currentStyle) {
+            swprintf_s(label,L"Stylization");
             const unsigned selected=currentStyle();
             value=styleSaveFailed?L"Save failed":styleLabels[selected<styleLabels.size()?selected:1];
             if(styleSaveFailed)color=1;
-        } else if(y==int(entries[boundaryRow].y+menu.textHeight))
+        } else if(y==int(stylingEntries[boundaryRow].y+stylingMenu.textHeight))
             {swprintf_s(label,L"Boundary Color");value=boundaryPreset(currentColor()).label;}
-        else if(y==int(entries[wallRow].y+menu.textHeight))
+        else if(y==int(stylingEntries[wallRow].y+stylingMenu.textHeight))
             {swprintf_s(label,L"Wall Color");value=boundaryPreset(currentWallColor()).label;}
         if(value) {
             // Native option labels start 230 pixels left of center; values

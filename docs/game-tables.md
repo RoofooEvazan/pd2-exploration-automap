@@ -4,7 +4,7 @@ The plugin reads definitions through the installed game's file resolver. The sup
 
 ## Behavior
 
-`ExplorationRuntime.cpp` reads appearance settings during initialization and defers table loading until the first automap callback with a valid player. This avoids resolving base-game files before PD2 mounts its own archives. Opening another area or growing exploration does not repeat table I/O. Switching from Native can load previously unnecessary style tables. Restart after changing game files.
+`ExplorationRuntime.cpp` reads appearance settings during initialization and defers table loading until the first automap callback with a valid player. This avoids resolving base-game files before PD2 mounts its own archives. Opening another area or growing exploration does not repeat table I/O. Switching from Original can load previously unnecessary style tables. Restart after changing game files.
 
 `GameTables.hpp` binds the already loaded native `Storm.dll`. It uses `SFileOpenFile` (ordinal 267), which consults the game's direct-access setting before delegating to `SFileOpenFileEx` and its mounted archive search. This preserves active `-direct` overrides without guessing archive names, priorities, or language settings. Calling `OpenFileEx` with scope zero alone would bypass direct overrides in this Storm build.
 
@@ -12,7 +12,7 @@ The current build requests `Levels.txt` and `Objects.txt` under `data/global/exc
 
 Every successful file open has an owner that closes the handle after parsing input is copied, including failed reads and C++ exceptions. Empty files, sizes over 16 MiB, nonzero high size words, failed reads and short reads are rejected. Owned input buffers are temporary; the existing compact classification/layer caches remain. Table parsers retain their row and schema limits.
 
-Missing or malformed required artwork definitions make Hybrid and Styled use clipped-native fallback. Missing layer definitions retain separate area histories. Missing or malformed shrine/event definitions disable the affected icon fallback without disabling native drawing; see [shrine and event icons](map-markers.md). Map Style Native retains original rendering. Each attempted file logs `TABLE <name>: ready; bytes=...; source=game file resolver` or a reason for failure; the `HYBRID`, `CAMPAIGN` and `STYLE` lines report parsing and selected behavior. A `ready` file read alone does not prove its schema was accepted.
+Missing or malformed required artwork definitions make Hybrid and Styled use clipped-native fallback. Missing layer definitions retain separate area histories. Missing or malformed shrine/event definitions disable the affected icon fallback without disabling native drawing; see [shrine and event icons](map-markers.md). Original retains unchanged game rendering. Each attempted file logs `TABLE <name>: ready; bytes=...; source=game file resolver` or a reason for failure; the `HYBRID`, `CAMPAIGN` and `STYLE` lines report parsing and selected behavior. A `ready` file read alone does not prove its schema was accepted.
 
 ## Compatibility
 

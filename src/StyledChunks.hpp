@@ -5,7 +5,9 @@
 namespace styled_map {
 // All cache mutation happens on the existing single worker thread.
 class ChunkedMap {
-    static constexpr int side=64,padding=14; // Fine cells; the largest filter reaches 13.
+    static constexpr int side=64;
+    int padding=14,width_=12;
+    bool throughUnknown_=false;
     using Key=std::pair<int,int>;
     Level floor_;
     Rows previousVisible_,previousFloor_,previousKnown_;
@@ -32,13 +34,13 @@ class ChunkedMap {
         }
     }
     static int divide(int n){return n/side-(n%side<0);}
-    static void mark(std::set<Key>& dirty,Span s,int y,int scale) {
+    void mark(std::set<Key>& dirty,Span s,int y,int scale) const {
         int left=s.first*scale-padding,right=s.second*scale+padding;
         int top=y*scale-padding,bottom=(y+1)*scale+padding;
         for(int cy=divide(top);cy<=divide(bottom-1);++cy)
             for(int cx=divide(left);cx<=divide(right-1);++cx)dirty.insert({cx,cy});
     }
-    static void changes(const Rows& old,const Rows& now,int scale,std::set<Key>& dirty) {
+    void changes(const Rows& old,const Rows& now,int scale,std::set<Key>& dirty) const {
         auto a=old.begin(),b=now.begin();
         while(a!=old.end() || b!=now.end()) {
             if(b==now.end() || (a!=old.end() && a->first<b->first)) {
@@ -63,7 +65,7 @@ class ChunkedMap {
             return it!=row.begin() && x<std::prev(it)->second;
         }
     };
-    static Window window(const Rows& rows,exploration::Rect bounds) {
+    Window window(const Rows& rows,exploration::Rect bounds) const {
         Window result;
         for(auto it=rows.lower_bound(bounds.top-padding);it!=rows.end() && it->first<bounds.bottom+padding;++it) {
             Row clipped;
@@ -109,7 +111,12 @@ public:
     std::size_t rebuiltChunks=0;
     Level& floor(){return floor_;}
     std::size_t chunkCount() const {return chunks_.size();}
-    template<class VisibleMask> Drawing build(const VisibleMask& visible) {
+    template<class VisibleMask> Drawing build(const VisibleMask& visible,int width=12,bool throughUnknown=false) {
+        width=std::clamp(width,6,24);
+        if(width_!=width || throughUnknown_!=throughUnknown) {
+            chunks_.clear();previousVisible_.clear();previousFloor_.clear();previousKnown_.clear();previousRevision_=0;
+            width_=width;throughUnknown_=throughUnknown;padding=width+2;
+        }
         std::set<Key> dirty;
         changes(previousVisible_,visible.rows(),1,dirty);
         if(previousRevision_!=floor_.revision) {
@@ -130,7 +137,7 @@ public:
             exploration::Rect bounds{minX*side,minY*side,(maxX+1)*side,(maxY+1)*side};
             auto view=window(visible.rows(),bounds);
             if(view.spans.empty()){for(auto key:group)chunks_.erase(key);continue;}
-            auto drawing=floor_.build(view,&bounds);replace(group,drawing);rebuiltChunks+=group.size();
+            auto drawing=floor_.build(view,&bounds,width_,throughUnknown_);replace(group,drawing);rebuiltChunks+=group.size();
         }
         previousVisible_=visible.rows();
         if(previousRevision_!=floor_.revision) {

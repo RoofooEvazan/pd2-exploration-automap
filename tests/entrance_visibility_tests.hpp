@@ -112,8 +112,9 @@ static void testEntranceVisibility() {
     put(memory,0xf16b0,10);put(memory,0x11c1f8,0);put(memory,0x11c1fc,0);
     put(memory,0xdbc48,100);put(memory,0xdbc4c,100);
     Transform t{10,0,0};Mask mask(.25);mask.revealAround(inverse({20,30},t),20);explored=&mask;
+    StyledState entranceFloor;entranceFloor.floorCells=1;styledCurrent=&entranceFloor;
     enabled=maskActive=styledActive=inPass=haveViewport=true;activeStyle=MapStyle::Hybrid;
-    styledCurrent=nullptr;nativeTownActive=false;
+    nativeTownActive=false;
     entranceExpectedAlpha=255;entranceExpectedRGB=0xffe07038;
     for(LONG level:{2L,92L,203L}) {
         observedLevel=level;++gameSerial;context[0]=308;entranceTestDraws=0;
@@ -128,7 +129,7 @@ static void testEntranceVisibility() {
     cellHook(context,10,40,&viewport,5);require(entranceCount==0 && forwardedCells==forwarded+1);
     context[0]=308;Mask hidden(.25);explored=&hidden;++gameSerial;
     cellHook(context,10,40,&viewport,5);require(entranceCount==0 && forwardedCells==forwarded+1);
-    explored=&emptyMask;enabled=true;maskActive=styledActive=inPass=haveViewport=false;activeStyle=MapStyle::Styled;
+    styledCurrent=nullptr;explored=&emptyMask;enabled=true;maskActive=styledActive=inPass=haveViewport=false;activeStyle=MapStyle::Styled;
     entrancePaletteDraw=nullptr;nativePalette=nullptr;client=nullptr;styledColor=nullptr;
     std::cout<<"PASS: entrance classification, palette signatures, +75% capped gain, both views, owned clips/UVs, bounded grouping and exception/fallback restoration\n";
 }

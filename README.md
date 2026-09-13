@@ -4,21 +4,22 @@ An exploration automap for Project Diablo 2, with shaded floors, wall contours a
 
 **[Download v0.2.0-beta.7 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.7)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
-Beta.7 adds Native / Hybrid / Styled selection, separate wall and boundary color lists, brighter entrance artwork, and a fixed 33-subtile reveal radius.
+The current source adds independent Maps Styling and Campaign Styling menus, Original / Native / Hybrid / Styled choices, boundary thickness, and earlier boundary drawing at area entrances. The beta.7 download above still has the previous combined menu.
 
 This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. The release contains no game or renderer binaries other than the plugin itself.
 
 ## Map styles
 
-Open the automap once in a game, then go to **Options → Automap Options → Map Style**. Select the row to cycle styles. Changes apply immediately to campaign areas and endgame maps, in both fullscreen and corner views.
+Open the automap once in a game, then go to **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each group has its own Boundary Color, Wall Color and Stylization. Changes apply immediately to that group, in both fullscreen and corner views.
 
 | Style | Appearance |
 | --- | --- |
-| **Native** | Original game automap, without custom clipping, shading, contours or entrance emphasis. |
+| **Original** | Unchanged game automap, without custom clipping, shading, contours or entrance emphasis. |
+| **Native** | Original artwork with exploration clipping and a colored boundary, without custom floor shading or contours. |
 | **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. |
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
 
-Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
+Native, Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
 
 Connected campaign areas on the same native map layer retain their explored terrain across zone transitions. Exploration lasts for the current game session and is not saved to disk. See [map styles](docs/map-styles.md) for fallback behavior and legacy INI compatibility.
 
@@ -77,13 +78,13 @@ Requirements: an installed copy of Diablo II / Project Diablo 2, the supported D
 
 The plugin reads tables automatically from the installed game's archives or active direct overrides. No manual extraction or separate table download is needed. See [table loading](docs/game-tables.md) if hooks install but styling is missing.
 
-**Upgrading:** replace the DLL with the game closed. Existing style/color preferences continue to load. Choosing Map Style in the menu saves one preference for both campaign and maps, overriding older separate style keys. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
+**Upgrading:** replace the DLL with the game closed. Existing style/color preferences continue to load. Each group inherits legacy preferences until its own keys are saved. Old `MapStyle=native` remains untouched game rendering, now called Original. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
 
 **Uninstalling:** close the game, remove only the plugin's loader entry, and remove its DLL and INI. The DLL is dormant without `-exploration-test`; unloading it from a running game is unsupported.
 
 ## Appearance settings
 
-**Boundary Color** and **Wall Color** open separate lists in Automap Options. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
+**Boundary Color** and **Wall Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
 
 Both lists offer Red, Neon Green, Magenta, Cyan, Light Blue, Orange, Pale Blue, Pale Yellow, Pale Green, Pale Peach, Pale Lemon, Gray and White. Wall color affects custom contours; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
@@ -91,11 +92,21 @@ Default `ExplorationMask.ini`:
 
 ```ini
 [Automap]
-MapStyle=hybrid
 OverlayOpacity=80
+BoundaryThickness=1.0
+
+[Maps]
+Style=hybrid
+BoundaryColor=red
+WallColor=gray
+
+[Campaign]
+Style=hybrid
 BoundaryColor=red
 WallColor=gray
 ```
+
+`BoundaryThickness` scales the reveal-edge width from 0.5–2.0; 1.0 keeps the default. It does not alter the fixed reveal radius or wall width.
 
 `OverlayOpacity` scales custom fullscreen alpha from 10–100%. The default is 80%. D2GL's corner minimap uses fixed capture opacity. Manual INI edits require a restart; menu changes do not.
 

@@ -151,24 +151,31 @@ class Level {
         for(auto s:rowAt(floor_.rows(),floor_div(y,4)))result.push_back({s.first*4,s.second*4});
         return result;
     }
-    Rows openFrontier(const Rows& visible) const {
+    Row boundarySpace(int y,const Row& spans,bool throughUnknown) const {
+        if(!throughUnknown)return overlap(spans,fineFloor(y));
+        Row blocked;
+        for(auto s:subtract(rowAt(known_.rows(),floor_div(y,4)),rowAt(floor_.rows(),floor_div(y,4))))
+            blocked.push_back({s.first*4,s.second*4});
+        return subtract(spans,blocked);
+    }
+    Rows openFrontier(const Rows& visible,int width,bool throughUnknown) const {
         Rows seeds;
         for(const auto& entry:visible) {
-            int y=entry.first;Row row;const auto floor=fineFloor(y);
+            int y=entry.first;Row row;
             for(int dy:{-1,1}) {
-                auto edge=overlap(overlap(subtract(entry.second,rowAt(visible,y+dy)),floor),fineFloor(y+dy));
+                auto edge=boundarySpace(y+dy,boundarySpace(y,subtract(entry.second,rowAt(visible,y+dy)),throughUnknown),throughUnknown);
                 row.insert(row.end(),edge.begin(),edge.end());
             }
             for(auto s:entry.second) {
                 for(int side:{-1,1}) {
                     int x=side<0?s.first:s.second-1,outside=x+side;
-                    if(floor_.contains({(x+.5)*.25,(y+.5)*.25}) && floor_.contains({(outside+.5)*.25,(y+.5)*.25}))
+                    if(!boundarySpace(y,{{x,x+1}},throughUnknown).empty() && !boundarySpace(y,{{outside,outside+1}},throughUnknown).empty())
                         row.push_back({x,x+1});
                 }
             }
             if(!row.empty()){normalize(row);seeds.emplace(y,std::move(row));}
         }
-        return dilate(seeds,12);
+        return dilate(seeds,width);
     }
     void buildWalls() {
         permanentWalls_.clear();
@@ -248,24 +255,26 @@ public:
     bool contains(Point p) const {return floor_.contains(p);}
     std::size_t size() const {return floor_.size();}
     std::size_t roomCount() const {return rooms_.size();}
-    template<class VisibleMask> Drawing build(const VisibleMask& explored,const exploration::Rect* region=nullptr) {
+    template<class VisibleMask> Drawing build(const VisibleMask& explored,const exploration::Rect* region=nullptr,int width=12,bool throughUnknown=false) {
         Drawing drawing;
         if(wallRevision_!=revision)buildWalls();
         const auto& visible=explored.rows();
-        // Frontier color requires known open floor on both sides of the mask edge.
-        const auto open=openFrontier(visible);
+        // Loaded solid terrain stops the frontier. During area loading, unknown
+        // space may carry the exploration edge, but never floor shading or walls.
+        width=std::clamp(width,6,24);
+        const auto open=openFrontier(visible,width,throughUnknown);
         constexpr int radii[]={0,1,3,5,7,9,12};
         Rows outer=visible;
         for(std::size_t layer=0;layer<drawing.layers.size();++layer) {
-            Rows inner=layer+1<drawing.layers.size()?erode(visible,radii[layer+1]):Rows{};
+            Rows inner=layer+1<drawing.layers.size()?erode(visible,std::max(1,(radii[layer+1]*width+6)/12)):Rows{};
             // Join equal runs vertically; every floor point belongs to exactly
             // one shade band, avoiding darkening from repeated alpha blending.
             Rows grayRows,redRows;
             for(const auto& entry:outer) {
                 int y=entry.first;
-                Row spans=overlap(subtract(entry.second,rowAt(inner,y)),fineFloor(y));
-                Row red=layer+1<drawing.layers.size()?overlap(spans,rowAt(open,y)):Row{};
-                Row gray=subtract(spans,red);
+                Row band=subtract(entry.second,rowAt(inner,y));
+                Row red=layer+1<drawing.layers.size()?overlap(boundarySpace(y,band,throughUnknown),rowAt(open,y)):Row{};
+                Row gray=subtract(overlap(band,fineFloor(y)),red);
                 if(!gray.empty())grayRows.emplace(y,std::move(gray));
                 if(!red.empty())redRows.emplace(y,std::move(red));
             }

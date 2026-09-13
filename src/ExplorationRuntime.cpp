@@ -77,6 +77,17 @@ static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
 static exploration::BoundaryColor wallColor=exploration::BoundaryColor::Gray;
+struct AppearanceColors {
+    exploration::BoundaryColor boundary=exploration::BoundaryColor::Red,wall=exploration::BoundaryColor::Gray;
+};
+static AppearanceColors campaignColors,mapsColors;
+static bool activeMaps=false;
+static double boundaryThickness=1.0;
+static int boundaryBandWidth=12;
+static void activateColors(bool maps) {
+    activeMaps=maps;const auto& colors=maps?mapsColors:campaignColors;
+    boundaryColor=colors.boundary;wallColor=colors.wall;
+}
 static DWORD fractionalTint=0;
 static std::string settingsPath;
 static DWORD overlayAlpha(DWORD alpha){return (alpha*overlayOpacity+50)/100;}
@@ -85,6 +96,7 @@ struct StyledState {
     styled_map::FloorCopies floor;
     styled_map::Drawing drawing;
     std::size_t queuedRooms=0,queuedMask=0,floorCells=0;
+    bool queuedTownExcluded=false,drawingTownExcluded=false;
     DWORD submitted=0;
 };
 // Process-lifetime worker: its owned data stays valid during CRT/DLL teardown.
@@ -338,7 +350,7 @@ static PlayerState updateTownBoundary(const PlayerState& p,DWORD now) {
     if(townBoundary.nearOutside && (x!=townBoundary.revealX || y!=townBoundary.revealY)) {
         explored->revealAround({p.x,p.y},revealRadius);townBoundary.revealX=x;townBoundary.revealY=y;
     }
-    activeStyle=styleForLevel(outdoor.level);
+    activeStyle=styleForLevel(outdoor.level);activateColors(outdoor.level>132);
     if(activeStyle==MapStyle::Original){maskActive=false;nativeTownActive=false;return outdoor;}
     outdoor.x=townBoundary.connection.x;outdoor.y=townBoundary.connection.y;
     ++townPreviewPasses;return outdoor;
@@ -373,11 +385,11 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         artworkBounds.clear();
     }
     const bool town=isTown(p.level);
-    activeStyle=styleForLevel(p.level);
+    activeStyle=styleForLevel(p.level);activateColors(p.level>132);
     const bool selected=p.level>0 && !town && (targetLevel==0 || p.level==targetLevel);
     maskActive=enabled && selected && activeStyle!=MapStyle::Original;
     explored=selected?&explorationSession.select(gameSerial,levelKey):&emptyMask;
-    // Keep lightweight discovery history while Native is selected, but leave
+    // Keep lightweight discovery history while Original is selected, but leave
     // all of its rendering untouched and skip floor capture/worker submission.
     if(enabled && selected) {
         int x=static_cast<int>(floor(p.x/maskCellSize)),y=static_cast<int>(floor(p.y/maskCellSize));
@@ -407,14 +419,15 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
     styledActive=false;
     if(!maskActive || !styledWorker || !styledArray || !styledColor || strstr(GetCommandLineA(),"-exploration-floor-probe"))return;
     try {
-        static std::uint64_t serial=0,selected=0;static DWORD sampled=0;
+        static std::uint64_t serial=0,selected=0;static DWORD sampled=0,selectedArea=0;
         if(serial!=gameSerial){styledLevels.clear();styledCurrent=nullptr;preparedFloors.reset();preparedOwner=nullptr;serial=gameSerial;selected=0;}
-        const bool changedArea=selected!=levelKey;
-        if(changedArea){sampled=0;selected=levelKey;}
+        const bool changedArea=selected!=levelKey || selectedArea!=p.level;
+        if(changedArea){selected=levelKey;selectedArea=p.level;}
         if(auto result=styledWorker->take()) {
             auto it=styledLevels.find(result->level);
             if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
                 it->second.drawing=std::move(result->drawing);it->second.floorCells=result->floorCells;
+                it->second.drawingTownExcluded=result->excludesTown;
                 preparedFloors=std::move(result->preparedFloors);preparedOwner=&it->second;preparedSerial=gameSerial;
                 styledBuildMs=result->milliseconds;
                 styledLatencyMs=result->latencyMilliseconds;styledRebuiltChunks=result->rebuiltChunks;styledTotalChunks=result->totalChunks;
@@ -422,19 +435,21 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
         }
         auto& state=styledLevels[levelKey];styledCurrent=&state;
         if(changedArea){state.queuedMask=0;state.submitted=0;}
-        if(GetTickCount()-sampled>=250) {
+        if(changedArea || GetTickCount()-sampled>=250) {
             sampled=GetTickCount();
             floor_reader::capture(client,p.level,[&](const floor_reader::Room& r){return state.floor.wanted(r.x,r.y,r.width,r.height);},
                 [&](const floor_reader::Room& r,const std::vector<std::uint16_t>& grid){state.floor.ingest(r.x,r.y,r.width,r.height,grid);});
         }
-        if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size()) && GetTickCount()-state.submitted>=40) {
+        if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size() || state.queuedTownExcluded!=nativeTownActive) && GetTickCount()-state.submitted>=40) {
             auto request=std::make_unique<styled_map::BuildRequest>();
             request->session=gameSerial;request->level=levelKey;request->maskSize=explored->size();request->player={p.x,p.y};
             request->visible.spans=explored->rows();request->rooms=state.floor.rooms;
+            request->boundaryWidth=boundaryBandWidth;
+            request->boundaryThroughUnknown=true;request->excludeTown=nativeTownActive;request->townBounds=townBoundary.bounds;
             styledWorker->submit(std::move(request));
-            state.queuedRooms=state.floor.rooms.size();state.queuedMask=explored->size();state.submitted=GetTickCount();
+            state.queuedRooms=state.floor.rooms.size();state.queuedMask=explored->size();state.queuedTownExcluded=nativeTownActive;state.submitted=GetTickCount();
         }
-        styledActive=state.drawing.quads>0;
+        styledActive=state.drawing.quads>0 && (!nativeTownActive || state.drawingTownExcluded);
     } catch(...) {styledCurrent=nullptr;log("Styled map unavailable; retaining normal artwork clipping.");}
 }
 static void update() {
@@ -711,7 +726,8 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
     try {
         DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
         const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
-        const bool styledOnly=activeStyle==MapStyle::Styled && styledActive;
+        const bool terrainReady=styledActive && styledCurrent && styledCurrent->floorCells>0;
+        const bool styledOnly=activeStyle==MapStyle::Styled && terrainReady;
         const bool importantDetail=knownFrame && (hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id));
         if(mapMarkersActive() && !markerArtworkFile) {
             FrameSource source{};if(frameSource(ctx,&source)){markerArtworkFile=const_cast<void*>(source.file);markerDrawMode=mode;}
@@ -731,7 +747,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             if(styledActive && styledOnly && !importantDetail && (!nativeTownActive || !townInViewport)){++suppressed;return;}
         }
         const bool townOnly=nativeTownActive && !nativeArtwork() && !importantDetail && (isTown(observedLevel) || styledActive);
-        const bool hybrid=activeStyle==MapStyle::Hybrid && styledActive && hybridArtwork.loaded();
+        const bool hybrid=activeStyle==MapStyle::Hybrid && terrainReady && hybridArtwork.loaded();
         bool replaceWall=false,traceSewer=false,traceWater=false;
         if(hybrid) {
             // frameBounds below validates the complete context before any draw.
@@ -889,6 +905,7 @@ static void drawStyled(const Transform& t,Rect viewport) {
     static std::vector<const void*> pointers;
     const bool prepared=preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial;
     for(std::size_t i=0;i<styledCurrent->drawing.layers.size();++i)for(int red:{0,1}) {
+        if(activeStyle==MapStyle::Native && !red)continue;
         const auto& layer=styledCurrent->drawing.layers[i];
         vertices.clear();pointers.clear();
         auto append=[&](const styled_map::Quad& clipped){
@@ -908,7 +925,6 @@ static void drawStyled(const Transform& t,Rect viewport) {
         originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,layer.alpha);
         styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     }
-    // Legacy clipped-native mode retains native terrain over the shaded floor.
     if(activeStyle==MapStyle::Hybrid){
         // Sewer wall faces and floor-edge contours are offset from one another.
         // Their matching artwork traces are queued by cellHook and batched in
@@ -917,7 +933,7 @@ static void drawStyled(const Transform& t,Rect viewport) {
         return;
     }
     if(activeStyle==MapStyle::Styled){drawHybridWalls(t,viewport);return;}
-    // Legacy clipped-native mode stops after floor shading and reveal bands.
+    // Native retains the original artwork and adds only the reveal boundary.
 }
 static void queueWaterGeometry(const Transform& t,Rect viewport) {
     static std::vector<Rect> clips;
@@ -964,9 +980,63 @@ static void drawMapMarkers() {
         cellHook(context,x,y,&viewport,markerDrawMode);++markersDrawn;
     }
 }
+// D2Client 1.13c +60C40 derives these clip limits before walking its tile lists.
+// Read the same inputs when those lists are empty; D2GL still captures this pass.
+static bool emptyPassViewport(Rect& viewport) {
+    if(!client)return false;
+    int w=read<int>(client,0xdbc48),h=read<int>(client,0xdbc4c);
+    int mapW=read<int>(client,0xf9e14),mapH=read<int>(client,0xf9e18);
+    if(w<1 || w>10000 || h<1 || h>10000 || mapW<1 || mapW>10000 || mapH<1 || mapH>10000)return false;
+    viewport={0,0,std::min(w,mapW+16),std::min(h,mapH+33)};
+    if(read<int>(client,0x11c1b0)==1) {
+        int x=read<int>(client,0x11c23c),y=read<int>(client,0x11c238);
+        if(x<0 || x>w || y<0 || y>h)return false;
+        viewport=exploration::intersect({x-8,y-15,x+mapW/3+8,y+mapH/3+17},{0,0,w,h});
+    }
+    return viewport.left<viewport.right && viewport.top<viewport.bottom;
+}
+static void drawEntryFrontier(const Transform& t,Rect viewport) {
+    if(!originalLine)return;
+    if(!styledArray || !styledColor) {
+        explored->frontier([&](Point a,Point b){a=project(a,t);b=project(b,t);
+            if(styled_map::clipStroke(a,b,viewport))drawFrontier(a,b,exploration::boundaryRGBA(boundaryColor,100,175));});
+        return;
+    }
+    static std::vector<GlideVertex> vertices;static std::vector<const void*> pointers;
+    vertices.clear();pointers.clear();
+    const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+    explored->frontier([&](Point a,Point b){
+        a=project(a,t);b=project(b,t);
+        if(!styled_map::clipStroke(a,b,viewport))return;
+        styled_map::Quad stroke{};if(!styled_map::strokeQuad(a,b,2.0*boundaryThickness,stroke))return;
+        Rect bounds=exploration::intersect({int(floor(std::min({stroke.a.x,stroke.b.x,stroke.c.x,stroke.d.x}))),
+            int(floor(std::min({stroke.a.y,stroke.b.y,stroke.c.y,stroke.d.y}))),
+            int(ceil(std::max({stroke.a.x,stroke.b.x,stroke.c.x,stroke.d.x}))),
+            int(ceil(std::max({stroke.a.y,stroke.b.y,stroke.c.y,stroke.d.y})))},viewport);
+        if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)return;
+        cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,0,[&](Rect clip){
+            styled_map::clipQuad(stroke,clip,[&](const styled_map::Quad& part){
+                if(vertices.size()+4>65536)return;
+                for(auto p:{part.a,part.b,part.c,part.d})vertices.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+            });
+        });
+    });
+    if(vertices.empty())return;
+    for(const auto& v:vertices)pointers.push_back(&v);
+    styledBatch=&pointers;styledBatchColor=exploration::boundaryRGBA(boundaryColor,100,175);styledRestoreColor=0x848484af;
+    originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,175);
+    styledBatch=nullptr;
+}
 static void endPass() {
     InterlockedIncrement(&endCount);
     try {
+        if(inPass && maskActive && !haveViewport) {
+            Transform t{};
+            if(transform(t) && emptyPassViewport(passViewport)) {
+                haveViewport=true;
+                if(styledActive && styledCurrent){drawStyled(t,passViewport);++styledPasses;}
+            }
+        }
         if(inPass && maskActive && haveViewport && styledActive && activeStyle==MapStyle::Hybrid && styledArray && styledColor) {
             if(!sewerWater.tiles().empty()){Transform t{};if(transform(t))queueWaterGeometry(t,passViewport);}
             static std::vector<const void*> pointers;
@@ -981,13 +1051,7 @@ static void endPass() {
         }
         sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
         if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
-            std::vector<std::pair<Point,Point>> lines;
-            contactFrontier.emit([&](Point a,Point b){lines.push_back({a,b});InterlockedIncrement(&frontierCount);});
-            if(!lines.empty()) {
-                frontierBatch=&lines;
-                drawFrontier(lines[0].first,lines[0].second,exploration::boundaryRGBA(boundaryColor,100,255));
-                frontierBatch=nullptr;
-            }
+            Transform t{};if(transform(t))drawEntryFrontier(t,passViewport);
         }
         drawEntrances();
         drawMapMarkers();
@@ -1077,44 +1141,45 @@ static MapStyle parseStyle(const char* value,MapStyle fallback) {
     if(_stricmp(value,"original")==0)return MapStyle::Original;
     return fallback;
 }
-// Public menu Native means the unmodified game automap. The old per-area
-// "native" INI value remains a compatibility fallback (clipped artwork).
-static constexpr MapStyle menuStyles[]={MapStyle::Original,MapStyle::Hybrid,MapStyle::Styled};
-static constexpr const char* menuStyleKeys[]={"native","hybrid","styled"};
+static constexpr MapStyle menuStyles[]={MapStyle::Original,MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled};
+static constexpr const char* menuStyleKeys[]={"original","native","hybrid","styled"};
+static const char* editingSection(){return exploration::boundary_menu::editingMaps?"Maps":"Campaign";}
+static AppearanceColors& editingColors(){return exploration::boundary_menu::editingMaps?mapsColors:campaignColors;}
+static exploration::BoundaryColor currentBoundaryColor(){return editingColors().boundary;}
+static exploration::BoundaryColor currentWallColor(){return editingColors().wall;}
 static unsigned currentMapStyle() {
-    const auto style=styleForLevel(observedLevel>0?DWORD(observedLevel):2);
-    return style==MapStyle::Original?0:style==MapStyle::Styled?2:1;
+    const auto style=exploration::boundary_menu::editingMaps?mapsStyle:campaignStyle;
+    for(unsigned i=0;i<std::size(menuStyles);++i)if(style==menuStyles[i])return i;
+    return 2;
 }
 static bool selectMapStyle(unsigned choice) {
     if(choice>=std::size(menuStyles))return false;
-    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap","MapStyle",menuStyleKeys[choice],settingsPath.c_str())) {
+    if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),"Style",menuStyleKeys[choice],settingsPath.c_str())) {
         log("Map style unchanged: unable to save ExplorationMask.ini.");return false;
     }
     const auto style=menuStyles[choice];
-    // A game started in Native may not have needed classification/event tables.
     if(style!=MapStyle::Original && (!hybridArtwork.loaded() || mapsStyle==MapStyle::Original))gameTablesPending=true;
-    campaignStyle=mapsStyle=activeStyle=style;
-    maskActive=nativeTownActive=townInViewport=styledActive=false;
-    entranceCount=entranceClipCount=0;entranceAlpha=-1;
-    lastX=lastY=-1;sawTarget=false;
-    // Keep exploration and completed geometry: changing appearance does not
-    // discard the player's visited areas or launch a fresh geometry rebuild.
-    if(logfile){fprintf(logfile,"APPEARANCE MapStyle=%s; campaign and maps; saved.\n",menuStyleKeys[choice]);fflush(logfile);}
+    (exploration::boundary_menu::editingMaps?mapsStyle:campaignStyle)=style;
+    if(exploration::boundary_menu::editingMaps==activeMaps) {
+        activeStyle=style;maskActive=nativeTownActive=townInViewport=styledActive=false;
+        entranceCount=entranceClipCount=0;entranceAlpha=-1;
+        lastX=lastY=-1;sawTarget=false;
+    }
+    if(logfile){fprintf(logfile,"APPEARANCE %s Style=%s; saved.\n",editingSection(),menuStyleKeys[choice]);fflush(logfile);}
     return true;
 }
 static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current) {
     if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
-    if(color==current)return true;
     const auto& preset=exploration::boundaryPreset(color);
-    if(settingsPath.empty() || !WritePrivateProfileStringA("Automap",key,preset.key,settingsPath.c_str())) {
+    if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),key,preset.key,settingsPath.c_str())) {
         log("Map color unchanged: unable to save ExplorationMask.ini.");return false;
     }
-    current=color;
-    if(logfile){fprintf(logfile,"APPEARANCE %s=%s; saved, geometry unchanged.\n",key,preset.key);fflush(logfile);}
+    current=color;activateColors(activeMaps);
+    if(logfile){fprintf(logfile,"APPEARANCE %s %s=%s; saved.\n",editingSection(),key,preset.key);fflush(logfile);}
     return true;
 }
-static bool selectBoundaryColor(exploration::BoundaryColor color) {return saveMapColor("BoundaryColor",color,boundaryColor);}
-static bool selectWallColor(exploration::BoundaryColor color) {return saveMapColor("WallColor",color,wallColor);}
+static bool selectBoundaryColor(exploration::BoundaryColor color) {return saveMapColor("BoundaryColor",color,editingColors().boundary);}
+static bool selectWallColor(exploration::BoundaryColor color) {return saveMapColor("WallColor",color,editingColors().wall);}
 static void ensureBoundaryMenu() {
     static bool attempted=false;
     if(attempted)return;
@@ -1122,30 +1187,44 @@ static void ensureBoundaryMenu() {
     if(!pd)return;
     attempted=true;
     const auto ok=exploration::boundary_menu::install(pd,client,
-        reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,[]{return boundaryColor;},
-        selectWallColor,[]{return wallColor;},selectMapStyle,currentMapStyle);
-    log(ok?"BOUNDARY menu installed in native Automap Options; Map Style and boundary/wall color lists.":
-        "BOUNDARY menu unavailable: supported menu signatures differ. INI color remains available.");
+        reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,currentBoundaryColor,
+        selectWallColor,currentWallColor,selectMapStyle,currentMapStyle);
+    log(ok?"BOUNDARY menu installed: independent Maps Styling and Campaign Styling.":
+        "BOUNDARY menu unavailable: supported menu signatures differ. INI settings remain available.");
 }
 static void loadAppearanceSettings(const std::string& settings) {
     settingsPath=settings;
-    char boundary[32]{};
-    GetPrivateProfileStringA("Automap","BoundaryColor","red",boundary,32,settings.c_str());
-    boundaryColor=exploration::parseBoundaryColor(boundary);
-    char wall[32]{};
-    GetPrivateProfileStringA("Automap","WallColor","gray",wall,32,settings.c_str());
-    wallColor=exploration::parseBoundaryColor(wall,exploration::BoundaryColor::Gray);
-    if(logfile){fprintf(logfile,"APPEARANCE BoundaryColor=%s WallColor=%s\n",
-        exploration::boundaryPreset(boundaryColor).key,exploration::boundaryPreset(wallColor).key);fflush(logfile);}
-    char campaign[32]{},maps[32]{};
-    GetPrivateProfileStringA("Automap","CampaignStyle","hybrid",campaign,32,settings.c_str());
-    GetPrivateProfileStringA("Automap","MapsStyle","hybrid",maps,32,settings.c_str());
-    campaignStyle=parseStyle(campaign,MapStyle::Hybrid);mapsStyle=parseStyle(maps,MapStyle::Hybrid);
-    char style[32]{};GetPrivateProfileStringA("Automap","MapStyle","",style,32,settings.c_str());
-    for(unsigned i=0;i<std::size(menuStyles);++i)if(_stricmp(style,menuStyleKeys[i])==0)campaignStyle=mapsStyle=menuStyles[i];
+    auto value=[&](const char* section,const char* key,const char* fallback) {
+        char text[64]{};GetPrivateProfileStringA(section,key,fallback,text,64,settings.c_str());return std::string(text);
+    };
+    AppearanceColors legacy;
+    legacy.boundary=exploration::parseBoundaryColor(value("Automap","BoundaryColor","red"));
+    legacy.wall=exploration::parseBoundaryColor(value("Automap","WallColor","gray"),exploration::BoundaryColor::Gray);
+    campaignStyle=parseStyle(value("Automap","CampaignStyle","hybrid").c_str(),MapStyle::Hybrid);
+    mapsStyle=parseStyle(value("Automap","MapsStyle","hybrid").c_str(),MapStyle::Hybrid);
+    auto oldStyle=value("Automap","MapStyle","");
+    // beta.7's single Native option meant an untouched automap. Keep that
+    // meaning for old files; the new per-group Style key is unambiguous.
+    if(_stricmp(oldStyle.c_str(),"native")==0)campaignStyle=mapsStyle=MapStyle::Original;
+    else if(!oldStyle.empty()) {
+        campaignStyle=parseStyle(oldStyle.c_str(),campaignStyle);mapsStyle=parseStyle(oldStyle.c_str(),mapsStyle);
+    }
+    for(bool maps:{false,true}) {
+        const char* section=maps?"Maps":"Campaign";
+        auto& style=maps?mapsStyle:campaignStyle;auto& colors=maps?mapsColors:campaignColors;
+        style=parseStyle(value(section,"Style","").c_str(),style);
+        colors.boundary=exploration::parseBoundaryColor(value(section,"BoundaryColor",""),legacy.boundary);
+        colors.wall=exploration::parseBoundaryColor(value(section,"WallColor",""),legacy.wall);
+    }
+    activateColors(activeMaps);
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
-    if(logfile){fprintf(logfile,"OVERLAY opacity=%u%%; custom geometry only. Tested D2GL corner-map capture retains its fixed alpha.\n",overlayOpacity);fflush(logfile);}
+    const auto width=value("Automap","BoundaryThickness","1.0");char* end=nullptr;
+    const double parsed=strtod(width.c_str(),&end);
+    boundaryThickness=end!=width.c_str() && *end=='\0' && std::isfinite(parsed) && parsed>=0.5 && parsed<=2.0?parsed:1.0;
+    boundaryBandWidth=int(lround(12*boundaryThickness));
+    if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f OverlayOpacity=%u\n",
+        styleName(campaignStyle),styleName(mapsStyle),boundaryThickness,overlayOpacity);fflush(logfile);}
 }
 static void loadStyles() {
     // Initialization precedes PD2 archive mounting; defer table reads until a player exists.
