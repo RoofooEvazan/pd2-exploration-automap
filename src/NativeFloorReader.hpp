@@ -80,9 +80,11 @@ inline bool groundTile(const Room& room,const void* tiles,int index,GroundTile* 
         auto entry=field<void*>(tile,0x18);if(!entry || field<int>(tile,0x1c)!=0 || field<int>(entry,0x14)!=0)return false;
         int x=field<int>(tile,8),y=field<int>(tile,12);
         if(x<0 || y<0 || x>room.width/5 || y>room.height/5)return false;
-        auto parent=field<const char*>(entry,0x38);if(!parent)return false;
+        // D2CMP 1.13c #10035/#10047 return entry+0x58 directly as the
+        // library name. The older +0x38 parent layout overlaps collision bytes.
+        auto library=field<const char*>(entry,0x58);if(!library)return false;
         result->x=room.x+x*5;result->y=room.y+y*5;result->type=field<int>(entry,0x18);
-        for(int i=0;i<260;++i){result->library[i]=parent[i];if(!parent[i])return true;}
+        for(int i=0;i<260;++i){result->library[i]=library[i];if(!library[i])return true;}
         return false;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }

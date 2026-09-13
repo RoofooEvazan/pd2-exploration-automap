@@ -7,10 +7,11 @@ static void testGroundBanks() {
     for(const char* name:{"Act1/Outdoors/stonewall.dt1","Act1/Outdoors/cliff1.dt1","Act3/Jungle/pond.dt1",
         "customact1/outdoors/pond.dt1","Act1/Outdoors/pond.dt1.extra",""})require(!grassyBankLibrary(name));
     std::array<DWORD,32> rawRoom{};std::array<DWORD,6> lists{};std::array<DWORD,24> tiles{};
-    std::array<DWORD,20> entry{};std::array<char,260> library{};
+    std::array<DWORD,24> entry{};std::array<char,260> library{};
     strcpy_s(library.data(),library.size(),"data\\global\\tiles\\Act1\\Outdoors\\pond.dt1");
     rawRoom[2]=reinterpret_cast<DWORD>(lists.data());lists[2]=reinterpret_cast<DWORD>(tiles.data());lists[3]=2;
-    entry[14]=reinterpret_cast<DWORD>(library.data());entry[6]=16;
+    entry[14]=0x01010101; // Real 1.13c collision bytes, not a library pointer.
+    entry[22]=reinterpret_cast<DWORD>(library.data());entry[6]=16;
     tiles[2]=1;tiles[3]=1;tiles[6]=reinterpret_cast<DWORD>(entry.data());
     tiles[14]=2;tiles[15]=1;tiles[18]=reinterpret_cast<DWORD>(entry.data());
     Room room{rawRoom.data(),nullptr,nullptr,2,100,200,15,15};
@@ -20,6 +21,9 @@ static void testGroundBanks() {
     grid[6*15+6]=0x181; // A transient occupant cannot change material classification.
     BankRead stats{};auto banks=copyBanks(room,grid,stats);
     require(stats.tiles==2 && stats.banks==2 && !stats.failures && banks.size()==225);
+    entry[22]=0;BankRead missingLibrary{};
+    require(copyBanks(room,grid,missingLibrary).empty() && missingLibrary.failures==2);
+    entry[22]=reinterpret_cast<DWORD>(library.data());
     for(int y=0;y<15;++y)for(int x=0;x<15;++x)
         require(bool(banks[y*15+x])==(x>=5 && x<10 && y>=5 && y<10 && (grid[y*15+x]&0x27)==1));
     lists[3]=16385;BankRead invalid{};require(copyBanks(room,grid,invalid).empty() && invalid.failures==1);
