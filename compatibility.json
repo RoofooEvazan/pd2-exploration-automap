@@ -2,19 +2,21 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "93490BC4419EECAFDA4B7CD01B70513AC9E9E26B3C237A7FAE8DFE7B5774EEAB",
-  "validation": "All three Win32 Release suites passed with optional artwork/table/archive fixtures. Includes fixed 33-subtile coverage, style switching, color menus, entrance rendering and icon preservation. The release uses the locally tested DLL; controlled long-session performance and broader map/version coverage remain under test. Offline testing only.",
+  "testedModuleSha256": "f00a5fdf5bb0ba53daacb04649476727b4653a572f92ddfe1c5c1e124325cd5e",
+  "validation": "All three Win32 Release suites passed with installed artwork/table/archive fixtures. Entry-wall and blinking corrections and Act 3 bank coloring were confirmed offline. The latest Act 1 raised-bank filename lookup has automated coverage; live confirmation is pending. Broad version coverage and long-session performance remain under test.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
     "glide3x.dll": "59599f7409a4c6ee7c8af97988e8d02d29c9177c3907a154a2b30ac7f076fba8",
     "D2Glide.dll": "7cf5907e9eb19b783b73fa45a5a7aa4491cb750e0d83df8c59b12d089310db6a",
     "D2Win.dll": "ff5cbb956f1a419e0e76fc2df3be21065bbba894770b8de7cce8bc55ec453736",
-    "Storm.dll": "cc848eb2fc29068fb61cb258c1c8b9e8a191c5543805939762ed835b50fb194d"
+    "Storm.dll": "cc848eb2fc29068fb61cb258c1c8b9e8a191c5543805939762ed835b50fb194d",
+    "D2Common.dll": "59fa5928522f566f2bf99675571206ad70df889c89d3d07fa87edf5083e06e10",
+    "D2CMP.dll": "2ee205f484161c5ed854f30aed12565a7ac3e97fd1a838e697aaefe4dc349756"
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.7",
+  "release": "v0.2.0-beta.8",
   "status": "BETA",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",

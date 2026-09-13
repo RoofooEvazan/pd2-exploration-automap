@@ -1,6 +1,6 @@
 # Gameplay screenshots
 
-Original-resolution screenshots from earlier beta builds. They show Hybrid terrain and five frontier colors; beta.7 adds a 33-subtile radius, three style choices and thirteen wall/boundary colors. The older menu image is not a guide to the current layout. FPS counters show individual moments, not sustained benchmarks.
+Original-resolution screenshots from earlier beta builds. They show Hybrid terrain and five frontier colors. The current release has a 33-subtile radius, four styles and thirteen wall/boundary colors, with separate campaign and map settings. The older menu image is not a guide to the current layout. FPS counters show individual moments, not sustained benchmarks.
 
 Expand an image to view it at full size.
 
@@ -27,7 +27,7 @@ Shaded terrain and a green frontier in the corner view.
 <details>
 <summary>Endgame map: rounded reveal</summary>
 
-An earlier 31-subtile reveal circle; beta.7 uses 33.
+An earlier 31-subtile reveal circle; the current release uses 33.
 
 ![Endgame map: rounded reveal](endgame-map-rounded-reveal.png)
 

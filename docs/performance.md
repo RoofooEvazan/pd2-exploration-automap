@@ -4,7 +4,7 @@ New terrain is built on one background worker. The game draws the latest complet
 
 ## Geometry caching
 
-`StyledChunks.hpp` retains 64×64 fine-cell regions and rebuilds those affected by exploration or newly connected floor. A 14-cell halo covers the shade filters. Half-open ownership prevents duplicate coverage at region boundaries, and adjacent matching quads are compacted before publication. Straight collinear wall fragments are joined without bridging gaps.
+`StyledChunks.hpp` retains 64×64 fine-cell regions and rebuilds those affected by exploration or newly connected floor. The shade-filter halo is 14 fine cells at default boundary thickness and grows to 26 at maximum thickness. Half-open ownership prevents duplicate coverage at region boundaries, and adjacent matching quads are compacted before publication. Straight collinear wall fragments are joined without bridging gaps.
 
 `PreparedFloors.hpp` prepares projected coordinates and bounds once per completed result. Per-frame rendering translates those coordinates for pan, rejects off-screen quads and clips viewport crossings. Both zooms retain double precision until submission. Preparation is capped at 65,536 quads, or 6 MiB of item payload per result. The render-side result, completed worker result and in-progress result can together hold up to 18 MiB of this payload, plus overhead. Larger drawings use the unprepared path.
 
@@ -18,7 +18,7 @@ New terrain is built on one background worker. The game draws the latest complet
 
 In the tested Poisoned Well definitions, `PW wall` and `PW outline` identify contour sprites, including blank filler frames. Treating them as details drew native terrain beside the modern contour and duplicated clipping work.
 
-Classification now recognizes those labels in table group 46, scoped to level 202. The inspected tables contain 289 matching frame IDs. Object references and unknown aliases within the group protect a frame from replacement; aliases in other areas remain independent. Textured water is retained. If modern geometry is unavailable, native rendering returns. The classification uses a fixed 64 KiB array.
+Classification recognizes those labels in table group 46, scoped to level 202. The inspected tables contain 289 matching frame IDs. Object references and unknown aliases within the group protect a frame from replacement; aliases in other areas remain independent. Textured water is retained. If modern geometry is unavailable, native rendering returns. The classification uses a fixed 64 KiB array.
 
 ## Transparent sprite padding
 

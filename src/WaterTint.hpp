@@ -1,5 +1,4 @@
-// Identify water-facing parts of existing contours from native floor tiles.
-// This cache changes color only; it never adds geometry or reveals terrain.
+// Cache color splits where native water tiles meet existing contours.
 #pragma once
 #include "StyledMap.hpp"
 #include <array>

@@ -9,18 +9,18 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
 | [BoundaryColors.hpp](BoundaryColors.hpp) | Defines thirteen boundary/wall presets, exact RGB values and renderer-specific default gray. |
-| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent Maps Styling and Campaign Styling submenus, each with style and color choices with native navigation, Escape handling and guarded resource ownership. |
+| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent Maps Styling and Campaign Styling submenus, each with style/color choices, native navigation and Escape handling. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |
 | [RasterClipCache.hpp](RasterClipCache.hpp) | Reuses exact artwork clipping across frames and map panning, with bounded storage and immediate coverage invalidation. |
 | [HybridArtwork.hpp](HybridArtwork.hpp) | Identifies replaceable walls, area-specific contours and entrance artwork from active tables; entrance emphasis is independent of geometry roles. |
 | [ArtworkBounds.hpp](ArtworkBounds.hpp) | Caches occupied sprite bounds so retained native artwork avoids clipping transparent padding without changing its visible pixels. |
 | [CampaignLayers.hpp](CampaignLayers.hpp) | Reads expected campaign layers so adjoining areas share explored maps and stale transition callbacks cannot mix separate layers. |
-| [NativeWallTrace.hpp](NativeWallTrace.hpp) | Builds straight sewer wall profiles with shared endpoints, checking them against native artwork before replacement. |
+| [NativeWallTrace.hpp](NativeWallTrace.hpp) | Builds validated sewer wall profiles and Act 1 riverbank traces with shared endpoints. |
 | [SewerWater.hpp](SewerWater.hpp) | Joins sewer water tiles into channel outlines and reuses unchanged perimeters without rebuilding internal seams each frame. |
 | [WaterTint.hpp](WaterTint.hpp) | Colors water-facing parts of Hybrid contours light blue using native water tiles. Caches color splits across movement and keeps the geometry unchanged. |
 | [FrontierContacts.hpp](FrontierContacts.hpp) | Finds where the reveal edge touches visible artwork in fallback mode. |
-| [NativeFloorReader.hpp](NativeFloorReader.hpp) | Reads loaded room collision data for floor and wall geometry. |
+| [NativeFloorReader.hpp](NativeFloorReader.hpp) | Copies loaded collision grids and identifies Act 1 ground-bank tiles for contour coloring. |
 | [StyledMap.hpp](StyledMap.hpp) | Builds shaded floors, wall contours and open-frontier geometry. |
 | [StyledChunks.hpp](StyledChunks.hpp) | Reuses unchanged map regions and rebuilds regions affected by exploration. |
 | [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and constructs fractional-width contour quads. |

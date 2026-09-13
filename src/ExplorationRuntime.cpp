@@ -997,8 +997,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
         };
         append(outer,casing);append(inner,water?waterVertices:core);
     };
-    // Tile locations stay in stable map coordinates, so walking and panning
-    // reuse the color split. Native water artwork and draw order are retained.
+    // Stable map coordinates let walking and panning reuse the color split.
     const auto* walls=&styledCurrent->drawing.walls;
     static std::vector<styled_map::Stroke> awayFromRiver;
     if(activeStyle==MapStyle::Hybrid && riverTint.size()) {

@@ -1,10 +1,8 @@
 # PD2 Exploration Automap — BETA
 
-An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Choose the original map, a hybrid view with native details, or a contour-based style.
+An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Set campaign and endgame map styles separately, with independent wall and boundary colors.
 
-**[Download v0.2.0-beta.7 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.7)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
-
-The current source adds independent Maps Styling and Campaign Styling menus, Original / Native / Hybrid / Styled choices, boundary thickness, and earlier boundary drawing at area entrances. The beta.7 download above still has the previous combined menu.
+**[Download v0.2.0-beta.8 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.8)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
 This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. The release contains no game or renderer binaries other than the plugin itself.
 
@@ -16,12 +14,12 @@ Open the automap once in a game, then go to **Options → Automap Options → Ma
 | --- | --- |
 | **Original** | Unchanged game automap, without custom clipping, shading, contours or entrance emphasis. |
 | **Native** | Original artwork with exploration clipping and a colored boundary, without custom floor shading or contours. |
-| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Water edges use light blue independently of the wall color, including the river beside town. |
+| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Recognized water edges use light blue independently of Wall Color. |
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
 
 Native, Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
 
-Connected campaign areas on the same native map layer retain their explored terrain across zone transitions. Exploration lasts for the current game session and is not saved to disk. See [map styles](docs/map-styles.md) for fallback behavior and legacy INI compatibility.
+Connected campaign areas on the same native map layer retain their explored terrain across zone transitions. Exploration lasts for the current game session and is not saved to disk. Walls remain visible while new room geometry is prepared. See [map styles](docs/map-styles.md) for transition behavior and legacy INI compatibility.
 
 ## Screenshots
 
@@ -86,7 +84,7 @@ The plugin reads tables automatically from the installed game's archives or acti
 
 **Boundary Color** and **Wall Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
 
-Both lists offer Red, Neon Green, Magenta, Cyan, Light Blue, Orange, Pale Blue, Pale Yellow, Pale Green, Pale Peach, Pale Lemon, Gray and White. Wall color affects custom contours; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+Both lists offer Red, Neon Green, Magenta, Cyan, Light Blue, Orange, Pale Blue, Pale Yellow, Pale Green, Pale Peach, Pale Lemon, Gray and White. Wall Color affects custom contours. Hybrid water and bank edges use light blue; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
 Default `ExplorationMask.ini`:
 
@@ -133,6 +131,7 @@ The three suites check mask geometry, rendering contracts, menu behavior and wor
 Unchanged geometry, clipping results and water perimeters are cached. A background worker builds new terrain while the renderer uses the latest completed result. Drawing still runs each automap pass. [Performance notes](docs/performance.md) record historical benchmarks and remaining costs; they are not FPS guarantees for this release.
 
 - Discovery is distance-based and can reveal through nearby walls. It is not native tile discovery or line of sight. Hardcoding the radius removes its configuration override, but does not prevent modification of an open-source client.
+- The latest Act 1 raised-bank tile lookup passes automated checks but still needs in-game confirmation. Act 3 bank coloring and the wall-blinking correction have been confirmed in offline play.
 - Contours depend on loaded collision data. Small obstacles may appear, unfamiliar artwork may retain native rendering, and decorative water may lack an outline. Styled can omit roads or bridges that are not classified as navigation artwork.
 - New geometry can lag behind movement. Initial builds, large maps, cache eviction and capture limits can affect performance or omit later styled terrain.
 - Town exemptions use level rectangles, with one already-loaded outdoor neighbor previewed at a time. The plugin does not load or reveal extra rooms.

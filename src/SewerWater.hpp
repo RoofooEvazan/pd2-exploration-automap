@@ -1,5 +1,5 @@
 // Union the edges of native sewer-water diamonds, keeping internal tile seams
-// out of the outline. Native bridge cells are deliberately not water tiles.
+// out of the outline. Bridge cells are excluded.
 #pragma once
 #include "ExplorationMask.hpp"
 #include <array>

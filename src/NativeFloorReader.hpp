@@ -8,8 +8,7 @@
 #include <cctype>
 #include <string>
 
-// Read-only 1.13c room/collision access. All game pointers are short-lived;
-// callers keep owned grid copies only. No room load/reveal API is invoked.
+// 1.13c layout. Game pointers remain on the capture thread; the worker owns copies.
 namespace floor_reader {
 struct Room {
     void* address=nullptr;void* next=nullptr;void* grid=nullptr;
@@ -81,7 +80,7 @@ inline bool groundTile(const Room& room,const void* tiles,int index,GroundTile* 
         int x=field<int>(tile,8),y=field<int>(tile,12);
         if(x<0 || y<0 || x>room.width/5 || y>room.height/5)return false;
         // D2CMP 1.13c #10035/#10047 return entry+0x58 directly as the
-        // library name. The older +0x38 parent layout overlaps collision bytes.
+        // library name; +0x38 contains collision bytes.
         auto library=field<const char*>(entry,0x58);if(!library)return false;
         result->x=room.x+x*5;result->y=room.y+y*5;result->type=field<int>(entry,0x18);
         for(int i=0;i<260;++i){result->library[i]=library[i];if(!library[i])return true;}

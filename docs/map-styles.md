@@ -4,12 +4,12 @@ Open the automap once, then choose **Options → Automap Options → Maps Stylin
 
 | Choice | Appearance |
 | --- | --- |
-| Original | Unchanged game automap, without custom clipping, shading, frontier, contours or entrance emphasis. This was called Native in beta.7. |
+| Original | Unchanged game automap, without custom clipping, shading, frontier, contours or entrance emphasis. Called Native through beta.7. |
 | Native | Original terrain artwork with exploration clipping and a colored boundary. No custom floor shading or wall contours. |
 | Hybrid | Contours, shaded floors and a frontier alongside native water patterns, roads, landmarks and icons. |
 | Styled | Contour terrain and shaded floors, retaining recognized waypoints, shrines, events, portals, entrances, exits and stairs. |
 
-Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid/Styled contours; Original and Native keep the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
+Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges use light blue. Original and Native keep the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
 
 ## Saved preferences
 
@@ -45,4 +45,4 @@ During the first worker update, a clipped boundary stroke covers startup outside
 
 Styled uses floor-derived contours, including in sewers. Their positions can differ from Hybrid's artwork-aligned sewer tracing. Roads, bridges and decorative terrain are omitted unless active tables identify their artwork as navigation or an object. Shared entrance/terrain aliases are retained when needed to protect navigation. Unfamiliar custom labels may need classification updates.
 
-Automated checks cover independent preferences, legacy migration, four styles, nested Back/Escape, save failures, both zooms/viewports, boundary-only startup, thickness limits, town exclusion and cached/full-build equivalence. In-game appearance and transition checks are still required; see the [gameplay checklist](testing.md#gameplay-checks).
+Automated checks cover independent preferences, legacy migration, four styles, nested Back/Escape, save failures, both zooms/viewports, boundary-only startup, thickness limits, town exclusion and cached/full-build equivalence. Offline checks confirmed the entry-wall and blinking corrections. Broader coverage remains on the [gameplay checklist](testing.md#gameplay-checks).

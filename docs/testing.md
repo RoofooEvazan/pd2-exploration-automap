@@ -17,6 +17,8 @@ The default suites use synthetic data and mocked game/renderer calls. They need 
 | `runtime_tests` | Native quad coverage and UVs, fractional lines, state restoration, failure cleanup, terrain classification, town/exploration unions, shared campaign layers, bounded table reads and fallback paths. |
 | `map_style_tests.hpp` | Original bypass, Styled terrain suppression and navigation retention, both zooms, style cycling, persistence, legacy precedence, failed saves and retained history/caches. |
 | `boundary_menu_tests.hpp` | Thirteen RGB presets, independent wall/boundary persistence, Back/Escape, label alignment, heading fonts, resource ownership and menu signature guards. |
+| `area_entry_tests.hpp` | Neighbor capture, retained contours, unfinished-terrain fallback and layer isolation. |
+| `water_tint_tests.hpp` / `ground_bank_tests.hpp` | Shoreline color splits, native river traces, 1.13c ground-tile reads, bank tags, wall exclusions and cache ownership. |
 | `fixed_distance_tests.hpp` | Exact 33-subtile circle, ignored legacy radius inputs, resolution independence, quarter-cell movement, teleport gaps and town exemptions. |
 | `entrance_visibility_tests.hpp` | Capped alpha/RGB gain, classification, both views, exact-once drawing, copied contexts/clips, queue limits, palette binding, grouped uploads and restoration after exceptions. |
 | `map_marker_tests.hpp` | Shrine/event definitions, loaded-unit snapshots, pointer/cycle guards, expiry, explored-location gating, native registration and duplicate suppression. |
@@ -54,6 +56,7 @@ The inspected direct tables contain 132 campaign entries, 111 ordinary wall IDs 
 
 | Field | Meaning |
 | --- | --- |
+| `GROUND_BANKS` | Per-room Act 1 tile reads, matching bank tiles, tagged cells and read failures. |
 | `TABLE` | Read status, byte count and resolver source. A successful read still needs to pass parsing. |
 | `CAMPAIGN layers`, `HYBRID classified`, `STYLE` | Accepted definitions and selected internal styles. Styles use the same names as the menu: original, native, hybrid and styled. |
 | `BOUNDARY`, `APPEARANCE` | Menu installation and loaded/saved style or colors. |
@@ -84,4 +87,6 @@ Use the [documented offline launch](../README.md#install-and-run), retaining cus
 4. Cross a town gate and an adjoining campaign boundary, then return. Approach Black Marsh/Tamoe Highland slowly: walls inside the reveal circle should appear before the area label changes. Check the walls and reveal edge immediately on entry, without walking farther. Repeat in Hybrid and Styled, in both views. Repeat portal/waypoint travel and hide the map for several seconds. Save/exit and start a new game to check reset behavior.
 5. Walk continuously while rooms load and watch already-drawn walls for blinking, in Hybrid and Styled at both map sizes. Inspect sewer walls, channels and bridges, then a nearly explored endgame map. Compare moving/stationary frame times and capture the log.
 
-Historical offline checks confirmed native campaign details, the Harrogath gate, adjoining-area persistence, sewer wall/water appearance, archive/direct loading, shrine/event icons and color menus. Full campaign coverage, controlled entrance/style performance comparisons and long-session stability remain under test. See [performance](performance.md) for the scope of existing measurements.
+The latest Act 1 raised-bank reader correction is automated-test verified; its live tile counts and appearance remain pending. Check raised grassy banks separately from stone walls and the river beside town.
+
+Historical offline checks confirmed entry walls, stable contours while walking, Act 3 blue banks, native campaign details, the Harrogath gate, adjoining-area persistence, sewer wall/water appearance, archive/direct loading, shrine/event icons and color menus. Full campaign coverage, controlled entrance/style performance comparisons and long-session stability remain under test. See [performance](performance.md) for the scope of existing measurements.

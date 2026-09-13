@@ -1,5 +1,6 @@
 # Local build folders and IDE settings.
 /build/
+/build-*/
 /dist/
 /.vs/
 *.user

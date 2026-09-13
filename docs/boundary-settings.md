@@ -24,19 +24,23 @@ Both lists offer thirteen colors, including Gray and White. Each styling group s
 | Gray | `gray` | `#949494` |
 | White | `white` | `#FFFFFF` |
 
-The hex values are the exact base colors. Boundary bands retain their existing shade multipliers and opacity; wall cores use the selected RGB with the existing opacity and dark contrast casing. Gray preserves the previous brightness in each wall renderer. Screen appearance therefore also depends on the game background and overlay transparency.
+The hex values are the exact base colors. Boundary bands retain their existing shade multipliers and opacity; wall cores use the selected RGB with the existing opacity and dark contrast casing. Gray uses each wall renderer's default brightness. Screen appearance therefore also depends on the game background and overlay transparency.
 
-Wall Color changes the plugin's modern wall and shoreline outlines in hybrid mode, its straight sewer outlines, and the matching contour strokes in styled mode. Retained native artwork, shrine/event icons, floor shading, and water fill keep their existing colors. Original and Native modes do not gain replacement wall outlines from this setting. The fallback reveal accents also follow Boundary Color.
+Wall Color changes Hybrid wall contours and straight sewer walls, plus Styled contours. Recognized Hybrid water and bank edges use Light Blue (`#50A5DC`) independently of this choice. Native artwork, icons, water fill and floor shading keep their colors. Original and Native retain the game's walls. Boundary Color also applies to fallback reveal accents.
 
 Colors are applied during drawing without geometry rebuilds or additional texture uploads.
 
 The extension supports the profiled expansion menu in `ProjectDiablo.dll` (SHA-256 `538A77B7CCEF3D5334E56C4E9E57A4D8FC69A1E27C46BEB694C0DEDFCFBF9CB3`) and documented D2Client/D2Win builds. The native engine handles mouse/keyboard navigation. A resource-free picker uses a compact native font; the original automap table remains the sole owner of its artwork. Menu transitions update both the active selection and PD2's Escape target. Layout, pointers, drawing calls and Escape signatures are checked before installation. Unsupported menu versions retain INI color selection. No artwork or engine DLL is changed on disk. Live unloading is unsupported. Existing [screenshots](screenshots/) show the earlier five-color menu.
 
+## Boundary thickness
+
+Set `BoundaryThickness` under `[Automap]` to scale the reveal edge from 0.5 to 2.0. The default is 1.0. This setting applies to both styling groups and map sizes; it leaves wall width and reveal distance unchanged. Restart after editing the INI.
+
 ## Fixed reveal distance
 
 The runtime uses a compile-time constant of 132 quarter-subtile cells, equivalent to 33 world subtiles. There is no radius input in the INI or menu and no automatic resolution-based distance. Old `RevealRadiusSubtiles` and `RevealMode` keys are ignored, including oversized values; they can be removed when upgrading. Town-gate previews use the same compiled circle, and towns keep their existing full-exploration exemption.
 
-This removes the supported configuration override. It is not anti-tamper enforcement: an open-source client can be modified or replaced. Online use would require separate compatibility approval and controls appropriate to the server/client trust model. This change alone does not establish online support. Distance-based discovery can reveal through nearby walls and is not native tile discovery or line of sight.
+The fixed radius prevents settings-based expansion, but an open-source client can still be modified. Online compatibility is not established. Discovery is distance-based and can reveal through nearby walls; it is not native tile discovery or line of sight.
 
 ## Validation
 
