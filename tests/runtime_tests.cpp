@@ -894,6 +894,9 @@ static void testLocalHybridTables() {
     exploration::CampaignLayers invalid;std::istringstream bad("Id\tAct\tLayer\n76\t2\t57\n76\t2\t66\n");
     require(!invalid.load(bad) && !invalid.lookup(76,2,layer));
     require(policy.walls()>25);
+    for(DWORD id:{173u,174u,177u,180u,223u,265u,291u,308u,312u,393u,394u,432u,436u,693u,694u,1373u,1403u,1528u,1529u})
+        require(policy.entrance(id));
+    for(DWORD id:{4u,307u,309u,310u,311u,518u,519u,1101u,1338u,1449u})require(!policy.entrance(id));
     using Role=exploration::HybridArtwork::Role;
     for(DWORD id:{0u,1u,2u,3u,307u,312u,426u,432u,251u,265u,1354u,1373u,1403u,1497u})require(policy.role(id)==Role::Detail);
     for(DWORD id:{283u,284u,285u,286u,287u,288u})require(policy.role(id)==Role::SewerWall);
@@ -1119,6 +1122,7 @@ static void testWaterReuse() {
 #include "boundary_menu_tests.hpp"
 #include "fixed_distance_tests.hpp"
 #include "map_marker_tests.hpp"
+#include "entrance_visibility_tests.hpp"
 int main() {
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Retain prior styled-mode regression contracts too.
@@ -1190,5 +1194,6 @@ int main() {
     testBoundaryMenu();testPersonalizedDrawing();
     testFixedDistance();
     testMapMarkers();
+    testEntranceVisibility();
     return 0;
 }

@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdint>
 #include <istream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@ class HybridArtwork {
     std::array<std::uint8_t,65536> sewerShapes_{};
     std::array<std::uint8_t,65536> sewerWaterRoles_{};
     std::array<std::uint8_t,65536> poisonedWellFlags_{};
+    std::array<std::uint8_t,65536> entrances_{};
     bool loaded_=false;
     static std::vector<std::string> columns(const std::string& line) {
         std::vector<std::string> out;std::size_t start=0;
@@ -32,6 +34,18 @@ class HybridArtwork {
         for(auto value:values)if(word==value)return true;return false;
     }
 public:
+    // Presentation only: this never changes the wall role or exploration mask.
+    static bool entranceLabel(const std::string& label) {
+        std::string text;for(unsigned char c:label)text+=std::isalnum(c)?char(std::tolower(c)):' ';
+        std::istringstream words(text);std::string word;bool found=false;
+        while(words>>word) {
+            if(word=="fake" || word=="arcane")return false;
+            if(oneOf(word,{"exit","entrance","ent","stairs","stairsr","stairsl","stair","trapdoor","trappdoor","edwn","cdwn","cext"}) ||
+               word.compare(0,4,"cdwn")==0 || word.compare(0,4,"cext")==0)found=true;
+        }
+        return found || text=="den of evil" || text=="ftwr marker" ||
+            text.compare(0,6,"crypt ")==0 || text=="temple str dwn" || text.compare(0,9,"mesa dwn ")==0;
+    }
     enum class Role { Detail, Wall, Water, SewerWall, SewerWater };
     enum class SewerShape { None, Down, Up, Peak, Cap };
     static SewerShape sewerShape(const std::string& label) {
@@ -73,7 +87,7 @@ public:
         return Role::Detail;
     }
     bool load(std::istream& stream) {
-        flags_.fill(0);sewerShapes_.fill(0);sewerWaterRoles_.fill(0);poisonedWellFlags_.fill(0);loaded_=false;std::string line;
+        flags_.fill(0);sewerShapes_.fill(0);sewerWaterRoles_.fill(0);poisonedWellFlags_.fill(0);entrances_.fill(0);loaded_=false;std::string line;
         if(!std::getline(stream,line) || line.size()>32768)return false;
         auto header=columns(line);std::vector<std::size_t> cells;
         auto levelColumn=std::find(header.begin(),header.end(),"LevelName");
@@ -90,6 +104,7 @@ public:
             for(auto col:cells) {
                 int id=number(row[col]);if(id<0)continue;
                 Role role=describe(row[col-1]);
+                entrances_[id]|=entranceLabel(row[col-1])?1:2;
                 flags_[id]|=role==Role::Wall?1:role==Role::Water?6:role==Role::SewerWall?16:role==Role::SewerWater?32:2;++definitions;
                 // This profile's Poisoned Well (level 202) uses table group 46.
                 // Its custom labels denote contour sprites, including a blank
@@ -111,11 +126,15 @@ public:
         std::string line;if(!std::getline(stream,line))return false;
         auto header=columns(line);auto it=std::find(header.begin(),header.end(),"AutoMap");
         if(it==header.end())return false;auto col=std::size_t(it-header.begin());
+        auto nameIt=std::find(header.begin(),header.end(),"Name");auto nameCol=std::size_t(nameIt-header.begin());
+        auto descIt=std::find(header.begin(),header.end(),"description - not loaded");auto descCol=std::size_t(descIt-header.begin());
         std::size_t bytes=0,lines=0;
         while(std::getline(stream,line)) {
             bytes+=line.size();if(line.size()>32768 || bytes>16*1024*1024 || ++lines>100000)return false;
             auto row=columns(line);if(col>=row.size())continue;
             int id=number(row[col]);if(id>0)flags_[id]|=10; // Keep object protection distinct from terrain aliases.
+            if(id>0 && nameCol<row.size())entrances_[id]|=
+                (entranceLabel(row[nameCol]) || (descCol<row.size() && entranceLabel(row[descCol])))?1:2;
         }
         return !stream.bad();
     }
@@ -130,6 +149,12 @@ public:
     }
     SewerShape sewerShape(std::uint32_t id) const {return role(id)==Role::SewerWall?SewerShape(sewerShapes_[id]):SewerShape::None;}
     bool loaded() const {return loaded_;}
+    bool entrance(std::uint32_t id) const {
+        if(!loaded_ || id>=entrances_.size())return false;
+        // Native generic stair/exit symbol is not listed in automap.txt.
+        // Any active table alias overrides this supported-artwork fallback.
+        return entrances_[id]==1 || (id==308 && entrances_[id]==0 && flags_[id]==0);
+    }
     std::size_t walls() const {return std::count(flags_.begin(),flags_.end(),std::uint8_t(1));}
     std::size_t poisonedWellContours() const {
         if(!loaded_)return 0;

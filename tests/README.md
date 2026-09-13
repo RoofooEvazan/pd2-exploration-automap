@@ -4,6 +4,7 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 
 | Test | What it checks |
 | --- | --- |
+| [entrance_visibility_tests.hpp](entrance_visibility_tests.hpp) | Entrance classification, palette signatures, capped opacity/brightness, both views, unchanged clips/UVs, bounded batches and state restoration. |
 | [mask_tests.cpp](mask_tests.cpp) | Explored cells, reveal boundaries, clipping coverage, movement, and session state. |
 | [runtime_tests.cpp](runtime_tests.cpp) | Native clipping, hybrid contours and protected details, sewer styling, towns, shared campaign areas, session guards, and bounded native game-table reads. |
 | [boundary_menu_tests.hpp](boundary_menu_tests.hpp) | Thirteen exact RGB presets, independent persistence, picker navigation/Back/Escape, menu alignment and headings, save failures, native guards, resource ownership and unchanged drawing geometry. |

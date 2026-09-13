@@ -95,3 +95,7 @@ The fixed-distance checks use the same appearance-settings reader as the runtime
 ## Endgame shrine and event icons
 
 `map_marker_tests.hpp` checks active-table classification, guarded loaded-room/unit reads, malformed pointers and bounded cycles, 200 ms sample expiry, explored-location gating, primitive clipping, native registration and per-pass duplicate suppression in both map sizes and native/styled/hybrid modes. Campaign and town exclusions are checked. The optional `PD2_HYBRID_TABLE_DIR` audit also reads `MonStats.txt` and `MonStats2.txt` from the private fixture directory. No additional files are needed for the default synthetic suite. See [marker validation](map-markers.md#validation-and-gameplay-check) for the approved live test and log fields.
+
+## Local entrance visibility follow-up
+
+The [entrance visibility guide](entrance-visibility.md) describes the unpublished +75% boost and its renderer limits. `ENTRANCES drawn`, `palettePasses` and `fallbacks` are cumulative counters. There are at most two palette uploads per automap pass, independent of entrance count; the native sprite count does not increase. The new runtime tests cover owned context/clip data, both views, state restoration, queue budgets, masked campaign/endgame cells, hidden entrances and unchanged unrelated details. Live appearance and frame-time comparison remain pending.

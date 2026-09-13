@@ -13,7 +13,7 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |
 | [RasterClipCache.hpp](RasterClipCache.hpp) | Reuses exact artwork clipping across frames and map panning, with bounded storage and immediate coverage invalidation. |
-| [HybridArtwork.hpp](HybridArtwork.hpp) | Identifies replaceable walls and area-specific Poisoned Well contours from active game tables while protecting textured water, landmarks, and object icons. |
+| [HybridArtwork.hpp](HybridArtwork.hpp) | Identifies replaceable walls, area-specific contours and entrance artwork from active tables; entrance emphasis is independent of geometry roles. |
 | [ArtworkBounds.hpp](ArtworkBounds.hpp) | Caches occupied sprite bounds so retained native artwork avoids clipping transparent padding without changing its visible pixels. |
 | [CampaignLayers.hpp](CampaignLayers.hpp) | Reads expected campaign layers so adjoining areas share explored maps and stale transition callbacks cannot mix separate layers. |
 | [NativeWallTrace.hpp](NativeWallTrace.hpp) | Builds straight sewer wall profiles with shared endpoints, checking them against native artwork before replacement. |

@@ -56,6 +56,27 @@ using VertexArrayDraw=void(__stdcall*)(DWORD,DWORD,const void*);
 using ConstantColor=void(__stdcall*)(DWORD);
 static VertexArrayDraw styledArray=nullptr;
 static ConstantColor styledColor=nullptr;
+using PaletteDraw=void(__stdcall*)(DWORD,const void*);
+static PaletteDraw entrancePaletteDraw=nullptr;
+static const DWORD* nativePalette=nullptr;
+static int entranceAlpha=-1;
+struct EntranceCell {
+    DWORD context[18]{};
+    int x=0,y=0,mode=5;
+    NativeRect viewport{};
+    std::vector<Rect> clips;
+};
+// Owned contexts/clips, borrowed artwork only until this automap pass ends.
+// The retained clip capacity is at most 64 * 512 rectangles (512 KiB).
+static std::array<EntranceCell,64> entranceCells;
+static std::size_t entranceCount=0,entranceClipCount=0;
+static unsigned long entranceDraws=0,entranceFallbacks=0,entrancePalettePasses=0;
+static DWORD visibilityBoost(DWORD value){return std::min<DWORD>(255,(value*7+2)/4);}
+static int nativeCellAlpha(int mode){return mode>=0 && mode<=2?(mode+1)*64:mode==5?255:-1;}
+static DWORD brighterPaletteColor(DWORD color) {
+    return (color&0xff000000u)|(visibilityBoost((color>>16)&255)<<16)|
+        (visibilityBoost((color>>8)&255)<<8)|visibilityBoost(color&255);
+}
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
@@ -604,6 +625,11 @@ template<class Emit> static bool clipQuad(const GlideVertex* vertices,const std:
     return true;
 }
 static void __stdcall quadHook(DWORD mode,DWORD count,const void* data,DWORD stride) {
+    struct RestoreAlpha {
+        int alpha;
+        ~RestoreAlpha(){if(alpha>=0 && styledColor)styledColor(DWORD(alpha));}
+    } restore{entranceAlpha};
+    if(entranceAlpha>=0 && styledColor)styledColor(visibilityBoost(DWORD(entranceAlpha)));
     if(!terrainClips){originalQuad(mode,count,data,stride);return;}
     if(mode!=5 || count!=4 || stride!=sizeof(GlideVertex) || !data ||
         !clipQuad(static_cast<const GlideVertex*>(data),*terrainClips,[&](const GlideVertex* out){
@@ -613,10 +639,73 @@ static void __stdcall quadHook(DWORD mode,DWORD count,const void* data,DWORD str
     }
 }
 static void drawPreparedCell(void* ctx,int x,int y,NativeRect* native,int mode,const std::vector<Rect>* clips=nullptr) {
-    auto previous=terrainClips;terrainClips=clips;
+    struct RestoreClip {const std::vector<Rect>* previous;~RestoreClip(){terrainClips=previous;}} restore{terrainClips};
+    terrainClips=clips;
     ++nativeCellCalls;
     originalCell(ctx,x,y,native,mode);
-    terrainClips=previous;
+}
+static bool copyEntranceContext(void* context,DWORD* copy) {
+    __try {if(!context)return false;memcpy(copy,context,18*sizeof(DWORD));return true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static bool queueEntrance(void* ctx,int x,int y,NativeRect* viewport,int mode,const std::vector<Rect>* clips) {
+    if(!entrancePaletteDraw || !nativePalette || !styledColor || nativeCellAlpha(mode)<0)return false;
+    const auto count=clips?clips->size():0;
+    if(entranceCount==entranceCells.size() || count>512 || entranceClipCount+count>8192 || !viewport) {
+        ++entranceFallbacks;return false;
+    }
+    auto& cell=entranceCells[entranceCount];
+    if(!copyEntranceContext(ctx,cell.context)){++entranceFallbacks;return false;}
+    try {if(clips)cell.clips=*clips;else cell.clips.clear();}
+    catch(...){++entranceFallbacks;return false;}
+    cell.x=x;cell.y=y;cell.viewport=*viewport;cell.mode=mode;
+    ++entranceCount;entranceClipCount+=count;return true;
+}
+static bool entranceView(bool* corner) {
+    __try {
+        if(!client)return false;
+        const DWORD state=read<DWORD>(client,0x11c8b8);
+        if(state>1)return false;*corner=state==0;return true;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static bool copyNativePalette(DWORD* copy) {
+    __try {if(!nativePalette)return false;memcpy(copy,nativePalette,256*sizeof(DWORD));return true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static void drawEntrances() {
+    if(!entranceCount)return;
+    struct ResetQueue {~ResetQueue(){entranceCount=entranceClipCount=0;entranceAlpha=-1;}} reset;
+    bool corner=false;const bool viewKnown=entranceView(&corner);
+    auto draw=[&](EntranceCell& cell,bool boostAlpha) {
+        entranceAlpha=boostAlpha?nativeCellAlpha(cell.mode):-1;
+        drawPreparedCell(cell.context,cell.x,cell.y,&cell.viewport,cell.mode,cell.clips.empty()?nullptr:&cell.clips);
+        entranceAlpha=-1;++entranceDraws;
+    };
+    if(!viewKnown || !entrancePaletteDraw || !styledColor) {
+        for(std::size_t i=0;i<entranceCount;++i){draw(entranceCells[i],false);++entranceFallbacks;}return;
+    }
+    // Fullscreen translucent cells get alpha only, avoiding a compounded boost.
+    // D2GL fixes corner alpha at 0.9. Use palette brightness there and for
+    // already-solid fullscreen cells, which cannot gain any more opacity.
+    bool needsPalette=false;
+    for(std::size_t i=0;i<entranceCount;++i) {
+        auto& cell=entranceCells[i];
+        if(!corner && cell.mode!=5)draw(cell,true);else needsPalette=true;
+    }
+    if(!needsPalette)return;
+    std::array<DWORD,256> saved{},bright{};
+    if(!copyNativePalette(saved.data())) {
+        for(std::size_t i=0;i<entranceCount;++i)if(corner || entranceCells[i].mode==5){draw(entranceCells[i],false);++entranceFallbacks;}return;
+    }
+    for(std::size_t i=0;i<saved.size();++i)bright[i]=brighterPaletteColor(saved[i]);
+    struct RestorePalette {
+        const DWORD* saved;
+        ~RestorePalette(){entrancePaletteDraw(2,saved);}
+    } restore{saved.data()};
+    // The validated D2GL export flushes preceding vertices before switching
+    // palettes. Exactly two uploads per pass; no extra sprites or texture copies.
+    entrancePaletteDraw(2,bright.data());++entrancePalettePasses;
+    for(std::size_t i=0;i<entranceCount;++i)if(corner || entranceCells[i].mode==5)draw(entranceCells[i],false);
 }
 static void drawStyled(const Transform& t,Rect viewport);
 static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode) {
@@ -705,16 +794,20 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         if(nativeTownActive)++townClippedCells;else if(!styledActive)recordAssetContact(ctx,assetBounds);
         if(clips.size()==1 && clips[0].left==bounds.left && clips[0].right==bounds.right &&
            clips[0].top==bounds.top && clips[0].bottom==bounds.bottom) {
-            drawPreparedCell(ctx,x,y,native,mode);++drawn;return;
+            if(!(hybrid && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,nullptr)))
+                drawPreparedCell(ctx,x,y,native,mode);
+            ++drawn;return;
         }
         ++partial;
-        drawPreparedCell(ctx,x,y,native,mode,&clips);
+        if(!(hybrid && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,&clips)))
+            drawPreparedCell(ctx,x,y,native,mode,&clips);
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
 }
 static void beginPass() {
     InterlockedIncrement(&beginCount);
     sewerCasing.clear();sewerCore.clear();sewerWater.clear();sewerWaterFill.clear();
     nativeMarkers.clear();markerArtworkFile=nullptr;
+    entranceCount=entranceClipCount=0;entranceAlpha=-1;
     QueryPerformanceCounter(&passStarted);
     try {update();sampleMapMarkers(GetTickCount());if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
 }
@@ -908,6 +1001,7 @@ static void endPass() {
                 frontierBatch=nullptr;
             }
         }
+        drawEntrances();
         drawMapMarkers();
         markerArtworkFile=nullptr;
         if(inPass) {
@@ -923,6 +1017,7 @@ static void endPass() {
                 styledCurrent?styledCurrent->drawing.quads:0,styledCurrent?styledCurrent->drawing.walls.size():0,
                 int(preparedFloors && preparedOwner==styledCurrent && preparedSerial==gameSerial));
             fprintf(logfile,"DISCOVERY mode=hardcoded radiusSubtiles=%.2f\n",revealRadius*maskCellSize);
+            fprintf(logfile,"ENTRANCES drawn=%lu palettePasses=%lu fallbacks=%lu\n",entranceDraws,entrancePalettePasses,entranceFallbacks);
             if(mapMarkersActive())fprintf(logfile,"MARKERS sampled=%zu added=%lu alreadyNative=%lu\n",mapMarkers.size(),markersDrawn,markersAlreadyNative);
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
@@ -1136,6 +1231,29 @@ static DWORD WINAPI diagnosticThread(void*) {
         }
     }
 }
+static bool bindEntrancePalette(unsigned char* glide,HMODULE wrapper,decltype(&GetProcAddress) resolve=GetProcAddress) {
+    entrancePaletteDraw=nullptr;nativePalette=nullptr;
+    __try {
+        if(!glide || !wrapper || !styledColor)return false;
+        const auto dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(glide);
+        if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<0 || dos->e_lfanew>4096)return false;
+        const auto nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(glide+dos->e_lfanew);
+        if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_I386 ||
+           nt->FileHeader.TimeDateStamp!=0x4b95c1e2 || nt->OptionalHeader.SizeOfImage!=0x1a000)return false;
+        const auto paletteAddress=reinterpret_cast<uintptr_t>(glide+0x15b08);
+        auto entry=resolve(wrapper,"_grTexDownloadTable@8");
+        if(reinterpret_cast<const unsigned char*>(entry)!=reinterpret_cast<const unsigned char*>(wrapper)+0xb45c0 ||
+           glide[0xcf91]!=0xbe || read<uintptr_t>(glide,0xcf92)!=paletteAddress+2 ||
+           glide[0xcfa4]!=0xba || read<uintptr_t>(glide,0xcfa5)!=paletteAddress ||
+           glide[0xd03c]!=0x68 || read<uintptr_t>(glide,0xd03d)!=paletteAddress ||
+           glide[0xd041]!=0x6a || glide[0xd042]!=2 || glide[0xd043]!=0xe8 || target(glide+0xd043)!=glide+0x5fa2 ||
+           glide[0x5fa2]!=0xff || glide[0x5fa3]!=0x25 ||
+           read<uintptr_t>(glide,0x5fa4)!=reinterpret_cast<uintptr_t>(glide+0x111f8) ||
+           read<FARPROC>(glide,0x111f8)!=entry)return false;
+        entrancePaletteDraw=reinterpret_cast<PaletteDraw>(entry);nativePalette=reinterpret_cast<const DWORD*>(paletteAddress);
+        return true;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
 extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
     if(installed)return;
     QueryPerformanceFrequency(&counterFrequency);
@@ -1172,6 +1290,9 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
             styledArray=reinterpret_cast<VertexArrayDraw>(array);styledColor=reinterpret_cast<ConstantColor>(color);
         } catch(...) {log("Styled worker unavailable; retaining normal artwork clipping.");}
     } else log("Styled map unavailable: renderer export layout differs.");
+    log(bindEntrancePalette(glide,wrapper)?
+        "Entrance visibility ready: +75% native alpha capped at solid; brightness for fixed-alpha minimap/solid artwork.":
+        "Entrance visibility unavailable: optional palette binding differs; native entrance drawing retained.");
     CallPatch patches[]={{b,reinterpret_cast<void*>(beginStub),{}},{e,reinterpret_cast<void*>(endStub),{}},
         {c,reinterpret_cast<void*>(cellHook),{}},{q,reinterpret_cast<void*>(quadHook),{}},
         {l,reinterpret_cast<void*>(floatLineHook),{}},{p,reinterpret_cast<void*>(floatPointHook),{}}};

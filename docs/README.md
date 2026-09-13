@@ -4,6 +4,7 @@ Guides to the automap's design, compatibility requirements, testing, and perform
 
 | Guide | What it explains |
 | --- | --- |
+| [Entrance visibility](entrance-visibility.md) | The local entrance/exit visibility boost, minimap brightness, preserved native clipping and bounded rendering cost. |
 | [Boundary settings](boundary-settings.md) | Independent boundary/wall color lists, saved preferences, the native menu extension and the hardcoded 33-subtile circle in the unpublished follow-up. |
 | [Shrine and event icons](map-markers.md) | Native endgame shrine/event artwork, explored-only fallback, duplicate suppression and validation. |
 | [Campaign BETA guide](campaign-prototype.md) | Hybrid contours, preserved native details, settings, game-table requirements, session persistence and known limits. |
