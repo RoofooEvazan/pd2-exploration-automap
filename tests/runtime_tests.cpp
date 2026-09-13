@@ -242,6 +242,12 @@ static void testInstalledArtwork() {
                 reference={std::max(0,reference.left-1),std::max(0,reference.top-1),std::min(int(word(offset+4)),reference.right+1),std::min(int(word(offset+8)),reference.bottom+1)};
             else reference={};
             require(actual.left==reference.left && actual.top==reference.top && actual.right==reference.right && actual.bottom==reference.bottom);
+            if(i==4 || i==5) {
+                using Form=exploration::HybridArtwork::RiverBank;
+                exploration::NativeWallTrace trace;
+                require(trace.buildRiverBank(shape,int(word(offset+4)),int(word(offset+8)),i==4?Form::Top:Form::Bottom));
+                require(trace.lines.size()==1);
+            }
             if(i>=283 && i<=288) {
                 using Form=exploration::HybridArtwork::SewerShape;
                 auto form=i==283 || i==285?Form::Down:i==284 || i==286?Form::Up:i==287?Form::Peak:Form::Cap;
@@ -904,9 +910,11 @@ static void testLocalHybridTables() {
     for(DWORD id:{4u,5u,6u,7u,8u,266u,520u})require(policy.role(id)==Role::Water);
     for(DWORD id:{4u,5u,6u,7u,8u,266u,267u,520u,521u,522u})require(policy.waterTile(id));
     require(!policy.waterTile(1259) && !policy.waterTile(290) && !policy.waterTile(308));
-    for(DWORD id:{10u,11u,12u,13u,14u,16u,18u,46u,47u,48u,49u,50u,51u,52u,53u,54u,55u,56u,57u,58u,59u,
-        523u,524u,525u,526u,527u,528u,529u,530u,531u,532u,536u,537u})require(policy.blueTerrainTile(id));
-    for(DWORD id:{20u,21u,24u,60u,80u,283u,290u,308u,491u,568u,1259u})require(!policy.blueTerrainTile(id));
+    for(DWORD id:{523u,524u,525u,526u,527u,528u,529u,530u,531u,532u,536u,537u})require(policy.blueTerrainTile(id));
+    for(DWORD id:{10u,11u,12u,13u,14u,16u,18u,20u,21u,24u,46u,47u,48u,49u,50u,51u,52u,53u,54u,55u,56u,57u,58u,59u,
+        60u,80u,283u,290u,308u,491u,568u,1259u})require(!policy.blueTerrainTile(id));
+    require(policy.riverBank(4)==exploration::HybridArtwork::RiverBank::Top && policy.riverBank(5)==exploration::HybridArtwork::RiverBank::Bottom);
+    for(DWORD id:{6u,7u,8u,11u,46u,73u,74u,75u,76u,77u,78u,79u,523u,524u})require(policy.riverBank(id)==exploration::HybridArtwork::RiverBank::None);
     require(policy.poisonedWellContours()==289);
     for(DWORD id=0;id<1974;++id) {
         const bool contour=(id>=1572 && id<=1578) || (id>=1692 && id<=1973);
@@ -1208,5 +1216,6 @@ int main() {
     testAreaEntryWalls();
     testStableWallRefresh();
     testWaterTint();
+    testNativeRiverBanks();
     return 0;
 }

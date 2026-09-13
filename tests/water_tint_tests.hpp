@@ -45,8 +45,8 @@ static void testWaterTint() {
         "Test\tfl\t0\t0\t0\tStn_WL b\t26\tStn_X\t27\tStn_L R E\t28\tStn_U R E\t29\n"
         "Test\tfl\t0\t0\t0\tWR A\t30\tWL A\t31\tWTLL\t32\tStn_WR stairs\t33\n");
     require(artwork.load(banks));
-    for(unsigned id:{18u,19u,20u,21u,22u,24u,26u,27u,28u,29u})require(artwork.blueTerrainTile(id));
-    for(unsigned id:{10u,23u,25u,30u,31u,32u,33u,65536u})require(!artwork.blueTerrainTile(id));
+    for(unsigned id:{18u,19u})require(artwork.blueTerrainTile(id));
+    for(unsigned id:{10u,20u,21u,22u,23u,24u,25u,26u,27u,28u,29u,30u,31u,32u,33u,65536u})require(!artwork.blueTerrainTile(id));
     std::istringstream protectedBank("Name\tAutoMap\nShrine\t18\n");
     require(artwork.protectObjects(protectedBank) && !artwork.blueTerrainTile(18));
     std::istringstream protectedLedge("Name\tAutoMap\nShrine\t24\n");
@@ -94,7 +94,7 @@ static void testWaterTint() {
         require(waterTint.size()==std::size_t(style==MapStyle::Hybrid?1:0));
         require(forwardedCells==before+(style==MapStyle::Styled?0:1));
     }
-    checkContext="riverbanks, cliffs and Act 1 grassy banks register blue terrain";
+    checkContext="riverbanks register blue terrain while cliffs and stone walls retain wall color";
     std::istringstream runtimeBanks(artworkFixture()+
         "Test\tfl\t0\t0\t0\tRB_WL _T\t18\tPD2 RB_WR_B\t19\tC_WR a\t20\tC_WL d\t21\n"
         "Test\tfl\t0\t0\t0\tStn_WR a\t22\tStn_WL b\t23\tStn_X\t16\tStn_L R E\t17\n");
@@ -109,22 +109,132 @@ static void testWaterTint() {
         const int sx=-40-(divisor==10?8:7),sy=-20-(divisor==10?-8:-3);
         auto before=forwardedCells;
         cellHook(ctx.data(),-sx,w*2-sy,&nativeView,0);
-        require(waterTint.size()==1 && forwardedCells==before+(id<20?1:0));
+        const bool water=id==18 || id==19;
+        require(waterTint.size()==std::size_t(water) && forwardedCells==before+(id<20?1:0));
         // The refresh fallback keeps the same material information and still
         // draws the native cliff only where completed terrain is unavailable.
         state.captureIncomplete=true;state.coverage.reset();
         cellHook(ctx.data(),-sx,w*2-sy,&nativeView,0);
-        require(waterTint.size()==1 && forwardedCells==before+(id<20?2:1));
+        require(waterTint.size()==std::size_t(water) && forwardedCells==before+(id<20?2:1));
         // A native bank cell must reach the colored drawing, including when
         // its ordinary wall sprite was replaced before frame clipping.
         Transform stable{double(divisor),divisor==10?8.0:7.0,divisor==10?-8.0:-3.0};
         state.drawing.walls={{inverse({-3,w*1.75},stable),inverse({double(w+3),w*1.75},stable)}};
         wallColor=BoundaryColor::White;overlayOpacity=80;
         appearanceColors.clear();appearancePositions.clear();drawHybridWalls({double(divisor),-40,-20},{0,0,150,150});
-        require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224)),overlayColor(0x50a5dce0)}));
+        auto expected=std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))});
+        if(water)expected.push_back(overlayColor(0x50a5dce0));
+        require(appearanceColors==expected);
         state.drawing.walls.clear();
     }
     waterTint.select(++gameSerial,lastLevelKey,10);client=nullptr;inPass=haveViewport=maskActive=styledActive=false;
     activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;styledCurrent=nullptr;explored=&emptyMask;
     std::cout<<"PASS: light-blue Hybrid water edges; disjoint contour coverage, both zooms, material/object protection, cache reuse, bounded storage, session/layer isolation and independent wall colors\n";
+}
+
+static void testNativeRiverBanks() {
+    using namespace exploration;
+    using Form=HybridArtwork::RiverBank;
+    checkContext="native river banks: water-only definitions and artwork topology";
+    const auto fixture=artworkFixture()+
+        "1 Wilderness\tfl\t2\t4\t7\tRiver T A\t4\tRiver B A\t5\tBridge T A\t6\tRB_WL _T\t7\n";
+    std::istringstream table(fixture);require(hybridArtwork.load(table));
+    require(hybridArtwork.riverBank(4)==Form::Top && hybridArtwork.riverBank(5)==Form::Bottom);
+    require(hybridArtwork.riverBank(6)==Form::None && hybridArtwork.riverBank(7)==Form::None);
+    HybridArtwork protectedArt;
+    std::istringstream alias(fixture+"Test\tfl\t0\t0\t0\tRiver M A\t4\tRiver T A\t5\t\t-1\t\t-1\n");
+    require(protectedArt.load(alias) && protectedArt.riverBank(4)==Form::None && protectedArt.riverBank(5)==Form::None);
+    std::istringstream plain(fixture),objects("Name\tAutoMap\nShrine\t4\n");
+    require(protectedArt.load(plain) && protectedArt.protectObjects(objects) && protectedArt.riverBank(4)==Form::None);
+
+    const auto oldStyle=activeStyle;const auto oldWall=wallColor;const auto oldOpacity=overlayOpacity;
+    std::vector<unsigned char> memory(0x135000);client=memory.data();
+    put(memory,0xdbc48,150);put(memory,0xdbc4c,150);put(memory,0x11c1f8,-40);put(memory,0x11c1fc,-20);
+    std::vector<DWORD> frame(400),file(30),ctx(18);file[0]=6;file[5]=24;
+    for(int i=0;i<24;++i)file[6+i]=reinterpret_cast<DWORD>(frame.data());
+    ctx[13]=reinterpret_cast<DWORD>(file.data());
+    StyledState state;state.floorCells=1;styledCurrent=&state;
+    originalCell=captureCell;styledArray=captureAppearanceArray;styledColor=captureColor;originalLine=appearanceNativeLine;
+    NativeRect view{0,150,0,149};passViewport={0,0,150,150};
+    observedLevel=2;wallColor=BoundaryColor::Orange;overlayOpacity=80;
+    riverBankTraces.clear();
+    for(int divisor:{10,20})for(bool town:{false,true})for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled}) {
+        checkContext="native bank survives empty collision mesh and town-only visibility";
+        const int w=divisor==10?16:8,h=w*2;
+        Transform t{double(divisor),-40,-20},stable{double(divisor),divisor==10?8.0:7.0,divisor==10?-8.0:-3.0};
+        const int sx=-40-(divisor==10?8:7),sy=-20-(divisor==10?-8:-3);
+        put(memory,0xf16b0,divisor);frame[1]=w;frame[2]=h;
+        std::vector<unsigned char> encoded;
+        for(int y=0;y<h;++y){encoded.push_back(static_cast<unsigned char>(w));for(int x=0;x<w;++x)encoded.push_back(137);encoded.push_back(128);}
+        frame[7]=DWORD(encoded.size());memcpy(frame.data()+8,encoded.data(),encoded.size());
+        Silhouette shape;NativeWallTrace trace;require(shape.decode(encoded.data(),encoded.size(),w,h));
+        for(auto form:{Form::Top,Form::Bottom}) {
+            require(trace.buildRiverBank(shape,w,h,form) && trace.lines.size()==1);
+            auto line=trace.lines[0];require(line.second.x-line.first.x==w*.5 && line.second.y-line.first.y==-w*.25);
+        }
+        Mask mask(.25);if(!town)mask.revealAround({0,0},256);explored=&mask;
+        townBoundary=TownBoundary{};townBoundary.ready=town;townBoundary.session=++gameSerial;
+        if(town)townBoundary.raster[divisor==20?1:0].revealQuarterRect(-240,-240,240,240,divisor);
+        nativeTownActive=town;townInViewport=town;activeStyle=style;
+        enabled=inPass=haveViewport=styledActive=true;maskActive=style!=MapStyle::Original;
+        state.drawing=styled_map::Drawing{};state.captureIncomplete=false;
+        riverTint.select(gameSerial,lastLevelKey,divisor);waterTint.select(gameSerial,lastLevelKey,divisor);
+        riverBankCells.clear();waterCore.clear();sewerCasing.clear();sewerCore.clear();
+        const auto before=forwardedCells;
+        ctx[0]=4;cellHook(ctx.data(),-sx,h-sy,&view,0);
+        const auto vertices=waterCore.size();
+        cellHook(ctx.data(),-sx,h-sy,&view,0);require(waterCore.size()==vertices); // Duplicate callbacks cannot double the shore.
+        ctx[0]=5;cellHook(ctx.data(),-sx+w*2,h-sy,&view,0);
+        require(forwardedCells==before+((style==MapStyle::Styled && !town)?0:3));
+        const bool traced=style==MapStyle::Hybrid;
+        require(!waterCore.empty()==traced && riverTint.size()==(traced?2u:0u));
+        if(traced) {
+            require(waterCore.size()==8 && sewerCasing.size()==8); // Exactly two shores, no diamond closure or internal seams.
+            for(const auto& vertex:waterCore)require(vertex.x>=0 && vertex.x<=150 && vertex.y>=0 && vertex.y<=150);
+            appearanceColors.clear();appearancePositions.clear();endPass();
+            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(waterEdgeColor)}));
+            // Collision geometry at the river is replaced once. A separate
+            // constructed wall retains its chosen color.
+            state.drawing.walls={{inverse({0,w*1.75},stable),inverse({double(w),w*1.75},stable)},
+                {inverse({-12,0},stable),inverse({-4,0},stable)}};
+            if(!town) {
+                appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,passViewport);
+                require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
+            }
+            require(waterCore.empty() && riverBankCells.empty());
+            inPass=true;ctx[0]=6;const auto bridge=forwardedCells;
+            cellHook(ctx.data(),-sx,h-sy,&view,0);
+            require(forwardedCells==bridge+1 && waterCore.empty());
+            // Unknown artwork retains the native water and cannot suppress a
+            // collision edge or add a guessed blue bank.
+            file[0]=0;inPass=true;riverTint.select(++gameSerial,lastLevelKey,divisor);
+            ctx[0]=4;const auto fallback=forwardedCells;cellHook(ctx.data(),-sx,h-sy,&view,0);
+            require(forwardedCells==fallback+1 && waterCore.empty() && riverTint.size()==0);file[0]=6;
+            if(!town) {
+                checkContext="river casing and core are clipped to explored pixels";
+                Mask small(.25);const Point midpoint{w*.25-sx,h-w*.375-sy};
+                small.revealAround(inverse(midpoint,t),6);explored=&small;
+                riverTint.select(++gameSerial,lastLevelKey,divisor);riverBankCells.clear();
+                cellHook(ctx.data(),-sx,h-sy,&view,0);
+                require(!waterCore.empty());
+                for(const auto* batch:{&waterCore,&sewerCasing})for(std::size_t q=0;q<batch->size();q+=4) {
+                    Point center{};for(std::size_t j=0;j<4;++j){center.x+=(*batch)[q+j].x*.25;center.y+=(*batch)[q+j].y*.25;}
+                    require(small.contains(inverse({floor(center.x)+.5,floor(center.y)+.5},t)));
+                }
+                waterCore.clear();sewerCasing.clear();riverBankCells.clear();
+                explored=&mask;
+                checkContext="river batch limit retains native water";
+                sewerCasing.resize(sewerVertexLimit);riverTint.select(++gameSerial,lastLevelKey,divisor);
+                const auto budget=forwardedCells;cellHook(ctx.data(),-sx,h-sy,&view,0);
+                require(forwardedCells==budget+1 && waterCore.empty() && riverTint.size()==0);
+                sewerCasing.clear();
+            }
+        }
+    }
+    require(riverBankTraces.size()==4); // Two sprites at two zooms, shared across repeated passes.
+    riverBankTraces.clear();riverBankCells.clear();riverTint.select(++gameSerial,0,10);waterTint.select(gameSerial,0,10);
+    waterCore.clear();sewerCasing.clear();sewerCore.clear();townBoundary=TownBoundary{};
+    client=nullptr;styledCurrent=nullptr;explored=&emptyMask;inPass=haveViewport=maskActive=styledActive=nativeTownActive=false;
+    activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;
+    std::cout<<"PASS: native river shores in Hybrid at both zooms; town-only visibility with no collision contours, exact shore count, duplicate rejection, separate wall colors, single contour ownership, native water/bridge preservation and unsupported-artwork fallback\n";
 }

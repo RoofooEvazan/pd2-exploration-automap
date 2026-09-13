@@ -144,12 +144,15 @@ static unsigned long hybridWallsReplaced=0,hybridDetails=0,hybridWater=0;
 static exploration::ArtworkBounds artworkBounds;
 static unsigned long nativeBoundsTrimmed=0,blankSpritesSkipped=0;
 static std::vector<GlideVertex> sewerCasing,sewerCore,waterCore;
-static exploration::WaterTint waterTint;
+static exploration::WaterTint waterTint,riverTint;
 static constexpr DWORD waterEdgeColor=exploration::boundaryPresets[4].r<<24 |
     exploration::boundaryPresets[4].g<<16 | exploration::boundaryPresets[4].b<<8 | 224;
 static unsigned long sewerTraced=0,sewerFallbacks=0;
 struct CachedWallTrace {DWORD length=0;exploration::NativeWallTrace shape;};
 static std::map<std::tuple<DWORD,int,int>,CachedWallTrace> sewerWallTraces;
+static std::map<std::tuple<DWORD,int,int>,CachedWallTrace> riverBankTraces;
+static std::set<std::tuple<unsigned,int,int>> riverBankCells;
+static unsigned long riverTraced=0,riverFallbacks=0;
 static constexpr std::size_t sewerVertexLimit=65536;
 static exploration::SewerWater sewerWater;
 static std::vector<GlideVertex> sewerWaterFill;
@@ -395,6 +398,7 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
         silhouetteCache.clear();silhouetteBytes=0;
         artworkBounds.clear();
         sewerWallTraces.clear();
+        riverBankTraces.clear();
         if(logfile){fprintf(logfile,"SESSION reset serial=%llu reason=%s menuEpoch=%ld\n",
             static_cast<unsigned long long>(gameSerial),exploration::sessionReason(change),InterlockedCompareExchange(&menuEpoch,0,0));fflush(logfile);}
     }
@@ -566,13 +570,6 @@ static bool frameIndex(void* ctx,DWORD* id) {
     __try {if(!ctx)return false;*id=read<DWORD>(ctx);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
-static void recordBlueTerrain(void* ctx,int x,int y) {
-    Transform t{};Rect frame{};
-    if(!transform(t) || !frameBounds(ctx,x,y,&frame))return;
-    const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
-    waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
-    waterTint.add({frame.left+sx,frame.top+sy,frame.right+sx,frame.bottom+sy});
-}
 struct FrameSource { const void* frame;DWORD length,flags;int width,height;const void* file;DWORD index; };
 static bool frameSource(void* ctx,FrameSource* source) {
     __try {
@@ -599,6 +596,24 @@ static bool opaqueFrameBounds(void* ctx,Rect asset,Rect* bounds) {
     *bounds={asset.left+local.left,asset.top+local.top,asset.left+local.right,asset.top+local.bottom};return true;
 }
 static bool queueTraceLines(const std::vector<std::pair<Point,Point>>& lines,Point offset,const std::vector<Rect>& clips,bool water=false);
+static bool queueRiverBank(void* ctx,DWORD id,Rect asset,const std::vector<Rect>& clips) {
+    FrameSource source{};if(!frameSource(ctx,&source))return false;
+    auto key=std::make_tuple(id,source.width,source.height);
+    auto found=riverBankTraces.find(key);
+    if(found==riverBankTraces.end() || found->second.length!=source.length) {
+        std::vector<unsigned char> bytes(source.length);exploration::Silhouette silhouette;
+        CachedWallTrace item;item.length=source.length;
+        if(copyFrameBytes(source,bytes.data()) && silhouette.decode(bytes.data(),bytes.size(),source.width,source.height))
+            item.shape.buildRiverBank(silhouette,source.width,source.height,hybridArtwork.riverBank(id));
+        if(riverBankTraces.size()>=64)riverBankTraces.clear();
+        found=riverBankTraces.insert_or_assign(key,std::move(item)).first;
+    }
+    if(found->second.shape.lines.empty())return false;
+    auto cell=std::make_tuple(unsigned(hybridArtwork.riverBank(id)),asset.left,asset.top);
+    if(riverBankCells.count(cell))return true;
+    if(riverBankCells.size()>=8192 || !queueTraceLines(found->second.shape.lines,{double(asset.left),double(asset.top)},clips,true))return false;
+    riverBankCells.insert(cell);return true;
+}
 static bool queueSewerWall(void* ctx,DWORD id,Rect asset,const std::vector<Rect>& clips) {
     FrameSource source{};if(!frameSource(ctx,&source))return false;
     auto key=std::make_tuple(id,source.width,source.height);
@@ -811,18 +826,16 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         }
         const bool townOnly=nativeTownActive && styledOnly && !importantDetail && !pendingTerrain;
         const bool hybrid=activeStyle==MapStyle::Hybrid && terrainReady && hybridArtwork.loaded();
-        bool replaceWall=false,traceSewer=false,traceWater=false,tintWater=false;
+        bool replaceWall=false,traceSewer=false,traceWater=false,tintWater=false,traceRiver=false;
         if(hybrid) {
             // frameBounds below validates the complete context before any draw.
             auto role=knownFrame?hybridArtwork.role(id,observedLevel):exploration::HybridArtwork::Role::Detail;
             traceSewer=role==exploration::HybridArtwork::Role::SewerWall && (observedLevel==92 || observedLevel==93);
             traceWater=role==exploration::HybridArtwork::Role::SewerWater && (observedLevel==92 || observedLevel==93);
             tintWater=!marker && !importantDetail && hybridArtwork.blueTerrainTile(id);
+            traceRiver=tintWater && hybridArtwork.riverBank(id)!=exploration::HybridArtwork::RiverBank::None;
             replaceWall=!marker && role==exploration::HybridArtwork::Role::Wall;
             if(replaceWall){
-                // Replaced cliff sprites still identify the material of the
-                // completed contour. Capture them before the fast suppression.
-                if(tintWater)recordBlueTerrain(ctx,x,y);
                 ++hybridWallsReplaced;if(!pendingTerrain && (!nativeTownActive || !townInViewport)){++suppressed;return;}
             }
             else if(role==exploration::HybridArtwork::Role::Water || traceWater)++hybridWater;else ++hybridDetails;
@@ -842,14 +855,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             if(!townOnly)explored->frontier([&](Point a,Point b){contactFrontier.add(project(a,t),project(b,t));});
         }
         Rect assetBounds=bounds;
-        if(traceSewer){bounds.left-=2;bounds.top-=2;bounds.right+=2;bounds.bottom+=2;}
+        if(traceSewer || traceRiver){bounds.left-=2;bounds.top-=2;bounds.right+=2;bounds.bottom+=2;}
         bounds=exploration::intersect(bounds,viewport);
         if(bounds.left>=bounds.right || bounds.top>=bounds.bottom){++suppressed;return;}
         // Retained native sprites often occupy only the bottom of their frame.
         // Ignore transparent padding when querying the mask; the original
         // textured quad/UVs still draw. Sewer traces need the complete canvas,
         // and native towns keep their existing route. Invalid metadata falls back.
-        if(hybrid && !nativeTownActive && !traceSewer && !traceWater) {
+        if(hybrid && !nativeTownActive && !traceSewer && !traceWater && !traceRiver) {
             Rect opaque{};
             if(opaqueFrameBounds(ctx,assetBounds,&opaque)) {
                 if(opaque.left>=opaque.right || opaque.top>=opaque.bottom){++blankSpritesSkipped;++suppressed;return;}
@@ -879,6 +892,15 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             cachedUnfinishedClips(bounds,int(t.divisor),shiftX,shiftY,appendClip);
         else cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,coverage,appendClip);
         if(clips.empty()){++suppressed;return;}
+        if(traceRiver) {
+            // Town water has no replacement floor contour. Outline the actual
+            // bank sprite, keeping its water texture and native town visibility.
+            if(queueRiverBank(ctx,id,assetBounds,clips)) {
+                riverTint.select(gameSerial,lastLevelKey,int(t.divisor));
+                riverTint.add({assetBounds.left+shiftX,assetBounds.top+shiftY,assetBounds.right+shiftX,assetBounds.bottom+shiftY});
+                ++riverTraced;
+            } else ++riverFallbacks;
+        }
         if(traceSewer) {
             if(queueSewerWall(ctx,id,assetBounds,clips)){++sewerTraced;++suppressed;return;}
             ++sewerFallbacks; // Unsupported artwork/budget: preserve the native wall.
@@ -898,6 +920,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
 static void beginPass() {
     InterlockedIncrement(&beginCount);
     sewerCasing.clear();sewerCore.clear();waterCore.clear();sewerWater.clear();sewerWaterFill.clear();
+    riverBankCells.clear();
     nativeMarkers.clear();markerArtworkFile=nullptr;
     entranceCount=entranceClipCount=0;entranceAlpha=-1;
     QueryPerformanceCounter(&passStarted);
@@ -940,6 +963,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     static std::vector<Rect> clips;
     casing.clear();core.clear();waterVertices.clear();
     waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
+    riverTint.select(gameSerial,lastLevelKey,int(t.divisor));
     const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
     auto draw=[&](const styled_map::Stroke& wall,bool water) {
         const auto a=project(wall.a,t),b=project(wall.b,t);
@@ -967,9 +991,18 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     };
     // Tile locations stay in stable map coordinates, so walking and panning
     // reuse the color split. Native water artwork and draw order are retained.
+    const auto* walls=&styledCurrent->drawing.walls;
+    static std::vector<styled_map::Stroke> awayFromRiver;
+    if(activeStyle==MapStyle::Hybrid && riverTint.size()) {
+        // A traced native bank owns its edge. Remove the matching collision
+        // contour instead of drawing a second, offset shoreline beside it.
+        awayFromRiver.clear();
+        for(const auto& part:riverTint.prepare(*walls))if(!part.water)awayFromRiver.push_back(part.stroke);
+        walls=&awayFromRiver;
+    }
     if(activeStyle==MapStyle::Hybrid && waterTint.size()) {
-        for(const auto& part:waterTint.prepare(styledCurrent->drawing.walls))draw(part.stroke,part.water);
-    } else for(const auto& wall:styledCurrent->drawing.walls)draw(wall,false);
+        for(const auto& part:waterTint.prepare(*walls))draw(part.stroke,part.water);
+    } else for(const auto& wall:*walls)draw(wall,false);
     auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
         if(vertices.empty())return;pointers.clear();
         for(const auto& vertex:vertices)pointers.push_back(&vertex);
@@ -1134,6 +1167,7 @@ static void endPass() {
             submit(waterCore,waterEdgeColor);
         }
         sewerCasing.clear();sewerCore.clear();waterCore.clear();sewerWater.clear();sewerWaterFill.clear();
+        riverBankCells.clear();
         if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
             Transform t{};if(transform(t))drawEntryFrontier(t,passViewport);
         }
@@ -1161,7 +1195,7 @@ static void endPass() {
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
                 nativeBoundsTrimmed,blankSpritesSkipped,artworkBounds.hits(),artworkBounds.decoded(),artworkBounds.failures());fflush(logfile);}
-            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"WATER edgeColor=light-blue knownTiles=%zu colorBuilds=%zu\n",waterTint.size(),waterTint.builds());fflush(logfile);}
+            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"WATER edgeColor=light-blue knownTiles=%zu colorBuilds=%zu riverTraced=%lu riverFallbacks=%lu\n",waterTint.size(),waterTint.builds(),riverTraced,riverFallbacks);fflush(logfile);}
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }

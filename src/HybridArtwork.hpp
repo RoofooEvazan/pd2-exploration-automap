@@ -17,6 +17,7 @@ class HybridArtwork {
     std::array<std::uint8_t,65536> poisonedWellFlags_{};
     std::array<std::uint8_t,65536> entrances_{};
     std::array<std::uint8_t,65536> waterTiles_{};
+    std::array<std::uint8_t,65536> riverBanks_{};
     bool loaded_=false;
     static std::vector<std::string> columns(const std::string& line) {
         std::vector<std::string> out;std::size_t start=0;
@@ -53,21 +54,14 @@ public:
         return false;
     }
     enum class Role { Detail, Wall, Water, SewerWall, SewerWater };
-    // Riverbank sprites contain only part of a water tile. Cliff sprites mark
-    // raised terrain, even where their labels don't contain "water".
+    // Riverbank sprites contain only part of a water tile.
     static unsigned terrainEdge(const std::string& label) {
         std::string text=label;for(auto& c:text)c=char(std::tolower(static_cast<unsigned char>(c)));
         if(text.compare(0,4,"pd2 ")==0)text.erase(0,4);
         if(text.compare(0,3,"rb_")==0)return 4;
-        for(const char* prefix:{"c_wr","c_wl","c_wbr","c_wbl","c_wtr","c_wtll"})
-            if(text.compare(0,std::char_traits<char>::length(prefix),prefix)==0)return 8;
-        // Low grassy banks in Act 1 use stonewall.dt1 and the Stn_ artwork,
-        // including separate corners and end caps. C_ denotes tall cliffs.
-        for(const char* prefix:{"stn_wr ","stn_wl "})
-            if(text.compare(0,std::char_traits<char>::length(prefix),prefix)==0)return 16;
-        if(oneOf(text,{"stn_x","stn_l r e","stn_u r e"}))return 16;
         return 0;
     }
+    enum class RiverBank { None, Top, Bottom };
     enum class SewerShape { None, Down, Up, Peak, Cap };
     static SewerShape sewerShape(const std::string& label) {
         std::string text=label;for(auto& c:text)c=char(std::tolower(static_cast<unsigned char>(c)));
@@ -108,7 +102,7 @@ public:
         return Role::Detail;
     }
     bool load(std::istream& stream) {
-        flags_.fill(0);sewerShapes_.fill(0);sewerWaterRoles_.fill(0);poisonedWellFlags_.fill(0);entrances_.fill(0);waterTiles_.fill(0);loaded_=false;std::string line;
+        flags_.fill(0);sewerShapes_.fill(0);sewerWaterRoles_.fill(0);poisonedWellFlags_.fill(0);entrances_.fill(0);waterTiles_.fill(0);riverBanks_.fill(0);loaded_=false;std::string line;
         if(!std::getline(stream,line) || line.size()>32768)return false;
         auto header=columns(line);std::vector<std::size_t> cells;
         auto levelColumn=std::find(header.begin(),header.end(),"LevelName");
@@ -126,6 +120,7 @@ public:
                 int id=number(row[col]);if(id<0)continue;
                 Role role=describe(row[col-1]);
                 std::string label=row[col-1];for(auto& c:label)c=char(std::tolower(static_cast<unsigned char>(c)));
+                riverBanks_[id]|=label=="river t a"?1:label=="river b a"?2:4;
                 if(role==Role::Water)waterTiles_[id]|=label.find("island")==std::string::npos?1:2;
                 waterTiles_[id]|=std::uint8_t(terrainEdge(label));
                 entrances_[id]|=entranceLabel(row[col-1])?1:2;
@@ -178,7 +173,11 @@ public:
         return loaded_ && id<flags_.size() && waterTiles_[id]==1 && !(flags_[id]&8) && !styledDetail(id);
     }
     bool blueTerrainTile(std::uint32_t id) const {
-        return loaded_ && id<flags_.size() && !(waterTiles_[id]&2) && (waterTiles_[id]&29) && !(flags_[id]&8) && !styledDetail(id);
+        return loaded_ && id<flags_.size() && !(waterTiles_[id]&2) && (waterTiles_[id]&5) && !(flags_[id]&8) && !styledDetail(id);
+    }
+    RiverBank riverBank(std::uint32_t id) const {
+        if(!waterTile(id))return RiverBank::None;
+        return riverBanks_[id]==1?RiverBank::Top:riverBanks_[id]==2?RiverBank::Bottom:RiverBank::None;
     }
     bool entrance(std::uint32_t id) const {
         if(!loaded_ || id>=entrances_.size())return false;

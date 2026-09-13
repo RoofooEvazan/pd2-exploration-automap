@@ -35,6 +35,26 @@ class NativeWallTrace {
     }
 public:
     std::vector<std::pair<Point,Point>> lines;
+    bool buildRiverBank(const Silhouette& shape,int width,int height,HybridArtwork::RiverBank form) {
+        lines.clear();
+        if((width!=16 && width!=8) || height!=width*2 || shape.rows.size()!=std::size_t(height))return false;
+        for(const auto& row:shape.rows)for(auto span:row)if(span.first<0 || span.first>=span.second || span.second>width)return false;
+        using Form=HybridArtwork::RiverBank;
+        if(form==Form::Top)lines.push_back({{0.,height-width*.25},{width*.5,height-width*.5}});
+        else if(form==Form::Bottom)lines.push_back({{width*.5,double(height)},{double(width),height-width*.25}});
+        else return false;
+        // The top/bottom bank artwork supplies one shore, not a closed water
+        // diamond. Shared endpoints join adjacent tiles without interior seams.
+        for(int i=0;i<=16;++i) {
+            const auto& line=lines.front();
+            Point p{line.first.x+(line.second.x-line.first.x)*i/16.,line.first.y+(line.second.y-line.first.y)*i/16.};
+            double nearest=1e9;
+            for(int y=0;y<height;++y)for(auto span:shape.rows[y])for(int x=span.first;x<span.second;++x)
+                nearest=std::min(nearest,(p.x-x-.5)*(p.x-x-.5)+(p.y-y-.5)*(p.y-y-.5));
+            if(nearest>4.){lines.clear();return false;}
+        }
+        return true;
+    }
     bool buildSewer(const Silhouette& shape,int width,int height,HybridArtwork::SewerShape form) {
         lines.clear();
         if((width!=16 && width!=8) || height!=width*2 || shape.rows.size()!=std::size_t(height))return false;
