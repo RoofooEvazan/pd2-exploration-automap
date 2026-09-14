@@ -26,7 +26,7 @@ static void testNativeMapWater() {
     require(!hybridArtwork.blueTerrainTile(1693) && !hybridArtwork.styledDetail(1693));
     for(const char* label:{"Water1","Water4","PD2 FullWater"})require(exploration::HybridArtwork::describe(label)==exploration::HybridArtwork::Role::Water);
 
-    checkContext="Original keeps native reveal; Hybrid retains water; Styled removes it";
+    checkContext="water fill is removed in all styles; only Hybrid registers shore colors";
     const auto oldOpacity=overlayOpacity;overlayOpacity=100;
     std::vector<unsigned char> memory(0x11c8bc);client=memory.data();
     put(memory,0xdbc48,100);put(memory,0xdbc4c,100);put(memory,0xf16b0,10);
@@ -43,44 +43,53 @@ static void testNativeMapWater() {
     StyledState state;state.floorCells=1;styledCurrent=&state;
     enabled=inPass=haveViewport=true;nativeTownActive=false;observedLevel=202;passViewport={0,0,100,100};
     activeStyle=MapStyle::Original;maskActive=styledActive=false;
-    wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;auto before=forwardedCells;
+    wellOutlineCount=wellOutlineClips=0;auto before=forwardedCells;
+    appearanceColors.clear();appearancePositions.clear();wellFillShapes.clear();
     cellHook(context.data(),10,40,&viewport,5);
-    require(mask.size()==0 && forwardedCells==before+1 && wellWaterVertices.size()==4);
-    for(const auto& v:wellWaterVertices)require(v.x>=10 && v.x<=18 && v.y>=39 && v.y<=40);
-    appearanceColors.clear();drawWellWater();require(appearanceColors==std::vector<DWORD>{0x52644070});
-    require(wellWaterVertices.empty() && !styledBatch);
+    require(mask.size()==0 && forwardedCells==before+1 && wellFillShapes.empty());
+    drawWellOutlines();require(appearanceColors.empty() && appearancePositions.empty() && !styledBatch);
     mask.revealAround(inverse({20,40},t),132);
-    ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);require(waterTint.size()==0);
-    for(auto style:{MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled}) {
-        activeStyle=style;maskActive=styledActive=true;wellWaterVertices.clear();
-        cellHook(context.data(),10,40,&viewport,5);
-        require(wellWaterVertices.empty()==(style==MapStyle::Styled));wellWaterVertices.clear();
-        require(waterTint.size()==std::size_t(style==MapStyle::Native?0:1));
+    for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Styled,MapStyle::Hybrid}) {
+        ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);wellFillShapes.clear();
+        activeStyle=style;maskActive=styledActive=style!=MapStyle::Original;
+        appearanceColors.clear();appearancePositions.clear();
+        cellHook(context.data(),10,40,&viewport,5);drawWellOutlines();
+        require(appearanceColors.empty() && appearancePositions.empty());
+        require(waterTint.size()==std::size_t(style==MapStyle::Hybrid));
+        require(wellFillShapes.empty()==(style!=MapStyle::Hybrid));
     }
-    // Only the actual water pixels tint nearby contours, not the dry half of
-    // the same native diamond. The floor's bank tags remain independent.
+    // Removing the fill must not broaden shoreline classification onto dry heads.
     auto material=waterTint.prepare({{inverse({10,39.5},t),inverse({18,39.5},t)},
         {inverse({22,39.5},t),inverse({25,39.5},t)}});
     require(material.size()==2 && material[0].water && !material[1].water);
-    // Multiple disjoint clips preserve the original asset origin for each part.
-    const auto shape=wellFillShape(context.data());require(shape!=nullptr);
-    require(queueWellFill(*shape,{10,8,26,40},{{10,39,13,40},{15,39,18,40}}));
-    require(wellWaterVertices.size()==8 && wellWaterVertices[4].x==15 && wellWaterVertices[5].x==18);
-    wellWaterVertices.resize(wellVertexLimit);require(!queueWellFill(*shape,{10,8,26,40},{{10,39,18,40}}));wellWaterVertices.clear();
+
+    checkContext="discovered water tiles avoid repeated visibility and artwork work while panning";
+    const auto queries=rasterClips.hits()+rasterClips.misses();const auto registrations=wellShoreRegistrations;
+    for(int repeat=0;repeat<100;++repeat) {
+        const int pan=(repeat%3)*7-9;put(memory,0x11c1f8,pan);
+        mask.revealRange(1000+repeat,0,4);
+        registerWellShore(context.data(),1693,10-pan,40,&viewport);
+    }
+    require(rasterClips.hits()+rasterClips.misses()==queries && wellShoreRegistrations==registrations && waterTint.size()==1);
+    put(memory,0x11c1f8,0);
+    checkContext="shoreline registration waits for discovery and refreshes a hidden tile";
+    Mask unseen(.25);explored=&unseen;++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
+    registerWellShore(context.data(),1693,10,40,&viewport);require(waterTint.size()==0);
+    unseen.revealAround(inverse({20,40},t),132);
+    registerWellShore(context.data(),1693,10,40,&viewport);require(waterTint.size()==1);
+    explored=&mask;
 
     checkContext="shoreline color registration survives water just outside the viewport";
     activeStyle=MapStyle::Hybrid;context[0]=1693;++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
     NativeRect aboveWater{0,100,0,32};
-    queueWellWaterForOutline(context.data(),1693,10,40,&aboveWater);
-    require(wellWaterVertices.empty() && waterTint.size()==1);
+    registerWellShore(context.data(),1693,10,40,&aboveWater);require(waterTint.size()==1);
     checkContext="shoreline color registration survives water just beyond discovery";
     Mask beforeWater(.25);beforeWater.revealAround(inverse({16,18},t),12);explored=&beforeWater;
     ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
-    queueWellWaterForOutline(context.data(),1693,10,40,&viewport);
-    require(wellWaterVertices.empty() && waterTint.size()==1);
+    registerWellShore(context.data(),1693,10,40,&viewport);require(waterTint.size()==1);
 
-    checkContext="tight water bounds preserve every visible water pixel and bridge gap";
-    for(int divisor:{10,20})for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Hybrid})for(int pan:{-9,0,13}) {
+    checkContext="both zooms and offset frames retain shore colors without fill submissions";
+    for(int divisor:{10,20})for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled})for(int pan:{-9,0,13}) {
         const int w=divisor==10?16:8,h=w*2;const Transform viewTransform{double(divisor),double(pan),-3};
         put(memory,0xf16b0,divisor);put(memory,0x11c1f8,pan);put(memory,0x11c1fc,-3);
         frame[1]=w;frame[2]=h;frame[3]=DWORD(-3);frame[4]=2;
@@ -93,34 +102,25 @@ static void testNativeMapWater() {
             bytes.push_back(128);
         }
         frame[7]=DWORD(bytes.size());memcpy(frame.data()+8,bytes.data(),bytes.size());
-        context[0]=1693;++gameSerial;activeStyle=style;
+        context[0]=1693;++gameSerial;activeStyle=style;waterTint.select(gameSerial,lastLevelKey,divisor);
         Mask waterMask(.25);waterMask.revealAround(inverse({24.5,40.5},viewTransform),12);explored=&waterMask;
-        NativeRect cropped{19,30,35,41};Rect asset{};require(frameBounds(context.data(),23,40,&asset));
-        wellWaterVertices.clear();queueWellWaterForOutline(context.data(),1693,23,40,&cropped);
-        std::set<std::pair<int,int>> expected,actual;
-        for(int row=h-w/2;row<h;++row)for(int col=0;col<w;++col) {
-            if(col>=w/4 && col<w*3/4)continue;
-            const int x=asset.left+col,y=asset.top+row;
-            if(x<cropped.left || x>=cropped.right || y<=cropped.top || y>cropped.bottom)continue;
-            if(style==MapStyle::Original || waterMask.contains(inverse({x+.5,y+.5},viewTransform)))expected.insert({x,y});
-        }
-        for(std::size_t q=0;q<wellWaterVertices.size();q+=4) {
-            const auto& a=wellWaterVertices[q];const auto& b=wellWaterVertices[q+2];
-            for(int y=int(a.y);y<int(b.y);++y)for(int x=int(a.x);x<int(b.x);++x)require(actual.insert({x,y}).second);
-        }
-        require(actual==expected && !actual.empty());
+        NativeRect cropped{19,30,35,41};
+        appearanceColors.clear();appearancePositions.clear();
+        registerWellShore(context.data(),1693,23,40,&cropped);drawWellOutlines();
+        require(waterTint.size()==std::size_t(style==MapStyle::Hybrid));
+        require(appearanceColors.empty() && appearancePositions.empty());
     }
-    explored=&mask;wellWaterVertices.clear();
+    explored=&mask;
 
     checkContext="dull green native edges preserve bridge colors and restore the palette";
     std::array<DWORD,256> palette{};palette.fill(0xff010203);palette[132]=0xff18fc00;palette[222]=0xffd8d8d8;
     nativePalette=palette.data();entrancePaletteDraw=captureEntrancePalette;entranceTestPalette=palette;entranceUploads=0;
     originalCell=captureWellOutline;context[0]=1693;
     require(queueWellOutline(context.data(),0,0,&viewport,5,nullptr));context[0]=1590;
-    drawWellWater();require(wellTestNative==1 && entranceUploads==2 && entranceTestPalette==palette);
+    drawWellOutlines();require(wellTestNative==1 && entranceUploads==2 && entranceTestPalette==palette);
     context[0]=1693;require(queueWellOutline(context.data(),0,0,&viewport,5,nullptr));wellTestThrow=true;bool caught=false;
-    try{drawWellWater();}catch(...){caught=true;}
-    require(caught && entranceTestPalette==palette && wellOutlineCount==0 && wellWaterVertices.empty());wellTestThrow=false;
+    try{drawWellOutlines();}catch(...){caught=true;}
+    require(caught && entranceTestPalette==palette && wellOutlineCount==0);wellTestThrow=false;
     std::istringstream protectedObject("Name\tAutoMap\nObject\t1590\n");
     require(hybridArtwork.protectObjects(protectedObject) && !hybridArtwork.poisonedWellFill(1693,202));
     std::istringstream conflict(artworkFixture()+"46\tfl\t10\t0\t0\tPW outline water=1590\t1693\t\t-1\t\t-1\t\t-1\n"
@@ -128,7 +128,7 @@ static void testNativeMapWater() {
     require(hybridArtwork.load(conflict) && !hybridArtwork.poisonedWellFill(1693,202));
     wellFillShapes.clear();wellOutlineCells.clear();nativePalette=nullptr;entrancePaletteDraw=nullptr;
     overlayOpacity=oldOpacity;inPass=maskActive=styledActive=haveViewport=false;styledCurrent=nullptr;explored=&emptyMask;client=nullptr;
-    std::cout<<"PASS: native map water coverage, bridge exclusions, Original reveal, Hybrid/Styled separation, disjoint clipping, budgets and palette restoration\n";
+    std::cout<<"PASS: no added water fill, preserved shoreline coverage and bridge exclusions, Original reveal, all styles/zooms, panning cache reuse and palette restoration\n";
 }
 static void __stdcall captureOriginalWall(void* context,int x,int y,NativeRect*,int mode) {
     require(read<DWORD>(context)==1572 && x==10 && y==40 && mode==2);

@@ -91,6 +91,11 @@ public:
             }
         return true;
     }
+    bool hasPixels(Rect frame,unsigned artwork) const {
+        const int w=frame.right-frame.left,h=frame.bottom-frame.top;
+        return (w==8 || w==16) && h==w*2 && artwork<=65535 &&
+            pixelTiles_.count({frame.left,frame.bottom,w,int(artwork)})!=0;
+    }
     bool addPixels(Rect frame,unsigned artwork,const std::vector<Rect>& pixels) {
         const int w=frame.right-frame.left,h=frame.bottom-frame.top;
         if((w!=8 && w!=16) || h!=w*2 || artwork>65535 || pixels.empty())return false;

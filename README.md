@@ -88,7 +88,7 @@ The color lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, 
 
 The new palette, water color picker and thickness toggle are in the development build after beta.8.
 
-Poisoned Well can supply water-fill references in its custom automap definitions. With those definitions installed, Original and Native show dull-green water shading and edges. Hybrid retains the shading and uses the selected Water Color for shore contours; Styled omits the water artwork.
+Poisoned Well can supply water references in its custom automap definitions. With those definitions installed, Original and Native show dull-green water edges. Hybrid uses the selected Water Color for shore contours; Styled omits the water artwork. The extra translucent green fill is disabled to reduce drawing cost.
 
 Default `ExplorationMask.ini`:
 

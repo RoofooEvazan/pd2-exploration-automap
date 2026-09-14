@@ -14,6 +14,8 @@ New terrain is built on one background worker. The game draws the latest complet
 
 `SewerWater.hpp` uses reusable contiguous buffers and bounded duplicate detection. It reuses the perimeter when the sorted tile set is unchanged, including during pan. Changed tiles rebuild the perimeter. The 8,192-tile limit and native bridge exclusion still apply.
 
+Poisoned Well's added translucent green fill is disabled. Hybrid still reads the referenced water pixels to classify shore contours, excluding dry objects and bridge pixels. Once a visible tile is registered in stable automap coordinates, repeated callbacks skip decoding and visibility queries. Original, Native and Styled do not run this classification path. Native outline colors remain available.
+
 ## Duplicate contours
 
 In the tested Poisoned Well definitions, `PW wall` and `PW outline` identify contour sprites, including blank filler frames. Treating them as details drew native terrain beside the modern contour and duplicated clipping work.
