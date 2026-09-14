@@ -212,7 +212,7 @@ public:
         if(capturedCells_+flags.size()>2000000){roomBudgetReached_=true;return;}
         capturedCells_+=flags.size();
         if(banks.size()==flags.size())for(int row=0;row<h;++row)for(int col=0;col<w;++col)
-            if(banks[std::size_t(row)*w+col] && (flags[std::size_t(row)*w+col]&0x27)==1)
+            if(banks[std::size_t(row)*w+col] && (flags[std::size_t(row)*w+col]&0x26)==0)
                 banks_.revealRange(y+row,x+col,x+col+1);
         for(int row=0;row<h;++row) {
             known_.revealRange(y+row,x,x+w);connectionRows_.insert(y+row);int start=-1;

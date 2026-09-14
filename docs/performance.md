@@ -8,6 +8,8 @@ New terrain is built on one background worker. The game draws the latest complet
 
 `PreparedFloors.hpp` prepares projected coordinates and bounds once per completed result. Per-frame rendering translates those coordinates for pan, rejects off-screen quads and clips viewport crossings. Both zooms retain double precision until submission. Preparation is capped at 65,536 quads, or 6 MiB of item payload per result. The render-side result, completed worker result and in-progress result can together hold up to 18 MiB of this payload, plus overhead. Larger drawings use the unprepared path.
 
+Hybrid and Styled wall strokes use a uniform pixel grid that survives D2GL's binary16 position storage. This prevents thin cores from changing width at screen-coordinate precision boundaries. `WallStrokeCache` retains up to 16,384 casing/core pairs before pan, about 2.7 MiB of payload plus vector overhead. Unchanged strokes reuse their geometry; changed strokes or pixel-grid phases rebuild. Excess strokes still draw through an uncached path. Color changes do not invalidate it.
+
 ## Artwork clipping and water reuse
 
 `RasterClipCache.hpp` stores exact clipping rectangles in stable automap coordinates before pan. It has 8,192 slots with at most 16 rectangles each: up to 2 MiB of rectangle payload plus metadata and scratch space. Fully visible rectangles remain valid as the same mask grows; partial and hidden coverage refreshes. Area/session, zoom, town-footprint and mask-shrink changes invalidate the cache. All drawing paths share its invalidation context. Hash collisions and complex cells use the original query.
@@ -15,6 +17,8 @@ New terrain is built on one background worker. The game draws the latest complet
 `SewerWater.hpp` uses reusable contiguous buffers and bounded duplicate detection. It reuses the perimeter when the sorted tile set is unchanged, including during pan. Changed tiles rebuild the perimeter. The 8,192-tile limit and native bridge exclusion still apply.
 
 Poisoned Well's added translucent green fill is disabled. Hybrid still reads the referenced water pixels to classify shore contours, excluding dry objects and bridge pixels. Once a visible tile is registered in stable automap coordinates, repeated callbacks skip decoding and visibility queries. Original, Native and Styled do not run this classification path. Native outline colors remain available.
+
+Loaded river-floor material also survives nonblocking decorative floor overlays. The water-facing side of an adjoining contour can therefore retain its water color when the merged collision grid no longer contains the floor's water bit. This changes material classification only; floor coverage, wall positions and reveal distance are unchanged. Dry portions of the source tile do not inherit water.
 
 ## Duplicate contours
 

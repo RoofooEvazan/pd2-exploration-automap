@@ -1105,15 +1105,19 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     static std::vector<GlideVertex> casing,core,waterVertices;
     static std::vector<const void*> pointers;
     static std::vector<Rect> clips;
+    static styled_map::WallStrokeCache strokes;
     casing.clear();core.clear();waterVertices.clear();
     waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
     riverTint.select(gameSerial,lastLevelKey,int(t.divisor));
     const int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+    const double wallPixelStep=styled_map::strokePixelStep(viewport);
+    strokes.begin(wallPixelStep,{t.ox,t.oy});
+    const Transform stable{t.divisor,0,0};
     auto draw=[&](const styled_map::Stroke& wall,bool water) {
         water=activeStyle==MapStyle::Hybrid && (water || wall.bank);
-        const auto a=project(wall.a,t),b=project(wall.b,t);
+        const auto a=project(wall.a,stable),b=project(wall.b,stable);
         styled_map::Quad outer{},inner{};
-        if(!styled_map::strokeQuad(a,b,2.5,outer) || !styled_map::strokeQuad(a,b,1.0,inner))return;
+        if(!strokes.query(a,b,outer,inner))return;
         Rect bounds{int(floor(std::min({outer.a.x,outer.b.x,outer.c.x,outer.d.x}))),
             int(floor(std::min({outer.a.y,outer.b.y,outer.c.y,outer.d.y}))),
             int(ceil(std::max({outer.a.x,outer.b.x,outer.c.x,outer.d.x}))),

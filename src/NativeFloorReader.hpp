@@ -119,15 +119,19 @@ inline std::vector<std::uint8_t> copyBanks(const Room& room,const std::vector<st
     for(int i=0;i<count;++i) {
         GroundTile tile{};
         if(!groundTile(room,tiles,i,&tile)){++stats.failures;continue;}
-        ++stats.tiles;if(!grassyBankLibrary(tile.library) && !(room.level>132 && mapWaterLibrary(tile.library)))continue;
+        const bool waterLibrary=room.level>132 && mapWaterLibrary(tile.library);
+        ++stats.tiles;if(!grassyBankLibrary(tile.library) && !waterLibrary)continue;
         ++stats.banks;if(banks.empty())banks.resize(grid.size());
         for(int y=tile.y;y<std::min(tile.y+5,room.y+room.height);++y)
             for(int x=tile.x;x<std::min(tile.x+5,room.x+room.width);++x) {
                 const auto at=std::size_t(y-room.y)*room.width+x-room.x;
-                // D2Common copies DT1 rows bottom to top. Require collision
-                // from the floor itself: a prop on its dry half is not water.
+                // D2Common copies DT1 rows bottom to top. Preserve source water
+                // through a nonblocking decorative floor overlay. Its material
+                // still colors the water-facing side of an adjoining wall.
+                // A prop on the tile's dry half has no source water to inherit.
                 const auto material=tile.collision[(4-(y-tile.y))*5+x-tile.x];
-                if((material&0x27)==1 && (grid[at]&0x27)==1)banks[at]=1;
+                const auto merged=grid[at]&0x27;
+                if((material&0x27)==1 && (merged==1 || (waterLibrary && merged==0)))banks[at]=1;
             }
     }
     return banks;

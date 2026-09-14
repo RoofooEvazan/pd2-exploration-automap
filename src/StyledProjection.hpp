@@ -11,6 +11,59 @@ inline bool strokeQuad(Point a,Point b,double width,Quad& out) {
     const double nx=-dy*width/(2*length),ny=dx*width/(2*length);
     out={{a.x+nx,a.y+ny},{b.x+nx,b.y+ny},{b.x-nx,b.y-ny},{a.x-nx,a.y-ny}};return true;
 }
+// D2GL stores positions in binary16. Use a uniform representable grid for thin
+// contours so crossing a precision boundary cannot change their thickness.
+inline double strokePixelStep(exploration::Rect view) {
+    double extent=std::max({std::abs(double(view.left)),std::abs(double(view.top)),
+        std::abs(double(view.right)),std::abs(double(view.bottom))});
+    double step=1;while(extent>2048){extent*=.5;step*=2;}return step;
+}
+inline bool stableStrokeQuad(Point a,Point b,double width,double pixelStep,Quad& out) {
+    if(!std::isfinite(pixelStep) || pixelStep<=0 || !std::isfinite(width) || width<=0)return false;
+    if(std::tie(b.x,b.y)<std::tie(a.x,a.y))std::swap(a,b);
+    const double dx=b.x-a.x,dy=b.y-a.y,length=std::hypot(dx,dy);
+    if(!std::isfinite(length) || length<1e-6)return false;
+    auto snap=[&](double v){return std::floor(v/pixelStep+.5)*pixelStep;};
+    const double nx=-dy*width/length,ny=dx*width/length;
+    double sx=snap(nx),sy=snap(ny);
+    if(sx==0 && sy==0){if(std::abs(dx)>=std::abs(dy))sy=pixelStep;else sx=dy>0?-pixelStep:pixelStep;}
+    const Point leftA{snap(a.x-nx*.5),snap(a.y-ny*.5)},leftB{snap(b.x-nx*.5),snap(b.y-ny*.5)};
+    if(std::abs((leftB.x-leftA.x)*sy-(leftB.y-leftA.y)*sx)<1e-6)return false;
+    out={leftA,leftB,{leftB.x+sx,leftB.y+sy},{leftA.x+sx,leftA.y+sy}};return true;
+}
+class WallStrokeCache {
+    struct Entry {Point a{},b{};Quad casing{},core{};bool valid=false,ready=false;};
+    std::vector<Entry> entries_;
+    std::size_t cursor_=0,builds_=0;
+    double step_=0;
+    Point pan_{},phase_{};
+    static Quad shifted(Quad q,Point p){
+        for(auto* v:{&q.a,&q.b,&q.c,&q.d}){v->x+=p.x;v->y+=p.y;}return q;
+    }
+public:
+    static constexpr std::size_t limit=16384;
+    void begin(double step,Point pan) {
+        const Point phase{pan.x-std::floor(pan.x/step)*step,pan.y-std::floor(pan.y/step)*step};
+        if(step_!=step || phase.x!=phase_.x || phase.y!=phase_.y)entries_.clear();
+        step_=step;phase_=phase;pan_=pan;cursor_=0;
+    }
+    // Sequential slots follow the existing wall order. Changing one wall does
+    // not invalidate every other stroke, and screen pans need no rebuilds.
+    bool query(Point a,Point b,Quad& casing,Quad& core) {
+        Entry fallback{};Entry* entry=&fallback;
+        if(cursor_<limit){if(cursor_==entries_.size())entries_.emplace_back();entry=&entries_[cursor_++];}
+        if(!entry->ready || entry->a.x!=a.x || entry->a.y!=a.y || entry->b.x!=b.x || entry->b.y!=b.y) {
+            ++builds_;entry->a=a;entry->b=b;entry->ready=true;
+            a.x-=pan_.x;a.y-=pan_.y;b.x-=pan_.x;b.y-=pan_.y;
+            entry->valid=stableStrokeQuad(a,b,2.5,step_,entry->casing) && stableStrokeQuad(a,b,1.,step_,entry->core);
+            if(entry->valid){entry->casing=shifted(entry->casing,pan_);entry->core=shifted(entry->core,pan_);}
+        }
+        if(!entry->valid)return false;
+        const Point offset{-pan_.x,-pan_.y};casing=shifted(entry->casing,offset);core=shifted(entry->core,offset);return true;
+    }
+    std::size_t builds() const{return builds_;}
+    std::size_t size() const{return entries_.size();}
+};
 inline bool clipStroke(Point& a,Point& b,exploration::Rect view) {
     double lo=0,hi=1,dx=b.x-a.x,dy=b.y-a.y;
     double p[]={-dx,dx,-dy,dy};

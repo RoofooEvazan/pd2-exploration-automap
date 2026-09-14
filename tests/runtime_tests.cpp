@@ -1253,6 +1253,7 @@ int main() {
     testWaterTintGrowthCache();
     testNativeRiverBanks();
     testGroundBanks();
+    testOverlaidWaterBanks();
     testNativeMapWater();
     testOriginalWallBrightness();
     return 0;

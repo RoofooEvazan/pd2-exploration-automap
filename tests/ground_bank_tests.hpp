@@ -34,7 +34,9 @@ static void testGroundBanks() {
     BankRead stone{};require(copyBanks(room,grid,stone).empty() && stone.tiles==2 && stone.banks==0);
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/psnwell/used/rivbank.dt1");
     room.level=202;BankRead well{};const auto wellBanks=copyBanks(room,grid,well);
-    require(wellBanks==banks && well.banks==2 && !well.failures);
+    require(well.banks==2 && !well.failures && wellBanks.size()==banks.size());
+    for(int y=0;y<15;++y)for(int x=0;x<15;++x)
+        require(bool(wellBanks[y*15+x])==(x>=5 && x<15 && y>=5 && y<10 && (grid[y*15+x]&0x26)==0));
     // A head adds low collision to dry ground on a partial river tile.
     // Asymmetric rows also verify DT1's bottom-to-top collision ordering.
     floorFlags[20]=0;floorFlags[4]=0;
@@ -44,7 +46,7 @@ static void testGroundBanks() {
     require(classified[6*15+6]); // A monster on actual water retains its material.
     memset(floorFlags,1,25);
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/oasis.dt1");
-    room.level=203;BankRead oasis{};require(copyBanks(room,grid,oasis)==banks && oasis.banks==2);
+    room.level=203;BankRead oasis{};require(copyBanks(room,grid,oasis)==wellBanks && oasis.banks==2);
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/walls.dt1");
     BankRead architecture{};require(copyBanks(room,grid,architecture).empty() && architecture.banks==0);
     require(!mapWaterLibrary("custompd2assets/dtprivate/oasis.dt1") && !mapWaterLibrary("PD2assets/a5_river.dt1.extra"));
@@ -107,4 +109,43 @@ static void testGroundBanks() {
     }
     activeStyle=oldStyle;wallColor=oldWall;styledCurrent=nullptr;explored=&emptyMask;
     std::cout<<"PASS: grassy ground banks without automap symbols, bounded native reads, wall exclusions, owned worker material, cached edge coverage and Hybrid-only color at both zooms\n";
+}
+static void testOverlaidWaterBanks() {
+    using namespace floor_reader;
+    using namespace styled_map;
+    checkContext="overlaid river water colors both sides of collision contours without coloring dry props";
+    std::array<DWORD,32> rawRoom{};std::array<DWORD,6> lists{};std::array<DWORD,24> tiles{},waterEntry{},detailEntry{};
+    const char library[]="data/global/tiles/PD2assets/psnwell/used/rivbank.dt1";
+    rawRoom[2]=reinterpret_cast<DWORD>(lists.data());lists[2]=reinterpret_cast<DWORD>(tiles.data());lists[3]=2;
+    waterEntry[22]=detailEntry[22]=reinterpret_cast<DWORD>(library);
+    tiles[6]=reinterpret_cast<DWORD>(waterEntry.data());tiles[18]=reinterpret_cast<DWORD>(detailEntry.data());
+    // Actual river floor (0,10,45): its dry left column sits beneath wall
+    // (1,48,2). Decorative floor (0,59,10) contributes zero collision.
+    auto flags=reinterpret_cast<std::uint8_t*>(waterEntry.data())+0x28;
+    for(int y=0;y<5;++y)for(int x=1;x<5;++x)flags[y*5+x]=1;
+    Room room{rawRoom.data(),nullptr,nullptr,202,100,200,10,10};
+    std::vector<std::uint16_t> grid(100);
+    for(int y=0;y<5;++y)grid[y*10]=7;
+    // A separate head, on dry floor, must retain its wall color.
+    grid[7*10+7]=1;
+    BankRead stats;auto banks=copyBanks(room,grid,stats);
+    require(!stats.failures && stats.tiles==2 && std::count(banks.begin(),banks.end(),1)==20);
+    FloorCopies copies;copies.ingest(100,200,10,10,grid,banks);
+    ChunkedMap map;const auto& copy=*copies.rooms[0];map.floor().ingest(copy.x,copy.y,copy.w,copy.h,copy.flags,copy.banks);
+    require(map.floor().connect({102,202}));
+    exploration::Mask visible(.25);visible.revealAround({105,205},132);
+    auto drawing=map.build(visible);bool foundShore=false,foundHead=false;
+    for(const auto& stroke:drawing.walls) {
+        if(stroke.a.x==101 && stroke.b.x==101 && std::min(stroke.a.y,stroke.b.y)<205){require(stroke.bank);foundShore=true;}
+        if(std::min(stroke.a.x,stroke.b.x)>=107 && std::max(stroke.a.x,stroke.b.x)<=108 &&
+           std::min(stroke.a.y,stroke.b.y)>=207 && std::max(stroke.a.y,stroke.b.y)<=208){require(!stroke.bank);foundHead=true;}
+    }
+    require(foundShore && foundHead);
+    // Material only: the correction must not alter traversability or geometry.
+    Level plain;plain.ingest(100,200,10,10,grid);require(plain.connect({102,202}));
+    const auto plainDrawing=plain.build(visible);
+    auto lengths=[](const Drawing& d){double n=0;for(auto s:d.walls)n+=std::hypot(s.b.x-s.a.x,s.b.y-s.a.y);return n;};
+    require(lengths(drawing)==lengths(plainDrawing));
+    for(int y=200;y<210;++y)for(int x=100;x<110;++x)require(map.floor().contains({double(x),double(y)})==plain.contains({double(x),double(y)}));
+    std::cout<<"PASS: layered river shoreline, dry prop exclusion, owned worker material and unchanged floor/contour coverage\n";
 }

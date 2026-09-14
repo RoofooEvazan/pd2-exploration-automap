@@ -10,6 +10,74 @@ static bool has(const styled_map::Rows& rows,int x,int y) {
     for(auto s:styled_map::rowAt(rows,y))if(x>=s.first && x<s.second)return true;
     return false;
 }
+static void testStableWallPrecision() {
+    using namespace styled_map;
+    auto half=[](double x){
+        if(x==0)return x;
+        int exponent=0;std::frexp(x,&exponent);
+        const double step=std::ldexp(1.,std::max(-24,exponent-11));
+        return std::nearbyint(x/step)*step;
+    };
+    auto points=[](Quad q){return std::array<Point,4>{q.a,q.b,q.c,q.d};};
+    auto area=[&](Quad q){
+        const auto p=points(q);double a=0;
+        for(std::size_t i=0;i<4;++i)a+=half(p[i].x)*half(p[(i+1)%4].y)-half(p[(i+1)%4].x)*half(p[i].y);
+        return std::abs(a)*.5;
+    };
+    bool reproduced=false;
+    for(int divisor:{10,20})for(int direction:{-1,1})for(double phase:{0.,.2,.4,.6,.8}) {
+        const Point a{20.0+phase,40.0+phase},b{20.0+phase+160./divisor,40.0+phase+direction*80./divisor};
+        for(double width:{1.,2.5}) {
+            Quad reference{},old{};CHECK(stableStrokeQuad(a,b,width,1,reference));CHECK(strokeQuad(a,b,width,old));
+            const auto expected=points(reference);const double oldArea=area(old);
+            for(int pan:{0,400,480,800,980,1000,1500,1800}) {
+                Quad result{},legacy{};Point pa{a.x+pan,a.y+pan},pb{b.x+pan,b.y+pan};
+                CHECK(stableStrokeQuad(pa,pb,width,1,result));CHECK(strokeQuad(pa,pb,width,legacy));
+                reproduced|=std::abs(area(legacy)-oldArea)>.1;
+                CHECK(area(result)==area(reference) && area(result)>0);
+                const auto actual=points(result);
+                for(std::size_t i=0;i<4;++i){CHECK(half(actual[i].x)-pan==expected[i].x);CHECK(half(actual[i].y)-pan==expected[i].y);}
+                Quad reversed{};CHECK(stableStrokeQuad(pb,pa,width,1,reversed));
+                const auto reversedPoints=points(reversed);
+                for(std::size_t i=0;i<4;++i)CHECK(actual[i].x==reversedPoints[i].x && actual[i].y==reversedPoints[i].y);
+            }
+        }
+    }
+    CHECK(reproduced);
+    CHECK(strokePixelStep({0,0,1280,720})==1 && strokePixelStep({0,0,2048,1536})==1);
+    CHECK(strokePixelStep({0,0,2560,1440})==2 && strokePixelStep({0,0,5120,2880})==4);
+    for(int extent:{2560,5120}){
+        const double step=strokePixelStep({0,0,extent,extent});Quad q{};
+        CHECK(stableStrokeQuad({double(extent)-140,1500},{double(extent)-40,1550},1,step,q));
+        CHECK(area(q)>0);for(auto p:points(q))CHECK(half(p.x)==p.x && half(p.y)==p.y);
+    }
+    Quad q{};CHECK(!stableStrokeQuad({1,1},{1,1},1,1,q));CHECK(!stableStrokeQuad({1,1},{5,5},0,1,q));
+    WallStrokeCache cache;
+    std::vector<std::pair<Point,Point>> walls;
+    for(int n=0;n<100;++n)walls.push_back({{100000.+n*.4,-20000.+n*.2},{100013.+n*.4,-19993.5+n*.2}});
+    for(int frame=0;frame<120;++frame) {
+        const double step=frame<60?1.:2.;
+        const Point pan{99000.+frame,-20600.+frame};cache.begin(step,pan);
+        if(frame==20)walls[50].second.x+=2;
+        for(auto [a,b]:walls) {
+            Quad outer{},core{},expectedOuter{},expectedCore{};CHECK(cache.query(a,b,outer,core));
+            a.x-=pan.x;a.y-=pan.y;b.x-=pan.x;b.y-=pan.y;
+            CHECK(stableStrokeQuad(a,b,2.5,step,expectedOuter) && stableStrokeQuad(a,b,1,step,expectedCore));
+            const auto actual=points(outer),expected=points(expectedOuter),actualCore=points(core),expectedInner=points(expectedCore);
+            for(std::size_t i=0;i<4;++i){
+                CHECK(actual[i].x==expected[i].x && actual[i].y==expected[i].y);
+                CHECK(actualCore[i].x==expectedInner[i].x && actualCore[i].y==expectedInner[i].y);
+            }
+        }
+        if(frame==19)CHECK(cache.builds()==100);
+        if(frame==59)CHECK(cache.builds()==101);
+    }
+    cache.begin(1,{0,0});
+    for(std::size_t n=0;n<WallStrokeCache::limit+2;++n){Quad outer{},core{};CHECK(cache.query({double(n),0},{double(n)+4,2},outer,core));}
+    CHECK(cache.size()==WallStrokeCache::limit);
+    std::cout<<"PASS: reproduced binary16 wall-width variation; stable nonzero cores/casings across screen precision boundaries, zooms, slopes, reversed strokes and wide views\n";
+    std::cout<<"PASS: bounded stroke cache matches fresh geometry through pans, precision phases and single-wall edits without rebuilding unchanged strokes\n";
+}
 template<class Drawing> static auto coverage(const Drawing& drawing) {
     std::array<styled_map::Rows,14> rows;
     for(std::size_t i=0;i<7;++i)for(int red:{0,1}) {
@@ -139,6 +207,7 @@ static void testWallBoundedFrontier() {
     std::cout<<"PASS: unknown-space frontier stops beyond thin walls, open entries remain, interval reachability matches pixel BFS and chunk/full builds agree\n";
 }
 int main() {
+    testStableWallPrecision();
     testWallBoundedFrontier();
     testTerrainCoverage();
     testPreparedFloors();
