@@ -64,7 +64,7 @@ inline bool copyGrid(const Room& room,std::uint16_t* destination) {
         memcpy(destination,room.grid,std::size_t(room.width)*room.height*sizeof(std::uint16_t));return true;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
-struct GroundTile {int x=0,y=0,type=0;char library[260]{};};
+struct GroundTile {int x=0,y=0,type=0;char library[260]{};std::uint8_t collision[25]{};};
 inline bool floorTiles(const Room& room,void** tiles,int* count) {
     __try {
         // D2Common 1.13c #10544: room+8 -> floor list at +8, count at +0xC.
@@ -79,10 +79,11 @@ inline bool groundTile(const Room& room,const void* tiles,int index,GroundTile* 
         auto entry=field<void*>(tile,0x18);if(!entry || field<int>(tile,0x1c)!=0 || field<int>(entry,0x14)!=0)return false;
         int x=field<int>(tile,8),y=field<int>(tile,12);
         if(x<0 || y<0 || x>room.width/5 || y>room.height/5)return false;
-        // D2CMP 1.13c #10035/#10047 return entry+0x58 directly as the
-        // library name; +0x38 contains collision bytes.
+        // D2CMP 1.13c #10035 returns the library name at +0x58;
+        // #10011 returns the 25 floor collision bytes at +0x28.
         auto library=field<const char*>(entry,0x58);if(!library)return false;
         result->x=room.x+x*5;result->y=room.y+y*5;result->type=field<int>(entry,0x18);
+        memcpy(result->collision,static_cast<const unsigned char*>(entry)+0x28,25);
         for(int i=0;i<260;++i){result->library[i]=library[i];if(!library[i])return true;}
         return false;
     } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
@@ -123,9 +124,10 @@ inline std::vector<std::uint8_t> copyBanks(const Room& room,const std::vector<st
         for(int y=tile.y;y<std::min(tile.y+5,room.y+room.height);++y)
             for(int x=tile.x;x<std::min(tile.x+5,room.x+room.width);++x) {
                 const auto at=std::size_t(y-room.y)*room.width+x-room.x;
-                // Static low bank collision; a wall/visibility/missile barrier
-                // placed on top retains its architectural wall color.
-                if((grid[at]&0x27)==1)banks[at]=1;
+                // D2Common copies DT1 rows bottom to top. Require collision
+                // from the floor itself: a prop on its dry half is not water.
+                const auto material=tile.collision[(4-(y-tile.y))*5+x-tile.x];
+                if((material&0x27)==1 && (grid[at]&0x27)==1)banks[at]=1;
             }
     }
     return banks;

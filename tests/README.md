@@ -4,8 +4,9 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 
 | Test | What it checks |
 | --- | --- |
-| [area_entry_tests.hpp](area_entry_tests.hpp) | Neighboring wall capture before zone entry, unchanged contour vertices during pending or failed capture, local native fallback, coverage-cache invalidation, return trips, fixed discovery, and layer/act/town/endgame isolation. |
-| [ground_bank_tests.hpp](ground_bank_tests.hpp) | 1.13c tile-name reads, bank material tags, ordinary-wall exclusions, owned worker data and Hybrid coloring at both zooms. |
+| [area_entry_tests.hpp](area_entry_tests.hpp) | Neighboring wall capture before zone entry, unchanged contours during pending or failed capture, tall-sprite fallback at explored ground placements, coverage-cache invalidation, return trips, fixed discovery, and layer/act/town/endgame isolation. |
+| [ground_bank_tests.hpp](ground_bank_tests.hpp) | 1.13c tile-name and floor-collision reads, reversed DT1 rows, dry-ground prop exclusions, owned worker data and Hybrid coloring at both zooms. |
+| [native_water_tests.hpp](native_water_tests.hpp) | Native water fill coverage without bridge pixels, Original/Hybrid/Styled separation, white-only fullscreen wall dimming, bounded batches and palette restoration. |
 | [water_tint_tests.hpp](water_tint_tests.hpp) | Water/riverbank identification, contour color splits, native shoreline tracing, duplicate suppression and cached drawing. |
 | [map_style_tests.hpp](map_style_tests.hpp) | Style cycling, saving, legacy precedence, Original bypass, retained discovery/caches and Styled navigation/terrain clipping. |
 | [entrance_visibility_tests.hpp](entrance_visibility_tests.hpp) | Entrance classification, palette signatures, capped opacity/brightness, both views, unchanged clips/UVs, bounded batches and state restoration. |

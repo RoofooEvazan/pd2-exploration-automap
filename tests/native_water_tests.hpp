@@ -50,10 +50,12 @@ static void testNativeMapWater() {
     appearanceColors.clear();drawWellWater();require(appearanceColors==std::vector<DWORD>{0x52644070});
     require(wellWaterVertices.empty() && !styledBatch);
     mask.revealAround(inverse({20,40},t),132);
+    ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);require(waterTint.size()==0);
     for(auto style:{MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled}) {
         activeStyle=style;maskActive=styledActive=true;wellWaterVertices.clear();
         cellHook(context.data(),10,40,&viewport,5);
         require(wellWaterVertices.empty()==(style==MapStyle::Styled));wellWaterVertices.clear();
+        require(waterTint.size()==0); // Partial fills must not tint dry terrain.
     }
     // Multiple disjoint clips preserve the original asset origin for each part.
     require(queueWellFill(context.data(),{10,8,26,40},{{10,39,13,40},{15,39,18,40}}));
@@ -77,4 +79,35 @@ static void testNativeMapWater() {
     wellFillShapes.clear();wellOutlineCells.clear();nativePalette=nullptr;entrancePaletteDraw=nullptr;
     overlayOpacity=oldOpacity;inPass=maskActive=styledActive=haveViewport=false;styledCurrent=nullptr;explored=&emptyMask;client=nullptr;
     std::cout<<"PASS: native map water coverage, bridge exclusions, Original reveal, Hybrid/Styled separation, disjoint clipping, budgets and palette restoration\n";
+}
+static void __stdcall captureOriginalWall(void* context,int x,int y,NativeRect*,int mode) {
+    require(read<DWORD>(context)==1572 && x==10 && y==40 && mode==2);
+    require(entranceTestPalette[220]==0xff999999 && entranceTestPalette[221]==0xff7f7f7f);
+    require(entranceTestPalette[151]==0xff708860 && entranceTestPalette[1]==0xff202020);
+    ++wellTestNative;if(wellTestThrow)throw 1;
+}
+static void testOriginalWallBrightness() {
+    checkContext="Original fullscreen white walls dim independently of icons, water and minimap";
+    std::istringstream definitions(artworkFixture()+"46\tfl\t10\t0\t0\tPW wall\t1572\t\t-1\t\t-1\t\t-1\n");
+    require(hybridArtwork.load(definitions));
+    std::vector<unsigned char> memory(0x11c8bc);client=memory.data();put(memory,0x11c8b8,1);
+    std::array<DWORD,256> palette{};palette.fill(0xff102040);palette[220]=0xffffffff;palette[221]=0xffd4d4d4;
+    palette[151]=0xff708860;palette[1]=0xff202020;
+    nativePalette=palette.data();entrancePaletteDraw=captureEntrancePalette;entranceTestPalette=palette;entranceUploads=0;
+    DWORD context[18]{};context[0]=1572;NativeRect viewport{0,100,0,99};
+    inPass=enabled=true;maskActive=styledActive=nativeTownActive=false;activeStyle=MapStyle::Original;observedLevel=202;
+    originalCell=captureOriginalWall;wellTestNative=0;
+    cellHook(context,10,40,&viewport,2);require(originalWallCount==1 && !wellTestNative);
+    context[0]=308;require(!queueOriginalWall(context,10,40,&viewport,2));
+    context[0]=1572;drawOriginalWalls();require(wellTestNative==1 && !originalWallCount && entranceUploads==2 && entranceTestPalette==palette);
+    // Same native sprite/placement/mode, two palette uploads for a whole batch.
+    for(int i=0;i<20;++i)require(queueOriginalWall(context,10,40,&viewport,2));
+    drawOriginalWalls();require(wellTestNative==21 && entranceUploads==4 && entranceTestPalette==palette);
+    put(memory,0x11c8b8,0);require(!queueOriginalWall(context,10,40,&viewport,2));
+    put(memory,0x11c8b8,1);require(queueOriginalWall(context,10,40,&viewport,2));
+    wellTestThrow=true;bool caught=false;try{drawOriginalWalls();}catch(...){caught=true;}
+    require(caught && !originalWallCount && entranceTestPalette==palette);wellTestThrow=false;
+    originalWallCells.clear();nativePalette=nullptr;entrancePaletteDraw=nullptr;client=nullptr;inPass=false;
+    hybridArtwork=exploration::HybridArtwork{};
+    std::cout<<"PASS: Original fullscreen white-only 40% dimming, untouched colors/icons/minimap, batched uploads and palette restoration\n";
 }

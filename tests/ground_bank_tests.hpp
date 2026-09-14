@@ -10,7 +10,8 @@ static void testGroundBanks() {
     std::array<DWORD,24> entry{};std::array<char,260> library{};
     strcpy_s(library.data(),library.size(),"data\\global\\tiles\\Act1\\Outdoors\\pond.dt1");
     rawRoom[2]=reinterpret_cast<DWORD>(lists.data());lists[2]=reinterpret_cast<DWORD>(tiles.data());lists[3]=2;
-    entry[14]=0x01010101; // Real 1.13c collision bytes, not a library pointer.
+    auto floorFlags=reinterpret_cast<std::uint8_t*>(entry.data())+0x28;
+    memset(floorFlags,1,25);
     entry[22]=reinterpret_cast<DWORD>(library.data());entry[6]=16;
     tiles[2]=1;tiles[3]=1;tiles[6]=reinterpret_cast<DWORD>(entry.data());
     tiles[14]=2;tiles[15]=1;tiles[18]=reinterpret_cast<DWORD>(entry.data());
@@ -34,6 +35,14 @@ static void testGroundBanks() {
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/psnwell/used/rivbank.dt1");
     room.level=202;BankRead well{};const auto wellBanks=copyBanks(room,grid,well);
     require(wellBanks==banks && well.banks==2 && !well.failures);
+    // A head adds low collision to dry ground on a partial river tile.
+    // Asymmetric rows also verify DT1's bottom-to-top collision ordering.
+    floorFlags[20]=0;floorFlags[4]=0;
+    BankRead dryProps{};const auto classified=copyBanks(room,grid,dryProps);
+    require(!classified[5*15+5] && !classified[9*15+9]);
+    require(classified[9*15+5] && classified[5*15+9]);
+    require(classified[6*15+6]); // A monster on actual water retains its material.
+    memset(floorFlags,1,25);
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/oasis.dt1");
     room.level=203;BankRead oasis{};require(copyBanks(room,grid,oasis)==banks && oasis.banks==2);
     strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/walls.dt1");

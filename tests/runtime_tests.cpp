@@ -1241,5 +1241,6 @@ int main() {
     testNativeRiverBanks();
     testGroundBanks();
     testNativeMapWater();
+    testOriginalWallBrightness();
     return 0;
 }

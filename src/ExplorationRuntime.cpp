@@ -68,6 +68,9 @@ struct EntranceCell {
 static std::array<EntranceCell,64> entranceCells;
 static std::vector<EntranceCell> wellOutlineCells;
 static std::size_t wellOutlineCount=0,wellOutlineClips=0;
+static std::vector<EntranceCell> originalWallCells;
+static std::size_t originalWallCount=0;
+static unsigned long originalWallsDimmed=0;
 static std::vector<GlideVertex> wellWaterVertices;
 static bool wellWallsPending=false;
 static constexpr std::size_t wellVertexLimit=262144,wellOutlineLimit=8192;
@@ -787,6 +790,37 @@ static bool copyNativePalette(DWORD* copy) {
     __try {if(!nativePalette)return false;memcpy(copy,nativePalette,256*sizeof(DWORD));return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
+static bool queueOriginalWall(void* ctx,int x,int y,NativeRect* viewport,int mode) {
+    bool corner=false;
+    if(!entrancePaletteDraw || !nativePalette || !entranceView(&corner) || corner || originalWallCount>=8192)return false;
+    DWORD id=0;if(!frameIndex(ctx,&id) || hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id))return false;
+    const auto role=hybridArtwork.role(id,observedLevel);
+    if(role!=exploration::HybridArtwork::Role::Wall && role!=exploration::HybridArtwork::Role::SewerWall)return false;
+    if(originalWallCount==originalWallCells.size())originalWallCells.emplace_back();
+    auto& cell=originalWallCells[originalWallCount];if(!copyEntranceContext(ctx,cell.context))return false;
+    cell.x=x;cell.y=y;cell.mode=mode;cell.viewport=*viewport;++originalWallCount;return true;
+}
+static DWORD dimWhiteWall(DWORD color) {
+    const DWORD r=(color>>16)&255,g=(color>>8)&255,b=color&255;
+    // Retain colored details and dark shading within the same wall sprite.
+    if(std::max({r,g,b})-std::min({r,g,b})>12 || std::min({r,g,b})<96)return color;
+    return (color&0xff000000u)|(((r*3+2)/5)<<16)|(((g*3+2)/5)<<8)|((b*3+2)/5);
+}
+static void drawOriginalWalls() {
+    if(!originalWallCount)return;
+    struct Clear {~Clear(){originalWallCount=0;}} clear;
+    std::array<DWORD,256> saved{},dimmed{};
+    const bool palette=entrancePaletteDraw && copyNativePalette(saved.data());
+    if(palette) {
+        for(std::size_t i=0;i<saved.size();++i)dimmed[i]=dimWhiteWall(saved[i]);
+        entrancePaletteDraw(2,dimmed.data());
+    }
+    struct Restore {bool active;const DWORD* saved;~Restore(){if(active)entrancePaletteDraw(2,saved);}} restore{palette,saved.data()};
+    for(std::size_t i=0;i<originalWallCount;++i) {
+        auto& c=originalWallCells[i];drawPreparedCell(c.context,c.x,c.y,&c.viewport,c.mode);
+        if(palette)++originalWallsDimmed;
+    }
+}
 static void drawEntrances() {
     if(!entranceCount)return;
     struct ResetQueue {~ResetQueue(){entranceCount=entranceClipCount=0;entranceAlpha=-1;}} reset;
@@ -874,10 +908,8 @@ static void queueWellWaterForOutline(void* ctx,DWORD id,int x,int y,NativeRect* 
         if(!transform(t)){++wellFillFallbacks;return;}
         const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
         cachedRasterClips(bounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
-        if(activeStyle==MapStyle::Hybrid) {
-            waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
-            waterTint.add({asset.left+sx,asset.top+sy,asset.right+sx,asset.bottom+sy});
-        }
+        // A fill frame can include dry ground. Shore coloring comes from the
+        // captured floor material, not this sprite's entire diamond.
     }
     if(!clips.empty() && !queueWellFill(context.data(),asset,clips))++wellFillFallbacks;
 }
@@ -914,6 +946,8 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
                 queueWellOutline(ctx,x,y,native,mode,nullptr))return;
         }
     }
+    if(inPass && enabled && activeStyle==MapStyle::Original && native && !terrainClips &&
+        queueOriginalWall(ctx,x,y,native,mode))return;
     if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
         DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
         const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
@@ -989,6 +1023,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         // Record all visible native water tiles before mask clipping so shared
         // internal edges cancel even when a neighboring tile is unexplored.
         int shiftX=int(t.ox)-(t.divisor==20?7:8),shiftY=int(t.oy)-(t.divisor==20?-3:-8);
+        if(pendingTerrain && !nativeTownActive && (replaceWall || (styledOnly && !importantDetail))) {
+            // Tall sprites extend beyond their ground tile. Test their native
+            // placement before clipping the art, so finished walls cannot
+            // reappear above known terrain while another room is rebuilding.
+            bool unfinished=false;
+            cachedUnfinishedClips({x,y,x+1,y+1},int(t.divisor),shiftX,shiftY,[&](Rect){unfinished=true;});
+            if(!unfinished){++suppressed;return;}
+        }
         if(traceWater && sewerWater.add({assetBounds.left+shiftX,assetBounds.top+shiftY,assetBounds.right+shiftX,assetBounds.bottom+shiftY}))++sewerWaterCells;
         if(tintWater) {
             waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
@@ -1031,13 +1073,14 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         ++partial;
         if(!((hybrid || styledOnly) && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,&clips)))
             drawPreparedCell(ctx,x,y,native,mode,&clips);
-    } catch(...) {wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
+    } catch(...) {originalWallCount=0;wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
 }
 static void beginPass() {
     InterlockedIncrement(&beginCount);
     sewerCasing.clear();sewerCore.clear();waterCore.clear();sewerWater.clear();sewerWaterFill.clear();
     riverBankCells.clear();
     wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;wellWallsPending=false;
+    originalWallCount=0;
     nativeMarkers.clear();markerArtworkFile=nullptr;
     entranceCount=entranceClipCount=0;entranceAlpha=-1;
     QueryPerformanceCounter(&passStarted);
@@ -1271,7 +1314,7 @@ static void endPass() {
                 if(styledActive && styledCurrent){drawStyled(t,passViewport);++styledPasses;}
             }
         }
-        if(inPass)drawWellWater();
+        if(inPass){drawWellWater();drawOriginalWalls();}
         if(inPass && maskActive && haveViewport && styledActive && activeStyle==MapStyle::Hybrid && styledArray && styledColor) {
             if(wellWallsPending) {Transform t{};if(transform(t))drawHybridWalls(t,passViewport);}
             if(!sewerWater.tiles().empty()){Transform t{};if(transform(t))queueWaterGeometry(t,passViewport);}
@@ -1311,6 +1354,7 @@ static void endPass() {
                 int(styledCurrent && styledCurrent->captureIncomplete));
             fprintf(logfile,"DISCOVERY mode=hardcoded radiusSubtiles=%.2f\n",revealRadius*maskCellSize);
             fprintf(logfile,"ENTRANCES drawn=%lu palettePasses=%lu fallbacks=%lu\n",entranceDraws,entrancePalettePasses,entranceFallbacks);
+            if(activeStyle==MapStyle::Original)fprintf(logfile,"ORIGINAL fullscreenWallsDimmed=%lu whiteBrightness=60%%\n",originalWallsDimmed);
             if(mapMarkersActive())fprintf(logfile,"MARKERS sampled=%zu added=%lu alreadyNative=%lu\n",mapMarkers.size(),markersDrawn,markersAlreadyNative);
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"HYBRID wallsReplaced=%lu detailsRetained=%lu waterRetained=%lu sewerTraced=%lu sewerFallbacks=%lu sewerWaterCells=%lu layerWaits=%lu clipHits=%zu clipMisses=%zu\n",
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}

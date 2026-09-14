@@ -125,6 +125,14 @@ static void testStableWallRefresh() {
             appearancePositions.clear();drawStyled(styleTransform,view);require(appearancePositions==completed);
             require(!nativeAt({10,10}) && nativeAt({30,10}));
             require(!nativeAt({60,10})); // Unknown also stays clipped to discovery.
+            // Tall artwork used to leak above completed floor coverage or
+            // reach back into exploration from an undiscovered placement.
+            frame[1]=16;frame[2]=80;
+            for(int offset:{-12,0,12}) {
+                frame[4]=DWORD(offset);
+                require(!nativeAt({10,10}) && !nativeAt({60,60}));
+            }
+            frame[1]=frame[2]=4;frame[4]=0;
         }
         const auto hits=unfinishedClips.hits();require(nativeAt({30,10}) && unfinishedClips.hits()>hits);
         // Publishing a new coverage snapshot removes even fully cached native
