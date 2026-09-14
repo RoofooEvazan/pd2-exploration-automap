@@ -20,13 +20,13 @@ BoundaryThickness=1.0
 
 [Maps]
 Style=hybrid
-BoundaryColor=cyan
+BoundaryColor=teal
 WallColor=white
 
 [Campaign]
 Style=native
 BoundaryColor=red
-WallColor=gray
+WallColor=white
 ```
 
 `BoundaryThickness` is a shared reveal-edge width multiplier from **0.5 to 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Invalid values use 1.0. Manual edits take effect after restarting.

@@ -65,7 +65,7 @@ static void testWaterTint() {
         for(auto style:{MapStyle::Hybrid,MapStyle::Styled})for(auto color:{BoundaryColor::White,BoundaryColor::Orange})for(unsigned opacity:{80u,100u}) {
             activeStyle=style;wallColor=color;overlayOpacity=opacity;
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,150,150});
-            std::vector<DWORD> expected{overlayColor(0x181818c0),overlayColor(wallRGBA(color,148,224))};
+            std::vector<DWORD> expected{overlayColor(0x181818c0),overlayColor(wallRGBA(color,224))};
             if(style==MapStyle::Hybrid)expected.push_back(overlayColor(0x50a5dce0));
             require(appearanceColors==expected && !styledBatch);
         }
@@ -122,7 +122,7 @@ static void testWaterTint() {
         state.drawing.walls={{inverse({-3,w*1.75},stable),inverse({double(w+3),w*1.75},stable)}};
         wallColor=BoundaryColor::White;overlayOpacity=80;
         appearanceColors.clear();appearancePositions.clear();drawHybridWalls({double(divisor),-40,-20},{0,0,150,150});
-        auto expected=std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))});
+        auto expected=std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))});
         if(water)expected.push_back(overlayColor(0x50a5dce0));
         require(appearanceColors==expected);
         state.drawing.walls.clear();
@@ -199,7 +199,7 @@ static void testNativeRiverBanks() {
                 {inverse({-12,0},stable),inverse({-4,0},stable)}};
             if(!town) {
                 appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,passViewport);
-                require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
+                require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))}));
             }
             require(waterCore.empty() && riverBankCells.empty());
             inPass=true;ctx[0]=6;const auto bridge=forwardedCells;

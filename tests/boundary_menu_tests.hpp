@@ -14,24 +14,50 @@ static void testBoundaryMenu() {
     checkContext="boundary presets, native menu guards, persistence and draw-time changes";
     using namespace exploration;
     namespace ui=exploration::boundary_menu;
-    const DWORD rgb[]={0xa53028,0x1edc0f,0xdc14dc,0x00d2dc,0x50a5dc,
-        0xf8883c,0xccf4f4,0xfce874,0xc4fcb0,0xfce4a4,0xfcfcc4,0x949494,0xffffff};
+    const DWORD rgb[]={0xff0000,0xe34239,0xffa500,0xffbf00,0xffff00,0x7fff00,0x00ff00,
+        0x008080,0x0000ff,0x7f00ff,0x800080,0xff00ff,0xffffff};
     static_assert(std::size(rgb)==boundaryPresets.size(),"palette coverage");
     require(parseBoundaryColor("MAGENTA")==BoundaryColor::Magenta && parseBoundaryColor("invalid")==BoundaryColor::Red);
-    require(parseBoundaryColor("",BoundaryColor::Gray)==BoundaryColor::Gray);
+    require(parseBoundaryColor("",BoundaryColor::White)==BoundaryColor::White);
     for(unsigned i=0;i<std::size(rgb);++i) {
         const auto color=static_cast<BoundaryColor>(i);
         require(parseBoundaryColor(boundaryPreset(color).key)==color);
         require(boundaryRGBA(color,100,70)==((rgb[i]<<8)|70));
-        require(wallRGBA(color,148,224)==((rgb[i]<<8)|224));
+        require(wallRGBA(color,224)==((rgb[i]<<8)|224));
         for(unsigned shade:{14u,23u,38u,52u,65u,96u,116u})require((boundaryRGBA(color,shade,70)&255)==70);
     }
-    require(wallRGBA(BoundaryColor::Gray,132,255)==0x848484ff);
+    require(wallRGBA(BoundaryColor::White,255)==0xffffffff);
     checkContext="independent styling groups and nested color menus";
     const auto oldPath=settingsPath;const auto oldColor=boundaryColor;const auto oldWall=wallColor;
     const auto oldOpacity=overlayOpacity;const auto oldCampaign=campaignStyle,oldMaps=mapsStyle;
     char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"ebc",0,file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","63",file)!=0);loadAppearanceSettings(file);
+    for(auto colors:{mapsColors,campaignColors})require(colors.boundary==BoundaryColor::Red && colors.wall==BoundaryColor::White);
+    checkContext="legacy color names resolve without rewriting preferences";
+    const std::pair<const char*,BoundaryColor> aliases[]={
+        {"NEON-GREEN",BoundaryColor::Green},{"pale-green",BoundaryColor::Green},
+        {"CyAn",BoundaryColor::Teal},{"light-blue",BoundaryColor::Blue},{"pale-blue",BoundaryColor::Blue},
+        {"pale-yellow",BoundaryColor::Yellow},{"pale-lemon",BoundaryColor::Yellow},
+        {"pale-peach",BoundaryColor::Orange},{"gray",BoundaryColor::White},{"grey",BoundaryColor::White}
+    };
+    auto bytes=[&](){std::ifstream input(file,std::ios::binary);require(bool(input));
+        return std::string((std::istreambuf_iterator<char>(input)),{});};
+    for(auto alias:aliases) {
+        require(parseBoundaryColor(alias.first)==alias.second);
+        require(WritePrivateProfileStringA("Automap","BoundaryColor",alias.first,file)!=0);
+        require(WritePrivateProfileStringA("Automap","WallColor",alias.first,file)!=0);
+        require(WritePrivateProfileStringA("Maps","BoundaryColor","Vermilion",file)!=0);
+        require(WritePrivateProfileStringA("Campaign","WallColor",alias.first,file)!=0);
+        const auto before=bytes();loadAppearanceSettings(file);
+        require(mapsColors.boundary==BoundaryColor::Vermilion && mapsColors.wall==alias.second);
+        require(campaignColors.boundary==alias.second && campaignColors.wall==alias.second);
+        require(bytes()==before && overlayOpacity==63);
+    }
+    require(WritePrivateProfileStringA("Automap","BoundaryColor",nullptr,file)!=0);
+    require(WritePrivateProfileStringA("Automap","WallColor",nullptr,file)!=0);
+    require(WritePrivateProfileStringA("Maps",nullptr,nullptr,file)!=0);
+    require(WritePrivateProfileStringA("Campaign",nullptr,nullptr,file)!=0);loadAppearanceSettings(file);
+    checkContext="independent styling groups and nested color menus";
     ui::selectColor=selectBoundaryColor;ui::currentColor=currentBoundaryColor;
     ui::selectWallColor=selectWallColor;ui::currentWallColor=currentWallColor;
     ui::selectStyle=selectMapStyle;ui::currentStyle=currentMapStyle;
@@ -74,7 +100,7 @@ static void testBoundaryMenu() {
             require((maps?campaignColors:mapsColors).boundary==other.boundary && (maps?campaignColors:mapsColors).wall==other.wall);
             require(active==ui::stylingEntries.data() && selected==(walls?ui::wallRow:ui::boundaryRow) && last==ui::stylingBackRow);
             char saved[32]{};GetPrivateProfileStringA(maps?"Maps":"Campaign",walls?"WallColor":"BoundaryColor","",saved,32,file);
-            require(parseBoundaryColor(saved)==static_cast<BoundaryColor>(i));
+            require(!strcmp(saved,boundaryPresets[i].key) && parseBoundaryColor(saved)==static_cast<BoundaryColor>(i));
             menuTextCalls.clear();const int y=int(row.y+ui::stylingMenu.textHeight);ui::drawRow(nullptr,400,y,1,5,-1);
             require(menuTextCalls.size()==2 && menuTextCalls[0].x==170 && menuTextCalls[1].x+int(menuTextCalls[1].text.size()*10)==630);
             require(menuTextCalls[0].font==2 && menuTextCalls[1].font==2 && menuFont==1);
@@ -182,14 +208,14 @@ static void testPersonalizedDrawing() {
         Mask mask(.25);mask.revealAround(inverse({22.5,30.5},t),24);explored=&mask;
         drawing.drawing=styled_map::Drawing{};
         drawing.drawing.walls.push_back({inverse({14,30},t),inverse({27,30},t)});
-        wallColor=BoundaryColor::Gray;overlayOpacity=100;appearanceColors.clear();appearancePositions.clear();
+        wallColor=BoundaryColor::White;overlayOpacity=100;appearanceColors.clear();appearancePositions.clear();
         drawHybridWalls(t,viewport);
-        require(appearanceColors==std::vector<DWORD>({0x181818c0,0x949494e0}));
+        require(appearanceColors==std::vector<DWORD>({0x181818c0,0xffffffe0}));
         const auto geometry=appearancePositions;
         for(unsigned i=0;i<boundaryPresets.size();++i)for(unsigned opacity:{80u,100u}) {
             wallColor=static_cast<BoundaryColor>(i);overlayOpacity=opacity;
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,viewport);
-            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
+            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))}));
             require(appearancePositions==geometry && batchColor==0x848484e0 && !styledBatch);
             // Sewer walls follow the selection; water edges keep light blue.
             // Neither setting changes the native fill or contrast casing.
@@ -199,18 +225,18 @@ static void testPersonalizedDrawing() {
             observedLevel=92;passViewport=viewport;markerArtworkFile=nullptr;
             appearanceColors.clear();appearancePositions.clear();endPass();
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x56606438),overlayColor(0x181818c0),
-                overlayColor(wallRGBA(wallColor,148,224)),overlayColor(0x50a5dce0)}));
+                overlayColor(wallRGBA(wallColor,224)),overlayColor(0x50a5dce0)}));
             require(sewerCore.empty() && sewerCasing.empty() && sewerWaterFill.empty() && waterCore.empty());
             // Styled mode uses the same fractional contour casing and core.
             // Fallback line accents still preserve ordinary and collapsed strokes.
             activeStyle=MapStyle::Styled;appearanceColors.clear();appearancePositions.clear();
             drawStyled(t,viewport);
-            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,148,224))}));
+            require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))}));
             require(appearancePositions==geometry && batchColor==0x848484e0 && !fractionalFrontier && !fractionalTint);
             appearanceColors.clear();appearancePositions.clear();
-            drawFrontier({10.125,20.25},{10.375,20.375},wallRGBA(wallColor,132,255));
+            drawFrontier({10.125,20.25},{10.375,20.375},wallRGBA(wallColor,255));
             require(appearancePositions==std::vector<float>({10.125f,20.25f,10.375f,20.375f}));
-            require(appearanceColors==std::vector<DWORD>({overlayColor(wallRGBA(wallColor,132,255))}));
+            require(appearanceColors==std::vector<DWORD>({overlayColor(wallRGBA(wallColor,255))}));
         }
     }
     wallColor=oldWall;boundaryColor=oldBoundary;overlayOpacity=oldOpacity;activeStyle=oldStyle;

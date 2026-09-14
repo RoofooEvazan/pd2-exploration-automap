@@ -93,7 +93,7 @@ inline BOOL openPicker(bool walls) {
        *activeEntries!=stylingEntries.data() || *activeMenu!=&stylingMenu)return FALSE;
     pickingWalls=walls;saveFailed=false;
     auto color=static_cast<unsigned>((walls?currentWallColor:currentColor)());
-    if(color>=boundaryPresets.size())color=walls?static_cast<unsigned>(BoundaryColor::Gray):0;
+    if(color>=boundaryPresets.size())color=walls?static_cast<unsigned>(BoundaryColor::White):0;
     activate(pickerMenu,pickerEntries.data(),color+1);return TRUE;
 }
 inline BOOL __fastcall openBoundary(Entry*,void*) {return openPicker(false);}

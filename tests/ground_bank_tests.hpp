@@ -83,7 +83,7 @@ static void testGroundBanks() {
         for(auto style:{MapStyle::Hybrid,MapStyle::Styled}) {
             activeStyle=style;wallColor=exploration::BoundaryColor::Orange;
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,500,500});
-            std::vector<DWORD> colors{overlayColor(0x181818c0),overlayColor(exploration::wallRGBA(wallColor,148,224))};
+            std::vector<DWORD> colors{overlayColor(0x181818c0),overlayColor(exploration::wallRGBA(wallColor,224))};
             if(style==MapStyle::Hybrid)colors.push_back(overlayColor(waterEdgeColor));
             require(appearanceColors==colors);
         }

@@ -5,39 +5,46 @@
 #include <string_view>
 namespace exploration {
 enum class BoundaryColor : unsigned {
-    Red, NeonGreen, Magenta, Cyan, LightBlue,
-    Orange, PaleBlue, PaleYellow, PaleGreen, PalePeach, PaleLemon, Gray, White
+    Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green,
+    Teal, Blue, Violet, Purple, Magenta, White
 };
 struct BoundaryPreset { const char* key;const wchar_t* label;unsigned r,g,b; };
 inline constexpr std::array<BoundaryPreset,13> boundaryPresets{{
-    {"red",L"Red",165,48,40},
-    {"neon-green",L"Neon Green",30,220,15},
-    {"magenta",L"Magenta",220,20,220},
-    {"cyan",L"Cyan",0,210,220},
-    {"light-blue",L"Light Blue",80,165,220},
-    {"orange",L"Orange",0xf8,0x88,0x3c},
-    {"pale-blue",L"Pale Blue",0xcc,0xf4,0xf4},
-    {"pale-yellow",L"Pale Yellow",0xfc,0xe8,0x74},
-    {"pale-green",L"Pale Green",0xc4,0xfc,0xb0},
-    {"pale-peach",L"Pale Peach",0xfc,0xe4,0xa4},
-    {"pale-lemon",L"Pale Lemon",0xfc,0xfc,0xc4},
-    {"gray",L"Gray",0x94,0x94,0x94},
+    {"red",L"Red",0xff,0x00,0x00},
+    {"vermilion",L"Vermilion",0xe3,0x42,0x39},
+    {"orange",L"Orange",0xff,0xa5,0x00},
+    {"amber",L"Amber",0xff,0xbf,0x00},
+    {"yellow",L"Yellow",0xff,0xff,0x00},
+    {"chartreuse",L"Chartreuse",0x7f,0xff,0x00},
+    {"green",L"Green",0x00,0xff,0x00},
+    {"teal",L"Teal",0x00,0x80,0x80},
+    {"blue",L"Blue",0x00,0x00,0xff},
+    {"violet",L"Violet",0x7f,0x00,0xff},
+    {"purple",L"Purple",0x80,0x00,0x80},
+    {"magenta",L"Magenta",0xff,0x00,0xff},
     {"white",L"White",0xff,0xff,0xff}
 }};
 inline const BoundaryPreset& boundaryPreset(BoundaryColor color) {
     auto i=static_cast<unsigned>(color);return boundaryPresets[i<boundaryPresets.size()?i:0];
 }
 inline BoundaryColor parseBoundaryColor(std::string_view value,BoundaryColor fallback=BoundaryColor::Red) {
-    for(unsigned i=0;i<boundaryPresets.size();++i) {
-        std::string_view key=boundaryPresets[i].key;
-        if(value.size()!=key.size())continue;
-        bool equal=true;
+    auto matches=[&](std::string_view key) {
+        if(value.size()!=key.size())return false;
         for(std::size_t j=0;j<key.size();++j) {
             char c=value[j];if(c>='A' && c<='Z')c=char(c-'A'+'a');
-            if(c!=key[j]){equal=false;break;}
+            if(c!=key[j])return false;
         }
-        if(equal)return static_cast<BoundaryColor>(i);
-    }
+        return true;
+    };
+    for(unsigned i=0;i<boundaryPresets.size();++i)
+        if(matches(boundaryPresets[i].key))return static_cast<BoundaryColor>(i);
+    // Old INIs resolve to current choices; the picker only saves current keys.
+    if(matches("neon-green") || matches("pale-green"))return BoundaryColor::Green;
+    if(matches("cyan"))return BoundaryColor::Teal;
+    if(matches("light-blue") || matches("pale-blue"))return BoundaryColor::Blue;
+    if(matches("pale-yellow") || matches("pale-lemon"))return BoundaryColor::Yellow;
+    if(matches("pale-peach"))return BoundaryColor::Orange;
+    if(matches("gray") || matches("grey"))return BoundaryColor::White;
     return fallback;
 }
 inline std::uint32_t boundaryRGBA(BoundaryColor color,unsigned shade,unsigned alpha) {
@@ -45,10 +52,7 @@ inline std::uint32_t boundaryRGBA(BoundaryColor color,unsigned shade,unsigned al
     auto channel=[&](unsigned value){auto scaled=shade*value/100;return scaled>255?255:scaled;};
     return (channel(p.r)<<24)|(channel(p.g)<<16)|(channel(p.b)<<8)|(alpha&255);
 }
-// Gray uses renderer-specific wall brightness. Other choices
-// use their exact RGB values; opacity and the dark contrast casing stay separate.
-inline std::uint32_t wallRGBA(BoundaryColor color,unsigned gray,unsigned alpha) {
-    if(color==BoundaryColor::Gray)return (gray*0x01010100u)|(alpha&255);
+inline std::uint32_t wallRGBA(BoundaryColor color,unsigned alpha) {
     return boundaryRGBA(color,100,alpha);
 }
 }

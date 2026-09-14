@@ -20,7 +20,7 @@ static void testFixedDistance() {
         for(const char* mode:{"circle","native-average","invalid"}) {
             require(WritePrivateProfileStringA("Automap","RevealMode",mode,file)!=0);
             loadAppearanceSettings(file);
-            require(boundaryColor==exploration::BoundaryColor::Cyan && wallColor==exploration::BoundaryColor::PalePeach && overlayOpacity==70);
+            require(boundaryColor==exploration::BoundaryColor::Teal && wallColor==exploration::BoundaryColor::Orange && overlayOpacity==70);
             require(campaignStyle==MapStyle::Native && mapsStyle==MapStyle::Styled);
             ++p.id; // Fresh exploration exposes any oversized circle.
             for(auto dims:{std::pair<int,int>{1068,600},{4096,4096},{640,480},{0,INT_MAX}}) {

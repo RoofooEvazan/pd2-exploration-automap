@@ -31,7 +31,7 @@ Corner minimap:
 
 ![Endgame corner minimap](docs/screenshots/endgame-map-hybrid-corner-minimap.png)
 
-The [full gallery](docs/screenshots/) includes campaign areas, sewer channels and boundary colors. These images are from earlier betas; the radius and settings menu have since changed.
+The [full gallery](docs/screenshots/) includes campaign areas, sewer channels and boundary colors. These images are from earlier betas; the radius, settings menu and color palette have since changed.
 
 ## Install and run
 
@@ -76,7 +76,7 @@ Requirements: an installed copy of Diablo II / Project Diablo 2, the supported D
 
 The plugin reads tables automatically from the installed game's archives or active direct overrides. No manual extraction or separate table download is needed. See [table loading](docs/game-tables.md) if hooks install but styling is missing.
 
-**Upgrading:** replace the DLL with the game closed. Existing style/color preferences continue to load. Each group inherits legacy preferences until its own keys are saved. Old `MapStyle=native` remains untouched game rendering, now called Original. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
+**Upgrading:** replace the DLL with the game closed. Existing style preferences continue to load; retired color names resolve to [replacement colors](docs/boundary-settings.md#older-color-settings). Each group inherits legacy preferences until its own keys are saved. Old `MapStyle=native` remains untouched game rendering, now called Original. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
 
 **Uninstalling:** close the game, remove only the plugin's loader entry, and remove its DLL and INI. The DLL is dormant without `-exploration-test`; unloading it from a running game is unsupported.
 
@@ -84,7 +84,9 @@ The plugin reads tables automatically from the installed game's archives or acti
 
 **Boundary Color** and **Wall Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
 
-Both lists offer Red, Neon Green, Magenta, Cyan, Light Blue, Orange, Pale Blue, Pale Yellow, Pale Green, Pale Peach, Pale Lemon, Gray and White. Wall Color affects custom contours. Hybrid water and bank edges use light blue; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+Both lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, Teal, Blue, Violet, Purple, Magenta and White. Wall Color affects custom contours. Hybrid water and bank edges use light blue; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+
+This palette is in the development build; the beta.8 download still has the previous colors.
 
 Default `ExplorationMask.ini`:
 
@@ -96,12 +98,12 @@ BoundaryThickness=1.0
 [Maps]
 Style=hybrid
 BoundaryColor=red
-WallColor=gray
+WallColor=white
 
 [Campaign]
 Style=hybrid
 BoundaryColor=red
-WallColor=gray
+WallColor=white
 ```
 
 `BoundaryThickness` scales the reveal-edge width from 0.5–2.0; 1.0 keeps the default. It does not alter the fixed reveal radius or wall width.

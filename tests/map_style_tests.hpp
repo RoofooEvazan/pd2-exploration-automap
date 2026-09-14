@@ -24,7 +24,7 @@ static void testMapStyles() {
             require(selectMapStyle(choice));loadAppearanceSettings(file);
             require(currentMapStyle()==choice && (maps?mapsStyle:campaignStyle)==menuStyles[choice]);
             require((maps?campaignStyle:mapsStyle)==other);
-            require(currentBoundaryColor()==exploration::BoundaryColor::Cyan && currentWallColor()==exploration::BoundaryColor::White);
+            require(currentBoundaryColor()==exploration::BoundaryColor::Teal && currentWallColor()==exploration::BoundaryColor::White);
         }
     }
     for(const char* width:{"0.5","1","1.5","2"}) {

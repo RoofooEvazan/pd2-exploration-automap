@@ -681,7 +681,7 @@ static void __stdcall captureSewerShade(DWORD mode,DWORD count,const void* data)
 }
 static void __stdcall captureHybridArray(DWORD mode,DWORD count,const void* data) {
     require(mode==5 && count>0 && count%4==0 && data);
-    require(batchColor==0x181818c0 || batchColor==0x949494e0 || batchColor==0x50a5dce0);
+    require(batchColor==0x181818c0 || batchColor==exploration::wallRGBA(wallColor,224) || batchColor==0x50a5dce0);
     if(batchColor==0x181818c0)++casingCalls;else ++coreCalls;
     auto vertices=static_cast<const GlideVertex* const*>(data);
     for(DWORD i=0;i<count;i+=4) {

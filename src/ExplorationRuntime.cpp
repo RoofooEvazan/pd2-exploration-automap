@@ -77,9 +77,9 @@ static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
-static exploration::BoundaryColor wallColor=exploration::BoundaryColor::Gray;
+static exploration::BoundaryColor wallColor=exploration::BoundaryColor::White;
 struct AppearanceColors {
-    exploration::BoundaryColor boundary=exploration::BoundaryColor::Red,wall=exploration::BoundaryColor::Gray;
+    exploration::BoundaryColor boundary=exploration::BoundaryColor::Red,wall=exploration::BoundaryColor::White;
 };
 static AppearanceColors campaignColors,mapsColors;
 static bool activeMaps=false;
@@ -145,8 +145,8 @@ static exploration::ArtworkBounds artworkBounds;
 static unsigned long nativeBoundsTrimmed=0,blankSpritesSkipped=0;
 static std::vector<GlideVertex> sewerCasing,sewerCore,waterCore;
 static exploration::WaterTint waterTint,riverTint;
-static constexpr DWORD waterEdgeColor=exploration::boundaryPresets[4].r<<24 |
-    exploration::boundaryPresets[4].g<<16 | exploration::boundaryPresets[4].b<<8 | 224;
+// Water/bank edges keep Light Blue independently of the selectable palette.
+static constexpr DWORD waterEdgeColor=0x50a5dce0;
 static unsigned long sewerTraced=0,sewerFallbacks=0;
 struct CachedWallTrace {DWORD length=0;exploration::NativeWallTrace shape;};
 static std::map<std::tuple<DWORD,int,int>,CachedWallTrace> sewerWallTraces;
@@ -1017,7 +1017,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
         originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,color&255);
         styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     };
-    submit(casing,0x181818c0);submit(core,exploration::wallRGBA(wallColor,148,224));submit(waterVertices,waterEdgeColor);
+    submit(casing,0x181818c0);submit(core,exploration::wallRGBA(wallColor,224));submit(waterVertices,waterEdgeColor);
 }
 static void drawStyled(const Transform& t,Rect viewport) {
     if(activeStyle==MapStyle::Original || viewport.left>=viewport.right || viewport.top>=viewport.bottom)return;
@@ -1170,7 +1170,7 @@ static void endPass() {
                 styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
             };
             submit(sewerWaterFill,0x56606438);submit(sewerCasing,0x181818c0);
-            submit(sewerCore,exploration::wallRGBA(wallColor,148,224));
+            submit(sewerCore,exploration::wallRGBA(wallColor,224));
             submit(waterCore,waterEdgeColor);
         }
         sewerCasing.clear();sewerCore.clear();waterCore.clear();sewerWater.clear();sewerWaterFill.clear();
@@ -1327,7 +1327,7 @@ static void loadAppearanceSettings(const std::string& settings) {
     };
     AppearanceColors legacy;
     legacy.boundary=exploration::parseBoundaryColor(value("Automap","BoundaryColor","red"));
-    legacy.wall=exploration::parseBoundaryColor(value("Automap","WallColor","gray"),exploration::BoundaryColor::Gray);
+    legacy.wall=exploration::parseBoundaryColor(value("Automap","WallColor","white"),exploration::BoundaryColor::White);
     campaignStyle=parseStyle(value("Automap","CampaignStyle","hybrid").c_str(),MapStyle::Hybrid);
     mapsStyle=parseStyle(value("Automap","MapsStyle","hybrid").c_str(),MapStyle::Hybrid);
     auto oldStyle=value("Automap","MapStyle","");
