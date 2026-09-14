@@ -31,6 +31,14 @@ static void testGroundBanks() {
     tiles[2]=1;library.fill('x');BankRead unterminated{};require(copyBanks(room,grid,unterminated).empty() && unterminated.failures==2);
     library.fill(0);strcpy_s(library.data(),library.size(),"Act1/Outdoors/stonewall.dt1");
     BankRead stone{};require(copyBanks(room,grid,stone).empty() && stone.tiles==2 && stone.banks==0);
+    strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/psnwell/used/rivbank.dt1");
+    room.level=202;BankRead well{};const auto wellBanks=copyBanks(room,grid,well);
+    require(wellBanks==banks && well.banks==2 && !well.failures);
+    strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/oasis.dt1");
+    room.level=203;BankRead oasis{};require(copyBanks(room,grid,oasis)==banks && oasis.banks==2);
+    strcpy_s(library.data(),library.size(),"data/global/tiles/PD2assets/dtprivate/walls.dt1");
+    BankRead architecture{};require(copyBanks(room,grid,architecture).empty() && architecture.banks==0);
+    require(!mapWaterLibrary("custompd2assets/dtprivate/oasis.dt1") && !mapWaterLibrary("PD2assets/a5_river.dt1.extra"));
 
     checkContext="bank material survives owned snapshots, room seams and clipped geometry";
     FloorCopies copies;copies.ingest(100,200,15,15,grid,banks);

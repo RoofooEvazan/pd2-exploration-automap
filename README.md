@@ -12,7 +12,7 @@ Open the automap once in a game, then go to **Options → Automap Options → Ma
 
 | Style | Appearance |
 | --- | --- |
-| **Original** | Unchanged game automap, without custom clipping, shading, contours or entrance emphasis. |
+| **Original** | Native game automap and discovery, without an exploration boundary or replacement wall contours. |
 | **Native** | Original artwork with exploration clipping and a colored boundary, without custom floor shading or contours. |
 | **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Recognized water edges follow Water Color independently of Wall Color. |
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
@@ -87,6 +87,8 @@ The plugin reads tables automatically from the installed game's archives or acti
 The color lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, Teal, Blue, Violet, Purple, Magenta and White. Wall Color affects custom contours. Water Color adds Light Blue (`#50A5DC`) as the default for Hybrid water and bank edges; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
 The new palette, water color picker and thickness toggle are in the development build after beta.8.
+
+Poisoned Well can supply water-fill references in its custom automap definitions. With those definitions installed, Original and Native show dull-green water shading and edges. Hybrid retains the shading and uses the selected Water Color for shore contours; Styled omits the water artwork.
 
 Default `ExplorationMask.ini`:
 

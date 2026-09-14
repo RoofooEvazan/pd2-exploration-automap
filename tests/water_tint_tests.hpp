@@ -33,7 +33,7 @@ static void testWaterTint() {
     WaterTint bounded;bounded.select(1,1,10);
     for(std::size_t i=0;i<WaterTint::tileLimit;++i){int x=int(i)*16;require(bounded.add({x,0,x+16,32}));}
     require(!bounded.add({-16,0,0,32}) && bounded.size()==WaterTint::tileLimit && bounded.add({0,0,16,32}));
-    HybridArtwork artwork;
+    auto artworkStorage=std::make_unique<HybridArtwork>();auto& artwork=*artworkStorage;
     std::istringstream table(artworkFixture()+
         "Test\tfl\t0\t0\t0\tpool island\t20\tRiver A\t21\tRiver stairs\t22\t\t-1\n");
     std::istringstream objects("Name\tAutoMap\nWater shrine\t21\n");
@@ -149,7 +149,7 @@ static void testNativeRiverBanks() {
     std::istringstream table(fixture);require(hybridArtwork.load(table));
     require(hybridArtwork.riverBank(4)==Form::Top && hybridArtwork.riverBank(5)==Form::Bottom);
     require(hybridArtwork.riverBank(6)==Form::None && hybridArtwork.riverBank(7)==Form::None);
-    HybridArtwork protectedArt;
+    auto protectedStorage=std::make_unique<HybridArtwork>();auto& protectedArt=*protectedStorage;
     std::istringstream alias(fixture+"Test\tfl\t0\t0\t0\tRiver M A\t4\tRiver T A\t5\t\t-1\t\t-1\n");
     require(protectedArt.load(alias) && protectedArt.riverBank(4)==Form::None && protectedArt.riverBank(5)==Form::None);
     std::istringstream plain(fixture),objects("Name\tAutoMap\nShrine\t4\n");

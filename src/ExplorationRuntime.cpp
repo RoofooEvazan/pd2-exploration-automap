@@ -22,6 +22,7 @@
 #include "NativeWallTrace.hpp"
 #include "SewerWater.hpp"
 #include "WaterTint.hpp"
+#include "NativeWaterFill.hpp"
 #include "RasterClipCache.hpp"
 #include "ArtworkBounds.hpp"
 #include "BoundaryColors.hpp"
@@ -65,6 +66,15 @@ struct EntranceCell {
 // Owned contexts/clips, borrowed artwork only until this automap pass ends.
 // The retained clip capacity is at most 64 * 512 rectangles (512 KiB).
 static std::array<EntranceCell,64> entranceCells;
+static std::vector<EntranceCell> wellOutlineCells;
+static std::size_t wellOutlineCount=0,wellOutlineClips=0;
+static std::vector<GlideVertex> wellWaterVertices;
+static bool wellWallsPending=false;
+static constexpr std::size_t wellVertexLimit=262144,wellOutlineLimit=8192;
+struct WellFillShape {exploration::ArtworkBounds::Key key;std::vector<Rect> rectangles;bool valid=false;};
+static std::map<DWORD,WellFillShape> wellFillShapes;
+static std::uint64_t wellFillSession=0;
+static unsigned long wellFillDraws=0,wellFillFallbacks=0;
 static std::size_t entranceCount=0,entranceClipCount=0;
 static unsigned long entranceDraws=0,entranceFallbacks=0,entrancePalettePasses=0;
 static DWORD visibilityBoost(DWORD value){return std::min<DWORD>(255,(value*7+2)/4);}
@@ -470,9 +480,9 @@ static void captureStyledRooms(const PlayerState& p,std::uint64_t key,StyledStat
     },[&](const floor_reader::Room& r,const std::vector<std::uint16_t>& grid){
         floor_reader::BankRead bankRead{};
         std::vector<std::uint8_t> banks;
-        if(r.level>=2 && r.level<=7)banks=floor_reader::copyBanks(r,grid,bankRead);
+        if((r.level>=2 && r.level<=7) || r.level>132)banks=floor_reader::copyBanks(r,grid,bankRead);
         state.floor.ingest(r.x,r.y,r.width,r.height,grid,banks);
-        if(logfile && r.level>=2 && r.level<=7) {
+        if(logfile && ((r.level>=2 && r.level<=7) || r.level>132)) {
             fprintf(logfile,"GROUND_BANKS level=%lu room=%d,%d tiles=%u banks=%u cells=%zu readFailures=%u\n",
                 r.level,r.x,r.y,bankRead.tiles,bankRead.banks,std::count(banks.begin(),banks.end(),std::uint8_t(1)),bankRead.failures);fflush(logfile);
         }
@@ -812,17 +822,106 @@ static void drawEntrances() {
     entrancePaletteDraw(2,bright.data());++entrancePalettePasses;
     for(std::size_t i=0;i<entranceCount;++i)if(corner || entranceCells[i].mode==5)draw(entranceCells[i],false);
 }
+static bool queueWellFill(void* ctx,Rect asset,const std::vector<Rect>& clips) {
+    if(!styledArray || !styledColor || !originalLine)return false;
+    FrameSource source{};if(!frameSource(ctx,&source))return false;
+    if((source.width!=8 && source.width!=16) || source.height!=source.width*2 || source.length>2048)return false;
+    if(wellFillSession!=gameSerial){wellFillShapes.clear();wellFillSession=gameSerial;}
+    exploration::ArtworkBounds::Key key{reinterpret_cast<std::uintptr_t>(source.file),reinterpret_cast<std::uintptr_t>(source.frame),
+        source.index,source.length,source.width,source.height};
+    if(wellFillShapes.size()>=1024 && !wellFillShapes.count(source.index))return false;
+    auto& shape=wellFillShapes[source.index];
+    if(!(shape.key==key)) {
+        shape.key=key;std::array<unsigned char,2048> bytes{};
+        shape.valid=copyFrameBytes(source,bytes.data()) && exploration::nativeWaterFill(bytes.data(),source.length,source.width,source.height,shape.rectangles);
+    }
+    if(!shape.valid)return false;
+    // Reserve the complete cell before appending, so a budget fallback cannot
+    // draw half a native fill twice. Rectangle intersections need four vertices.
+    if(shape.rectangles.size()*clips.size()>(wellVertexLimit-wellWaterVertices.size())/4)return false;
+    for(auto local:shape.rectangles)for(auto clip:clips) {
+        const auto r=exploration::intersect({local.left+asset.left,local.top+asset.top,local.right+asset.left,local.bottom+asset.top},clip);
+        if(r.left>=r.right || r.top>=r.bottom)continue;
+        for(auto p:{Point{double(r.left),double(r.top)},Point{double(r.right),double(r.top)},
+            Point{double(r.right),double(r.bottom)},Point{double(r.left),double(r.bottom)}})
+            wellWaterVertices.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+    }
+    ++wellFillDraws;return true;
+}
+static bool queueWellOutline(void* ctx,int x,int y,NativeRect* viewport,int mode,const std::vector<Rect>* clips) {
+    if(!entrancePaletteDraw || !nativePalette || !viewport || wellOutlineCount>=wellOutlineLimit)return false;
+    const auto count=clips?clips->size():0;
+    if(count>512 || wellOutlineClips+count>65536)return false;
+    if(wellOutlineCount==wellOutlineCells.size())wellOutlineCells.emplace_back();
+    auto& cell=wellOutlineCells[wellOutlineCount];if(!copyEntranceContext(ctx,cell.context))return false;
+    cell.x=x;cell.y=y;cell.mode=mode;cell.viewport=*viewport;
+    if(clips)cell.clips=*clips;else cell.clips.clear();
+    ++wellOutlineCount;wellOutlineClips+=count;return true;
+}
+static void queueWellWaterForOutline(void* ctx,DWORD id,int x,int y,NativeRect* native) {
+    const DWORD fill=hybridArtwork.poisonedWellFill(id,observedLevel);
+    if(!fill || activeStyle==MapStyle::Styled || (activeStyle!=MapStyle::Original && !maskActive))return;
+    std::array<DWORD,18> context{};Rect asset{};
+    if(!copyEntranceContext(ctx,context.data())){++wellFillFallbacks;return;}
+    context[0]=fill;
+    if(!frameBounds(context.data(),x,y,&asset)){++wellFillFallbacks;return;}
+    const auto bounds=exploration::intersect(asset,{std::max(0,native->left),std::max(0,native->top+1),native->right,native->bottom+1});
+    if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)return;
+    static std::vector<Rect> clips;clips.clear();
+    Transform t{};
+    if(activeStyle==MapStyle::Original)clips.push_back(bounds);
+    else {
+        if(!transform(t)){++wellFillFallbacks;return;}
+        const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
+        cachedRasterClips(bounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
+        if(activeStyle==MapStyle::Hybrid) {
+            waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
+            waterTint.add({asset.left+sx,asset.top+sy,asset.right+sx,asset.bottom+sy});
+        }
+    }
+    if(!clips.empty() && !queueWellFill(context.data(),asset,clips))++wellFillFallbacks;
+}
+static void drawWellWater() {
+    struct Clear {~Clear(){wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;styledBatch=nullptr;}} clear;
+    if(!wellWaterVertices.empty()) {
+        static std::vector<const void*> pointers;pointers.clear();
+        for(const auto& v:wellWaterVertices)pointers.push_back(&v);
+        styledBatch=&pointers;styledBatchColor=0x52644070;styledRestoreColor=0x84848470;
+        originalLine(0,0,1,0,frontierColor,112);styledBatch=nullptr;
+    }
+    std::array<DWORD,256> saved{},tinted{};
+    const bool palette=wellOutlineCount && entrancePaletteDraw && copyNativePalette(saved.data());
+    if(palette) {
+        tinted=saved;tinted[132]=(saved[132]&0xff000000u)|0x00708860u;
+        entrancePaletteDraw(2,tinted.data());
+    }
+    struct Restore {bool active;const DWORD* saved;~Restore(){if(active)entrancePaletteDraw(2,saved);}} restore{palette,saved.data()};
+    for(std::size_t i=0;i<wellOutlineCount;++i) {
+        auto& c=wellOutlineCells[i];drawPreparedCell(c.context,c.x,c.y,&c.viewport,c.mode,c.clips.empty()?nullptr:&c.clips);
+    }
+}
 static void drawStyled(const Transform& t,Rect viewport);
 static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode) {
     InterlockedIncrement(&cellCount);
-    if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
     try {
+    // Add the associated water before an outline can be suppressed or trimmed.
+    // Original keeps native discovery; other modes clip the fill to exploration.
+    if(inPass && enabled && observedLevel==202 && native && !terrainClips) {
+        DWORD id=0;
+        if(frameIndex(ctx,&id)) {
+            queueWellWaterForOutline(ctx,id,x,y,native);
+            if(activeStyle==MapStyle::Original && hybridArtwork.poisonedWellOutline(id,202) &&
+                queueWellOutline(ctx,x,y,native,mode,nullptr))return;
+        }
+    }
+    if(!inPass || !enabled || (!maskActive && !nativeTownActive) || terrainClips || !native) {originalCell(ctx,x,y,native,mode);return;}
         DWORD id=0;const bool knownFrame=frameIndex(ctx,&id);
         const bool marker=mapMarkersActive() && knownFrame && mapMarkerDefinitions.artwork(id);
         const bool terrainReady=styledActive && styledCurrent && styledCurrent->floorCells>0;
         const bool pendingTerrain=!wallSnapshotReady();
         const bool styledOnly=activeStyle==MapStyle::Styled && terrainReady;
         const bool importantDetail=knownFrame && (hybridArtwork.styledDetail(id) || mapMarkerDefinitions.artwork(id));
+        const bool wellOutline=knownFrame && hybridArtwork.poisonedWellOutline(id,observedLevel);
         if(mapMarkersActive() && !markerArtworkFile) {
             FrameSource source{};if(frameSource(ctx,&source)){markerArtworkFile=const_cast<void*>(source.file);markerDrawMode=mode;}
         }
@@ -908,6 +1007,7 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
             cachedUnfinishedClips(bounds,int(t.divisor),shiftX,shiftY,appendClip);
         else cachedRasterClips(bounds,int(t.divisor),shiftX,shiftY,coverage,appendClip);
         if(clips.empty()){++suppressed;return;}
+        if(wellOutline && activeStyle!=MapStyle::Styled && queueWellOutline(ctx,x,y,native,mode,&clips)){++drawn;return;}
         if(traceRiver) {
             // Town water has no replacement floor contour. Outline the actual
             // bank sprite, keeping its water texture and native town visibility.
@@ -931,12 +1031,13 @@ static void __stdcall cellHook(void* ctx,int x,int y,NativeRect* native,int mode
         ++partial;
         if(!((hybrid || styledOnly) && !marker && hybridArtwork.entrance(id) && queueEntrance(ctx,x,y,native,mode,&clips)))
             drawPreparedCell(ctx,x,y,native,mode,&clips);
-    } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
+    } catch(...) {wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;terrainClips=nullptr;styledActive=false;maskActive=false;enabled=false;log("Mask disabled after C++ exception.");}
 }
 static void beginPass() {
     InterlockedIncrement(&beginCount);
     sewerCasing.clear();sewerCore.clear();waterCore.clear();sewerWater.clear();sewerWaterFill.clear();
     riverBankCells.clear();
+    wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;wellWallsPending=false;
     nativeMarkers.clear();markerArtworkFile=nullptr;
     entranceCount=entranceClipCount=0;entranceAlpha=-1;
     QueryPerformanceCounter(&passStarted);
@@ -1061,7 +1162,8 @@ static void drawStyled(const Transform& t,Rect viewport) {
         // Sewer wall faces and floor-edge contours are offset from one another.
         // Their matching artwork traces are queued by cellHook and batched in
         // endPass; unsupported frames keep their native wall instead.
-        if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
+        if(observedLevel==202 && inPass && hybridArtwork.hasPoisonedWellFill())wellWallsPending=true;
+        else if(observedLevel!=92 && observedLevel!=93)drawHybridWalls(t,viewport);
         return;
     }
     if(activeStyle==MapStyle::Styled){drawHybridWalls(t,viewport);return;}
@@ -1169,7 +1271,9 @@ static void endPass() {
                 if(styledActive && styledCurrent){drawStyled(t,passViewport);++styledPasses;}
             }
         }
+        if(inPass)drawWellWater();
         if(inPass && maskActive && haveViewport && styledActive && activeStyle==MapStyle::Hybrid && styledArray && styledColor) {
+            if(wellWallsPending) {Transform t{};if(transform(t))drawHybridWalls(t,passViewport);}
             if(!sewerWater.tiles().empty()){Transform t{};if(transform(t))queueWaterGeometry(t,passViewport);}
             static std::vector<const void*> pointers;
             auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
@@ -1187,6 +1291,7 @@ static void endPass() {
         if(inPass && maskActive && haveViewport && !styledActive && !nativeTownActive) {
             Transform t{};if(transform(t))drawEntryFrontier(t,passViewport);
         }
+        wellWallsPending=false;
         drawEntrances();
         drawMapMarkers();
         markerArtworkFile=nullptr;
@@ -1195,7 +1300,7 @@ static void endPass() {
             mapTicks+=finished.QuadPart-passStarted.QuadPart;++mapSamples;
         }
         inPass=false;
-        if(drawn+suppressed+partial && GetTickCount()-lastReport>=1000 && logfile){
+        if((drawn+suppressed+partial || wellFillDraws) && GetTickCount()-lastReport>=1000 && logfile){
             lastReport=GetTickCount();
             double ms=counterFrequency.QuadPart && mapSamples?1000.0*mapTicks/counterFrequency.QuadPart/mapSamples:0;
             fprintf(logfile,"cells=%lu suppressed=%lu partial=%lu explored=%zu frontier=%ld fractional=%ld townPasses=%ld nativeCells=%lu clippedQuads=%lu mapMs=%.3f shapes=%lu shapeFailures=%lu styledPasses=%lu styledQuads=%lu floorCells=%zu workerBuildMs=%.3f revealLatencyMs=%.3f rebuiltChunks=%zu totalChunks=%zu townNativeCells=%lu townPreviewPasses=%lu previewLevel=%lu townClipActive=%d\n",drawn,suppressed,partial,explored->size(),frontierCount,fractionalCount,townPasses,nativeCellCalls,clippedQuads,ms,shapesDecoded,shapeFailures,styledPasses,styledQuadCount,styledCurrent?styledCurrent->floorCells:0,styledBuildMs,styledLatencyMs,styledRebuiltChunks,styledTotalChunks,townClippedCells,townPreviewPasses,townBoundary.outside,nativeTownActive);fflush(logfile);
@@ -1212,6 +1317,7 @@ static void endPass() {
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
                 nativeBoundsTrimmed,blankSpritesSkipped,artworkBounds.hits(),artworkBounds.decoded(),artworkBounds.failures());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"WATER edgeColor=%s knownTiles=%zu colorBuilds=%zu riverTraced=%lu riverFallbacks=%lu\n",exploration::waterPreset(waterColor).key,waterTint.size(),waterTint.builds(),riverTraced,riverFallbacks);fflush(logfile);}
+            if(observedLevel==202)fprintf(logfile,"WELL_WATER definitions=%d fills=%lu fallbacks=%lu cachedShapes=%zu\n",int(hybridArtwork.hasPoisonedWellFill()),wellFillDraws,wellFillFallbacks,wellFillShapes.size());
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }
@@ -1424,7 +1530,7 @@ static void loadGameTables(const exploration::GameFiles& api) {
     }
     if(logfile){fprintf(logfile,"MARKERS definitions objects=%zu eventActors=%zu; loaded endgame units only, explored locations only.\n",
         mapMarkerDefinitions.objects(),mapMarkerDefinitions.monsters());fflush(logfile);}
-    if(campaignStyle==MapStyle::Hybrid || mapsStyle==MapStyle::Hybrid || campaignStyle==MapStyle::Styled || mapsStyle==MapStyle::Styled) {
+    {
         bool ready=false;
         if(readTable("automap.txt")) {
             std::istringstream definitions(std::move(bytes));ready=hybridArtwork.load(definitions);

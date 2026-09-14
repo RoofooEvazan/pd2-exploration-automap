@@ -97,6 +97,18 @@ inline bool grassyBankLibrary(const char* name) {
     }
     return false;
 }
+inline bool mapWaterLibrary(const char* name) {
+    std::string path(name);
+    for(auto& c:path)c=c=='\\'?'/':char(std::tolower(static_cast<unsigned char>(c)));
+    for(const char* file:{"act1/outdoors/river.dt1","act2/outdoors/oasis.dt1","act3/river/rivbank.dt1",
+        "pd2assets/psnwell/used/rivbank.dt1","pd2assets/psnwell/rivbank.dt1",
+        "pd2assets/a5_river.dt1","pd2assets/a5_rotatedriver.dt1","pd2assets/dtprivate/oasis.dt1"}) {
+        const auto length=std::char_traits<char>::length(file);
+        if(path.size()>=length && path.compare(path.size()-length,length,file)==0 &&
+           (path.size()==length || path[path.size()-length-1]=='/'))return true;
+    }
+    return false;
+}
 struct BankRead {unsigned tiles=0,banks=0,failures=0;};
 inline std::vector<std::uint8_t> copyBanks(const Room& room,const std::vector<std::uint16_t>& grid,BankRead& stats) {
     std::vector<std::uint8_t> banks;
@@ -106,7 +118,7 @@ inline std::vector<std::uint8_t> copyBanks(const Room& room,const std::vector<st
     for(int i=0;i<count;++i) {
         GroundTile tile{};
         if(!groundTile(room,tiles,i,&tile)){++stats.failures;continue;}
-        ++stats.tiles;if(!grassyBankLibrary(tile.library))continue;
+        ++stats.tiles;if(!grassyBankLibrary(tile.library) && !(room.level>132 && mapWaterLibrary(tile.library)))continue;
         ++stats.banks;if(banks.empty())banks.resize(grid.size());
         for(int y=tile.y;y<std::min(tile.y+5,room.y+room.height);++y)
             for(int x=tile.x;x<std::min(tile.x+5,room.x+room.width);++x) {

@@ -232,6 +232,22 @@ static void testInstalledArtwork() {
         for(DWORD i=0;i<total;++i) {
             auto offset=word(24+4*i);DWORD size=word(offset+28);require(word(offset)==0 && offset+32+size<=data.size());
             exploration::Silhouette shape;require(shape.decode(data.data()+offset+32,size,int(word(offset+4)),int(word(offset+8))));
+            if(total>=1974 && i>=1579 && i<1692) {
+                const int w=int(word(offset+4)),h=int(word(offset+8));
+                std::vector<Rect> water;require(exploration::nativeWaterFill(data.data()+offset+32,size,w,h,water));
+                std::vector<unsigned> coverage(std::size_t(w)*h);
+                for(auto r:water)for(int y=r.top;y<r.bottom;++y)for(int x=r.left;x<r.right;++x) {
+                    require(x>=0 && x<w && y>=0 && y<h);require(++coverage[y*w+x]==1);
+                }
+                auto pos=offset+32;int x=0,y=h-1;
+                while(y>=0) {
+                    auto code=data[pos++];if(code==128){x=0;--y;continue;}
+                    for(int n=code&127;n>0;--n,++x) {
+                        const unsigned value=code<128?data[pos++]:0;
+                        require(coverage[y*w+x]==unsigned(value==151));
+                    }
+                }
+            }
             Rect actual{},reference{int(word(offset+4)),int(word(offset+8)),0,0};
             require(exploration::ArtworkBounds::decode(data.data()+offset+32,size,int(word(offset+4)),int(word(offset+8)),actual));
             for(int y=0;y<int(shape.rows.size());++y)for(auto span:shape.rows[y]) {
@@ -653,7 +669,8 @@ static void testHybridClassification() {
     for(DWORD id:{283u,284u,285u,286u,287u,288u})require(hybridArtwork.role(id)==A::Role::SewerWall);
     require(hybridArtwork.role(289)==A::Role::SewerWater && hybridArtwork.role(290)==A::Role::Detail);
     require(hybridArtwork.sewerShape(283)==A::SewerShape::Down && hybridArtwork.sewerShape(284)==A::SewerShape::Up);
-    A conflict;std::istringstream conflictTable(artworkFixture()),conflictObjects("Name\tAutoMap\nIcon\t283\nWater icon\t289\n");
+    auto conflictStorage=std::make_unique<A>();auto& conflict=*conflictStorage;
+    std::istringstream conflictTable(artworkFixture()),conflictObjects("Name\tAutoMap\nIcon\t283\nWater icon\t289\n");
     require(conflict.load(conflictTable) && conflict.protectObjects(conflictObjects) && conflict.role(283)==A::Role::Detail && conflict.role(289)==A::Role::Detail);
     require(hybridArtwork.poisonedWellContours()==4);
     for(DWORD id:{1572u,1692u,1693u}) {
@@ -669,7 +686,8 @@ static void testHybridClassification() {
     std::istringstream reload(artworkFixture()),badReload("Invalid header\n");
     require(conflict.load(reload) && conflict.poisonedWellContours()==4);
     require(!conflict.load(badReload) && conflict.poisonedWellContours()==0 && conflict.role(1572,202)==A::Role::Detail);
-    A malformed;std::istringstream bad("Invalid header\n");require(!malformed.load(bad) && malformed.role(10)==A::Role::Detail);
+    auto malformedStorage=std::make_unique<A>();auto& malformed=*malformedStorage;
+    std::istringstream bad("Invalid header\n");require(!malformed.load(bad) && malformed.role(10)==A::Role::Detail);
     std::istringstream broken("Name\tMissingColumn\n");require(!malformed.protectObjects(broken));
     DWORD index=0;require(!frameIndex(nullptr,&index) && !frameIndex(reinterpret_cast<void*>(1),&index));
     require(parseStyle("hybrid",MapStyle::Native)==MapStyle::Hybrid);
@@ -1140,7 +1158,9 @@ static void testWaterReuse() {
 #include "area_entry_tests.hpp"
 #include "water_tint_tests.hpp"
 #include "ground_bank_tests.hpp"
+#include "native_water_tests.hpp"
 int main() {
+    std::cout<<std::unitbuf;
     require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
     mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
     testOverlayOpacity(); // Existing rendering contracts then run at 100%.
@@ -1220,5 +1240,6 @@ int main() {
     testWaterTint();
     testNativeRiverBanks();
     testGroundBanks();
+    testNativeMapWater();
     return 0;
 }

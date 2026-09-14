@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <istream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@ class HybridArtwork {
     std::array<std::uint8_t,65536> waterTiles_{};
     std::array<std::uint8_t,65536> riverBanks_{};
     bool loaded_=false;
+    std::map<std::uint32_t,std::uint32_t> wellFills_;
     static std::vector<std::string> columns(const std::string& line) {
         std::vector<std::string> out;std::size_t start=0;
         for(;;){auto end=line.find('\t',start);out.push_back(line.substr(start,end-start));
@@ -72,6 +74,7 @@ public:
         return SewerShape::None;
     }
     static Role describe(const std::string& label) {
+        if(label.compare(0,17,"PW outline water=")==0)return Role::Detail;
         std::vector<std::string> words;std::string word;
         for(unsigned char c:label) {
             if(std::isalnum(c))word+=char(std::tolower(c));
@@ -81,7 +84,9 @@ public:
         if(words.empty())return Role::Detail;
         // Water remains native; named water tiles identify adjacent contours
         // for the independent shoreline color. No material is guessed from RGB.
-        for(const auto& w:words)if(oneOf(w,{"river","water","pool","oasis"}))return Role::Water;
+        for(const auto& w:words)if(oneOf(w,{"river","water","pool","oasis","fullwater"}) ||
+            (w.size()>5 && w.compare(0,5,"water")==0 &&
+             std::all_of(w.begin()+5,w.end(),[](unsigned char c){return std::isdigit(c)!=0;})))return Role::Water;
         // Act 3 sewer architecture has visible wall faces that the connected
         // walkable-floor contour does not reliably reproduce. Preserve its
         // artwork as the source for tracing, with native fallback. Keep bridges
@@ -102,6 +107,7 @@ public:
         return Role::Detail;
     }
     bool load(std::istream& stream) {
+        wellFills_.clear();
         flags_.fill(0);sewerShapes_.fill(0);sewerWaterRoles_.fill(0);poisonedWellFlags_.fill(0);entrances_.fill(0);waterTiles_.fill(0);riverBanks_.fill(0);loaded_=false;std::string line;
         if(!std::getline(stream,line) || line.size()>32768)return false;
         auto header=columns(line);std::vector<std::size_t> cells;
@@ -127,11 +133,20 @@ public:
                 if(landmarkLabel(row[col-1]))entrances_[id]|=4;
                 flags_[id]|=role==Role::Wall?1:role==Role::Water?6:role==Role::SewerWall?16:role==Role::SewerWater?32:2;++definitions;
                 // This profile's Poisoned Well (level 202) uses table group 46.
-                // Its custom labels denote contour sprites, including a blank
-                // filler frame, not water texture. Keep aliases in other areas
-                // independent; an unknown alias in this group protects the ID.
-                if(levelIndex<row.size() && row[levelIndex]=="46")
-                    poisonedWellFlags_[id]|=(row[col-1]=="PW wall" || row[col-1]=="PW outline")?1:2;
+                // Optional fill metadata references an existing water frame.
+                // Cel2..4 remain untouched: the game treats them as random
+                // alternatives, not additional layers.
+                if(levelIndex<row.size() && row[levelIndex]=="46") {
+                    const bool outline=row[col-1]=="PW outline" || row[col-1].compare(0,17,"PW outline water=")==0;
+                    poisonedWellFlags_[id]|=row[col-1]=="PW wall"?1:outline?9:2;
+                    if(outline && row[col-1].size()>17) {
+                        const int fill=number(row[col-1].substr(17));
+                        if(fill>=1579 && fill<1692 && id>=1692 && id<1974) {
+                            auto [it,added]=wellFills_.emplace(id,fill);
+                            if(!added && it->second!=unsigned(fill))it->second=0;
+                        }
+                    }
+                }
                 if(levelIndex<row.size() && row[levelIndex]=="3 Sewer")sewerWaterRoles_[id]|=role==Role::SewerWater?1:2;
                 if(role==Role::SewerWall) {
                     auto shape=std::uint8_t(sewerShape(row[col-1]));
@@ -161,7 +176,7 @@ public:
     Role role(std::uint32_t id,std::uint32_t level=0) const {
         if(!loaded_ || id>=flags_.size())return Role::Detail;
         auto flags=flags_[id];
-        if(level==202 && poisonedWellFlags_[id]==1 && !(flags&8))return Role::Wall;
+        if(level==202 && (poisonedWellFlags_[id]==1 || poisonedWellFlags_[id]==9) && !(flags&8))return Role::Wall;
         // Drain artwork is reused as decorative floors in unrelated endgame
         // areas. The runtime applies this role only in sewer levels 92/93.
         if((flags&32) && !(flags&8) && sewerWaterRoles_[id]==1)return Role::SewerWater;
@@ -169,6 +184,15 @@ public:
     }
     SewerShape sewerShape(std::uint32_t id) const {return role(id)==Role::SewerWall?SewerShape(sewerShapes_[id]):SewerShape::None;}
     bool loaded() const {return loaded_;}
+    bool hasPoisonedWellFill() const {return loaded_ && !wellFills_.empty();}
+    std::uint32_t poisonedWellFill(std::uint32_t id,std::uint32_t level) const {
+        if(!poisonedWellOutline(id,level))return 0;
+        auto it=wellFills_.find(id);
+        return it!=wellFills_.end() && !(flags_[it->second]&8)?it->second:0;
+    }
+    bool poisonedWellOutline(std::uint32_t id,std::uint32_t level) const {
+        return loaded_ && level==202 && id<flags_.size() && poisonedWellFlags_[id]==9 && !(flags_[id]&8);
+    }
     bool waterTile(std::uint32_t id) const {
         return loaded_ && id<flags_.size() && waterTiles_[id]==1 && !(flags_[id]&8) && !styledDetail(id);
     }
@@ -198,7 +222,7 @@ public:
     std::size_t poisonedWellContours() const {
         if(!loaded_)return 0;
         std::size_t count=0;
-        for(std::size_t id=0;id<flags_.size();++id)if(poisonedWellFlags_[id]==1 && !(flags_[id]&8))++count;
+        for(std::size_t id=0;id<flags_.size();++id)if((poisonedWellFlags_[id]==1 || poisonedWellFlags_[id]==9) && !(flags_[id]&8))++count;
         return count;
     }
 };
