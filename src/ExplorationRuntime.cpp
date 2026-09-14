@@ -908,10 +908,18 @@ static void queueWellWaterForOutline(void* ctx,DWORD id,int x,int y,NativeRect* 
         if(!transform(t)){++wellFillFallbacks;return;}
         const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
         cachedRasterClips(bounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
-        // A fill frame can include dry ground. Shore coloring comes from the
-        // captured floor material, not this sprite's entire diamond.
     }
-    if(!clips.empty() && !queueWellFill(context.data(),asset,clips))++wellFillFallbacks;
+    if(!clips.empty()) {
+        if(!queueWellFill(context.data(),asset,clips)){++wellFillFallbacks;return;}
+        if(activeStyle==MapStyle::Hybrid) {
+            const auto shape=wellFillShapes.find(fill);
+            if(shape!=wellFillShapes.end() && shape->second.valid) {
+                const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
+                waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
+                waterTint.addPixels({asset.left+sx,asset.top+sy,asset.right+sx,asset.bottom+sy},fill,shape->second.rectangles);
+            }
+        }
+    }
 }
 static void drawWellWater() {
     struct Clear {~Clear(){wellWaterVertices.clear();wellOutlineCount=wellOutlineClips=0;styledBatch=nullptr;}} clear;

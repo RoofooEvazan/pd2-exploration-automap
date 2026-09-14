@@ -55,8 +55,13 @@ static void testNativeMapWater() {
         activeStyle=style;maskActive=styledActive=true;wellWaterVertices.clear();
         cellHook(context.data(),10,40,&viewport,5);
         require(wellWaterVertices.empty()==(style==MapStyle::Styled));wellWaterVertices.clear();
-        require(waterTint.size()==0); // Partial fills must not tint dry terrain.
+        require(waterTint.size()==std::size_t(style==MapStyle::Native?0:1));
     }
+    // Only the actual water pixels tint nearby contours, not the dry half of
+    // the same native diamond. The floor's bank tags remain independent.
+    auto material=waterTint.prepare({{inverse({10,39.5},t),inverse({18,39.5},t)},
+        {inverse({22,39.5},t),inverse({25,39.5},t)}});
+    require(material.size()==2 && material[0].water && !material[1].water);
     // Multiple disjoint clips preserve the original asset origin for each part.
     require(queueWellFill(context.data(),{10,8,26,40},{{10,39,13,40},{15,39,18,40}}));
     require(wellWaterVertices.size()==8 && wellWaterVertices[4].x==15 && wellWaterVertices[5].x==18);

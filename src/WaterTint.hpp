@@ -16,6 +16,9 @@ class WaterTint {
     };
     std::unordered_set<Tile,Hash> tiles_;
     std::map<std::pair<int,int>,std::vector<Tile>> bins_;
+    std::set<std::array<int,4>> pixelTiles_;
+    std::map<std::pair<int,int>,std::vector<Rect>> pixelBins_;
+    std::size_t pixelRectangles_=0;
     std::uint64_t session_=0,level_=0;
     int divisor_=0;
     static constexpr double margin=1.5;
@@ -36,8 +39,25 @@ class WaterTint {
         }
         return hi>lo;
     }
+    static bool cutPixels(Point a,Point b,Rect pixels,double& lo,double& hi) {
+        // One texel covers rounding between native artwork and floor contours.
+        // Dry regions and bridge pixels inside a partial water tile stay out.
+        lo=0;hi=1;
+        for(int axis=0;axis<2;++axis) {
+            const double start=axis?a.y:a.x,delta=axis?b.y-a.y:b.x-a.x;
+            const double low=(axis?pixels.top:pixels.left)-1.0,high=(axis?pixels.bottom:pixels.right)+1.0;
+            if(delta==0){if(start<low || start>high)return false;}
+            else {
+                double l=(low-start)/delta,r=(high-start)/delta;if(l>r)std::swap(l,r);
+                lo=std::max(lo,l);hi=std::min(hi,r);
+            }
+            if(hi<=lo)return false;
+        }
+        return hi>lo;
+    }
 public:
     static constexpr std::size_t tileLimit=32768;
+    static constexpr std::size_t pixelRectangleLimit=131072;
     struct Part {styled_map::Stroke stroke;bool water;};
 private:
     std::vector<styled_map::Stroke> source_;
@@ -48,24 +68,40 @@ public:
         if(session==session_ && level==level_ && divisor==divisor_)return;
         session_=session;level_=level;divisor_=divisor;
         tiles_.clear();bins_.clear();source_.clear();parts_.clear();preparedTiles_=0;
+        pixelTiles_.clear();pixelBins_.clear();pixelRectangles_=0;
     }
     bool add(Rect frame) {
         const int w=frame.right-frame.left,h=frame.bottom-frame.top;
         if((w!=8 && w!=16) || h!=w*2)return false;
         const Tile tile{frame.left,frame.bottom,w};
         if(tiles_.find(tile)!=tiles_.end())return true;
-        if(tiles_.size()>=tileLimit)return false;
+        if(size()>=tileLimit)return false;
         tiles_.insert(tile);
         for(int y=bin(frame.bottom-w*.5-margin);y<=bin(frame.bottom+margin);++y)
             for(int x=bin(frame.left-margin);x<=bin(frame.right+margin);++x)bins_[{y,x}].push_back(tile);
+        return true;
+    }
+    bool addPixels(Rect frame,unsigned artwork,const std::vector<Rect>& pixels) {
+        const int w=frame.right-frame.left,h=frame.bottom-frame.top;
+        if((w!=8 && w!=16) || h!=w*2 || artwork>65535 || pixels.empty())return false;
+        const std::array<int,4> tile{frame.left,frame.bottom,w,int(artwork)};
+        if(pixelTiles_.count(tile))return true;
+        if(size()>=tileLimit || pixels.size()>pixelRectangleLimit-pixelRectangles_)return false;
+        for(auto r:pixels)if(r.left<0 || r.top<0 || r.right>w || r.bottom>h || r.left>=r.right || r.top>=r.bottom)return false;
+        pixelTiles_.insert(tile);pixelRectangles_+=pixels.size();
+        for(auto r:pixels) {
+            r={r.left+frame.left,r.top+frame.top,r.right+frame.left,r.bottom+frame.top};
+            for(int y=bin(r.top-1);y<=bin(r.bottom+1);++y)
+                for(int x=bin(r.left-1);x<=bin(r.right+1);++x)pixelBins_[{y,x}].push_back(r);
+        }
         return true;
     }
     const std::vector<Part>& prepare(const std::vector<styled_map::Stroke>& walls) {
         const auto equal=[](const styled_map::Stroke& a,const styled_map::Stroke& b){
             return a.a.x==b.a.x && a.a.y==b.a.y && a.b.x==b.b.x && a.b.y==b.b.y && a.bank==b.bank;
         };
-        if(preparedTiles_==tiles_.size() && source_.size()==walls.size() && std::equal(source_.begin(),source_.end(),walls.begin(),equal))return parts_;
-        ++builds_;source_=walls;preparedTiles_=tiles_.size();parts_.clear();
+        if(preparedTiles_==size() && source_.size()==walls.size() && std::equal(source_.begin(),source_.end(),walls.begin(),equal))return parts_;
+        ++builds_;source_=walls;preparedTiles_=size();parts_.clear();
         std::vector<std::pair<double,double>> ranges;
         for(const auto& wall:walls) {
             ranges.clear();
@@ -75,6 +111,8 @@ public:
             for(int y=bin(std::min(a.y,b.y));y<=bin(std::max(a.y,b.y));++y) {
                 for(auto it=bins_.lower_bound({y,xl});it!=bins_.end() && it->first.first==y && it->first.second<=xr;++it)
                     for(auto tile:it->second){double lo=0,hi=0;if(cut(a,b,tile,lo,hi))ranges.push_back({lo,hi});}
+                for(auto it=pixelBins_.lower_bound({y,xl});it!=pixelBins_.end() && it->first.first==y && it->first.second<=xr;++it)
+                    for(auto pixels:it->second){double lo=0,hi=0;if(cutPixels(a,b,pixels,lo,hi))ranges.push_back({lo,hi});}
             }
             std::sort(ranges.begin(),ranges.end());
             auto at=[&](double t){return Point{wall.a.x+(wall.b.x-wall.a.x)*t,wall.a.y+(wall.b.y-wall.a.y)*t};};
@@ -89,7 +127,7 @@ public:
         }
         return parts_;
     }
-    std::size_t size() const{return tiles_.size();}
+    std::size_t size() const{return tiles_.size()+pixelTiles_.size();}
     std::size_t builds() const{return builds_;}
 };
 }

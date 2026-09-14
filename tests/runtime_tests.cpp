@@ -1238,6 +1238,7 @@ int main() {
     testAreaEntryWalls();
     testStableWallRefresh();
     testWaterTint();
+    testPixelWaterTint();
     testNativeRiverBanks();
     testGroundBanks();
     testNativeMapWater();

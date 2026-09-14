@@ -139,6 +139,47 @@ static void testWaterTint() {
     activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;styledCurrent=nullptr;explored=&emptyMask;
     std::cout<<"PASS: light-blue Hybrid water edges; disjoint contour coverage, both zooms, material/object protection, cache reuse, bounded storage, session/layer isolation and independent wall colors\n";
 }
+static void testPixelWaterTint() {
+    using namespace exploration;
+    checkContext="partial water coverage repairs shorelines without tinting dry objects or bridges";
+    for(int divisor:{10,20}) {
+        const int w=divisor==10?16:8;
+        const Transform stable{double(divisor),divisor==10?8.0:7.0,divisor==10?-8.0:-3.0};
+        WaterTint tint;tint.select(1,202,divisor);
+        // Two water strips flank a dry bridge within one floor frame.
+        const std::vector<Rect> water{{0,w,w/4,w*2},{w*3/4,w,w,w*2}};
+        const Rect frame{-32,-32,-32+w,-32+w*2};
+        require(tint.addPixels(frame,1590,water) && tint.size()==1);
+        require(!tint.addPixels(frame,1591,{{0,0,w+1,1}}) && tint.size()==1);
+        const double y=-32+w*1.75;
+        std::vector<styled_map::Stroke> walls{{inverse({-36,y},stable),inverse({double(-28+w),y},stable)}};
+        auto parts=tint.prepare(walls);require(parts.size()==5);
+        // Independent texel-rectangle oracle also checks exact-once coverage.
+        for(int i=0;i<1000;++i) {
+            const double x=-36+(w+8)*(i+.5)/1000;unsigned hits=0;bool wet=false;
+            for(auto r:water)wet|=x>=r.left-33 && x<r.right-31;
+            for(auto part:parts) {
+                auto a=project(part.stroke.a,stable),b=project(part.stroke.b,stable);
+                if(x>=a.x && x<b.x){++hits;require(part.water==wet);}
+            }
+            require(hits==1);
+        }
+        const auto builds=tint.builds();
+        for(int i=0;i<100;++i){require(tint.addPixels(frame,1590,water));tint.prepare(walls);}
+        require(tint.size()==1 && tint.builds()==builds);
+        // An object on the dry part above the water strips stays white.
+        auto dry=tint.prepare({{inverse({-32.,-32.+w/2},stable),inverse({-32.+w,-32.+w/2},stable)}});
+        require(dry.size()==1 && !dry[0].water);
+        // Different floor layers at one placement contribute a union.
+        require(tint.addPixels(frame,1591,{{w/4,w,w*3/4,w*2}}));
+        parts=tint.prepare(walls);require(parts.size()==3 && parts[1].water);
+        tint.select(2,202,divisor);require(!tint.size() && !tint.prepare(walls)[0].water);
+    }
+    WaterTint bounded;bounded.select(1,202,10);
+    std::vector<Rect> limit(WaterTint::pixelRectangleLimit+1,Rect{0,0,1,1});
+    require(!bounded.addPixels({0,0,16,32},1590,limit) && bounded.size()==0);
+    std::cout<<"PASS: exact water-pixel color splits, dry/bridge exclusions, both zooms, negative bins, layer union, cache reuse and rectangle budget\n";
+}
 
 static void testNativeRiverBanks() {
     using namespace exploration;
