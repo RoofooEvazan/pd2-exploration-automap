@@ -8,11 +8,11 @@ The plugin reads definitions through the installed game's file resolver. The sup
 
 `GameTables.hpp` binds the already loaded native `Storm.dll`. It uses `SFileOpenFile` (ordinal 267), which consults the game's direct-access setting before delegating to `SFileOpenFileEx` and its mounted archive search. This preserves active `-direct` overrides without guessing archive names, priorities, or language settings. Calling `OpenFileEx` with scope zero alone would bypass direct overrides in this Storm build.
 
-The current build requests `Levels.txt` and `Objects.txt` under `data/global/excel/`, plus `automap.txt` for Hybrid or Styled. Endgame icon support additionally requests `MonStats.txt` and `MonStats2.txt` through the same resolver. These tables come from the installed game; testers do not need to download or extract them. The reader uses the existing resolver without mounting archives or changing direct-access flags.
+The current build requests `Levels.txt` and `Objects.txt` under `data/global/excel/`, plus `automap.txt` for Hybrid or Styled. Endgame icon support additionally requests `MonStats.txt` and `MonStats2.txt` through the same resolver. The reader uses the existing resolver without mounting archives or changing direct-access flags.
 
 Every successful file open has an owner that closes the handle after parsing input is copied, including failed reads and C++ exceptions. Empty files, sizes over 16 MiB, nonzero high size words, failed reads and short reads are rejected. Owned input buffers are temporary; the existing compact classification/layer caches remain. Table parsers retain their row and schema limits.
 
-Missing or malformed required artwork definitions make Hybrid and Styled use clipped-native fallback. Missing layer definitions retain separate area histories. Missing or malformed shrine/event definitions disable the affected icon fallback without disabling native drawing; see [shrine and event icons](map-markers.md). Original retains unchanged game rendering. Each attempted file logs `TABLE <name>: ready; bytes=...; source=game file resolver` or a reason for failure; the `HYBRID`, `CAMPAIGN` and `STYLE` lines report parsing and selected behavior. A `ready` file read alone does not prove its schema was accepted.
+Missing or malformed required artwork definitions make Hybrid and Styled use clipped-native fallback. Missing layer definitions retain separate area histories. Missing or malformed shrine/event definitions disable the affected icon fallback without disabling native drawing; see [shrine and event icons](map-markers.md). Original retains native artwork and discovery, including the appearance changes described in [map styles](map-styles.md). Each attempted file logs `TABLE <name>: ready; bytes=...; source=game file resolver` or a reason for failure; the `HYBRID`, `CAMPAIGN` and `STYLE` lines report parsing and selected behavior. A `ready` file read alone does not prove its schema was accepted.
 
 ## Compatibility
 
@@ -24,7 +24,7 @@ The installed PD2 archive tested here contains all three TXT tables. Other distr
 
 ## Validation
 
-All three Win32 Release suites pass with the existing local artwork and table fixtures. New synthetic tests cover ABI guards, changed exports/instructions, bounded reads, empty/oversized/high-word inputs, short and failed reads, exception cleanup, independent layer/artwork failure, style preservation and one-time loading.
+All three Win32 Release suites pass with local artwork and table fixtures. Synthetic checks cover ABI guards, changed exports/instructions, bounded reads, empty/oversized/high-word inputs, short and failed reads, exception cleanup, independent layer/artwork failure, style preservation and one-time loading.
 
 An optional read-only check using private snapshots from the installed `pd2data.mpq` accepts all three tables: 132 campaign layer records and 115 ordinary wall IDs. The local direct overrides instead produce 111 ordinary wall IDs. Different counts are expected; active game files must determine classification. No snapshot belongs in the repository or release.
 

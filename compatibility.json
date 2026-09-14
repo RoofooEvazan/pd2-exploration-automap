@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "f00a5fdf5bb0ba53daacb04649476727b4653a572f92ddfe1c5c1e124325cd5e",
-  "validation": "All three Win32 Release suites passed with installed artwork/table/archive fixtures. Entry-wall and blinking corrections and Act 3 bank coloring were confirmed offline. The latest Act 1 raised-bank filename lookup has automated coverage; live confirmation is pending. Broad version coverage and long-session performance remain under test.",
+  "testedModuleSha256": "37c8abbc411a8811b5d9f7bd8c9e41976c514e9e99f330d6dd4f75cd654b0772",
+  "validation": "All three Win32 Release suites passed standalone and with installed artwork/table/archive fixtures. Coverage includes layered shoreline materials, dry-prop exclusions, stable thin wall strokes, boundary containment, independent colors/thickness and Original fullscreen wall dimming. The local build was accepted for publication after offline testing; broad version coverage and sustained game performance remain under test.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -16,18 +16,18 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.8",
+  "release": "v0.2.0-beta.9",
   "status": "BETA",
   "developmentTableFixturesSha256": {
-    "data/global/excel/automap.txt": "05b7aadde5b4e5df80def5928dced557f989105ea945f28687c92efe6d92c7f2",
-    "data/global/excel/Objects.txt": "e8c129055ff894f306a00b39b1e729c9f73f7674add93871c77c617c9722858b",
-    "data/global/excel/Levels.txt": "3382b9ac83d9edc279ca445b217a7c6b1aafae46d2529cc0ef8e6316f0662e45",
-    "data/global/excel/MonStats.txt": "d416aa1672a3a2bef1c4b289f1727c74f289e09f2e681af9447754479b8e5bf0",
+    "data/global/excel/automap.txt": "40cfbb6bc46ffb515776633feb54922f7a1bddc98c0f2f82f50cd6fb19a94b41",
+    "data/global/excel/Objects.txt": "6d9c44306e9c8f428892b474b082c5abf1e09bcf1fdd471ea7c8e70e9f6c349f",
+    "data/global/excel/Levels.txt": "8003b4bc93db657a10af6361bcffe27041b754b4ffeb1d8cde7f97ee45aea395",
+    "data/global/excel/MonStats.txt": "a2b23eb294128a74dd33acce2b1e7981fc3b130c8229d19d2c7d6aa354dd220c",
     "data/global/excel/MonStats2.txt": "a240af74d2c93d356a68b74a7361ce5247298f24a90e0038d4f589e7f507488d"
   },
   "gameTables": "Automatically read from active installed game archives or direct overrides via native Storm; development fixture hashes are informational, not files to download. Missing/malformed geometry or layer tables retain native/per-area fallback. Missing marker definitions disable the affected shrine/event fallback; existing native drawing remains.",
   "optionalMenuSha256": {
     "ProjectDiablo.dll": "538a77b7ccef3d5334e56c4e9e57a4d8fc69a1e27c46beb694c0dedfcfbf9cb3"
   },
-  "optionalMenuNote": "Map Style and the wall/boundary color lists require the profiled expansion menu and runtime layout guards. Unsupported menu layouts retain INI style/color settings."
+  "optionalMenuNote": "Styling, color lists and boundary thickness controls require the profiled expansion menu and runtime layout guards. Unsupported menu layouts retain INI appearance settings."
 }

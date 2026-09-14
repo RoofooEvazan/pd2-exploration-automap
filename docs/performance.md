@@ -32,6 +32,14 @@ Some native water/detail sprites have large transparent margins. `ArtworkBounds.
 
 The metadata cache stays below 1 MiB, including scratch space. Keys include source file/frame identity, index, dimensions and encoded length; area/session changes invalidate it. The supported profile treats DC6 frames as immutable. Invalid metadata, failed reads or unsupported encoding use the original clipping path. Texture preparation and UVs remain native.
 
+## Beta.9 component measurements
+
+The final wall-stroke change reduced median CPU time from **2.7092 to 1.0981 ms** at automap divisor 10, and **2.6747 to 1.0051 ms** at divisor 20. The fixture contains 3,200 strokes in a panning 1280×720 viewport, with 400 passes including 40 warmup passes. It measures wall preparation, clipping and batching through mocked native/Glide callbacks.
+
+Removing the added Poisoned Well fill reduced its synthetic Hybrid water path from **0.9529 to 0.2955 ms**. Added fill vertices fell from 6,720,000 to zero across the run; registered tiles, shoreline partitions and total water-colored length matched. Source water coverage still classifies shorelines, and the separate sewer channel treatment is retained.
+
+These are separate before/after component comparisons, not a comparison with beta.8 or a measurement of game FPS. They must not be added together. Broader gameplay timing remains necessary.
+
 ## Historical measurements
 
 These measurements predate beta.7. They compare individual revisions, use different fixtures and must not be added together. Synthetic scenes use mocked native/Glide callbacks and measure CPU work, not game FPS or GPU time.

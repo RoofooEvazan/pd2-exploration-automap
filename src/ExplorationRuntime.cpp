@@ -433,8 +433,8 @@ static bool updateForPlayer(const PlayerState& p,DWORD now) {
     const bool selected=p.level>0 && !town && (targetLevel==0 || p.level==targetLevel);
     maskActive=enabled && selected && activeStyle!=MapStyle::Original;
     explored=selected?&explorationSession.select(gameSerial,levelKey):&emptyMask;
-    // Keep lightweight discovery history while Original is selected, but leave
-    // all of its rendering untouched and skip floor capture/worker submission.
+    // Original keeps discovery history for style switches without floor
+    // capture or worker submission. Native artwork is drawn separately.
     if(enabled && selected) {
         int x=static_cast<int>(floor(p.x/maskCellSize)),y=static_cast<int>(floor(p.y/maskCellSize));
         if(x!=lastX || y!=lastY) {explored->revealAround({p.x,p.y},revealRadius);lastX=x;lastY=y;}
@@ -1499,8 +1499,8 @@ static void loadAppearanceSettings(const std::string& settings) {
     campaignStyle=parseStyle(value("Automap","CampaignStyle","hybrid").c_str(),MapStyle::Hybrid);
     mapsStyle=parseStyle(value("Automap","MapsStyle","hybrid").c_str(),MapStyle::Hybrid);
     auto oldStyle=value("Automap","MapStyle","");
-    // beta.7's single Native option meant an untouched automap. Keep that
-    // meaning for old files; the new per-group Style key is unambiguous.
+    // Legacy Native selects Original artwork/discovery. Per-group Native
+    // selects exploration clipping and a boundary instead.
     if(_stricmp(oldStyle.c_str(),"native")==0)campaignStyle=mapsStyle=MapStyle::Original;
     else if(!oldStyle.empty()) {
         campaignStyle=parseStyle(oldStyle.c_str(),campaignStyle);mapsStyle=parseStyle(oldStyle.c_str(),mapsStyle);

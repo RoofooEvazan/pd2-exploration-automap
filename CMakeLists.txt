@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(PD2ExplorationAutomap VERSION 0.2.0 LANGUAGES CXX)
-set(PD2_RELEASE_LABEL "0.2.0-beta.8")
+set(PD2_RELEASE_LABEL "0.2.0-beta.9")
 
 # The game-facing hooks use MSVC inline assembly and the 32-bit Windows ABI.
 if(NOT WIN32 OR NOT MSVC)

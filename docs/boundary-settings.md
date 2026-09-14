@@ -26,15 +26,15 @@ All three lists offer the thirteen colors below. Water Color also offers Light B
 
 The hex values are the exact base colors. Boundary bands retain their existing shade multipliers and opacity; wall cores use the selected RGB with the existing opacity and dark contrast casing. Screen appearance therefore also depends on the game background and overlay transparency.
 
-Wall Color changes Hybrid wall contours and straight sewer walls, plus Styled contours. Water Color changes recognized Hybrid shorelines, sewer water edges, riverbanks and grassy bank contours independently of Wall Color. It does not add new water geometry to Original, Native or Styled. Native artwork, icons, water fill and floor shading keep their colors. Original and Native retain the game's walls. Boundary Color also applies to fallback reveal accents.
+Wall Color changes Hybrid wall contours and straight sewer walls, plus Styled contours. Water Color changes recognized Hybrid shorelines, sewer water edges, riverbanks and grassy bank contours independently of Wall Color. It does not add new water geometry to Original, Native or Styled. Native artwork, icons, water fill and floor shading keep their colors. Original and Native retain native wall artwork, with Original's fullscreen white dimming described in [map styles](map-styles.md). Boundary Color also applies to fallback reveal accents.
 
-Colors are applied during drawing without geometry rebuilds or additional texture uploads. A water color change preserves edge positions, width, alpha, water fill and exploration.
+Colors apply during drawing without geometry rebuilds or additional texture uploads; edge positions, width, alpha and exploration are preserved.
 
-The extension supports the profiled expansion menu in `ProjectDiablo.dll` (SHA-256 `538A77B7CCEF3D5334E56C4E9E57A4D8FC69A1E27C46BEB694C0DEDFCFBF9CB3`) and documented D2Client/D2Win builds. The native engine handles mouse/keyboard navigation. A resource-free picker uses a compact native font; the original automap table remains the sole owner of its artwork. Menu transitions update both the active selection and PD2's Escape target. Layout, pointers, drawing calls and Escape signatures are checked before installation. Unsupported menu versions retain INI color selection. No artwork or engine DLL is changed on disk. Live unloading is unsupported. Existing [screenshots](screenshots/) show the earlier five-color menu.
+The extension supports the profiled expansion menu in `ProjectDiablo.dll` (SHA-256 `538A77B7CCEF3D5334E56C4E9E57A4D8FC69A1E27C46BEB694C0DEDFCFBF9CB3`) and documented D2Client/D2Win builds. The native engine handles navigation and owns the menu artwork; the picker uses native fonts and updates PD2's Escape target on transitions. Layout, pointers, drawing calls and Escape signatures are checked before installation. Unsupported menu versions retain INI color selection. No artwork or engine DLL is changed on disk. Live unloading is unsupported. Existing [screenshots](screenshots/) show the earlier five-color menu.
 
 ## Older color settings
 
-The replacement palette is in the development build after beta.8. Older INIs load without being rewritten. Retired names resolve as follows in either styling group:
+Beta.9 replaces the earlier palette. Older INIs load without being rewritten. Retired names resolve as follows in either styling group:
 
 | Old INI value | Current choice |
 | --- | --- |

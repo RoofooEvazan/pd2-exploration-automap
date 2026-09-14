@@ -9,7 +9,7 @@ Open the automap once, then choose **Options → Automap Options → Maps Stylin
 | Hybrid | Contours, shaded floors and a frontier alongside native water patterns, roads, landmarks and icons. |
 | Styled | Contour terrain and shaded floors, retaining recognized waypoints, shrines, events, portals, entrances, exits and stairs. |
 
-Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges follow Water Color, which defaults to Light Blue. Original and Native keep the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
+Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges follow Water Color, which defaults to Light Blue. Original dims neutral white fullscreen walls by 40%; colored pixels, protected icons and the corner minimap are unaffected. Native keeps the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
 
 ## Saved preferences
 
@@ -34,11 +34,11 @@ BoundaryThickness=1.0
 
 `BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
 
-Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` keeps its old untouched-map meaning, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
+Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` selects native artwork and discovery, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
 
 Switching preserves exploration and completed geometry. Original records lightweight discovery history while skipping collision geometry work. Rooms visited only in Original may need capture when revisited in another style; unloaded rooms are never forced to load. The reveal radius stays hardcoded to **33 world subtiles**.
 
-With Poisoned Well's optional water-fill references installed, Original and Native use dull-green water (`#526440` fill, `#708860` edge). Hybrid keeps that fill and colors shoreline contours using Water Color. Styled omits the fill. These references pair existing fill frames with outline frames; native cell alternatives, bridges and other level groups stay unchanged.
+Poisoned Well's optional custom automap references pair existing water frames with outline frames. When those definitions are active, Original and Native tint the native water edge dull green (`#708860`). Hybrid uses the selected Water Color for shore contours; Styled omits native water artwork. The plugin adds no green water fill. These custom game definitions are not bundled with the plugin; installed native water patterns remain available without them.
 
 ## Area transitions
 

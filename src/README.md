@@ -20,10 +20,11 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [SewerWater.hpp](SewerWater.hpp) | Joins sewer water tiles into channel outlines and reuses unchanged perimeters without rebuilding internal seams each frame. |
 | [WaterTint.hpp](WaterTint.hpp) | Identifies water-facing parts of Hybrid contours for Water Color, using native water tiles. Caches color splits across movement and keeps the geometry unchanged. |
 | [FrontierContacts.hpp](FrontierContacts.hpp) | Finds where the reveal edge touches visible artwork in fallback mode. |
-| [NativeFloorReader.hpp](NativeFloorReader.hpp) | Copies loaded collision grids and identifies Act 1 ground-bank tiles for contour coloring. |
+| [NativeFloorReader.hpp](NativeFloorReader.hpp) | Copies loaded collision grids and preserves bank/water materials through layered floor tiles for contour coloring. |
+| [NativeWaterFill.hpp](NativeWaterFill.hpp) | Extracts native water-pixel coverage for shore classification while excluding bridges and dry portions. The runtime does not submit an added green fill. |
 | [StyledMap.hpp](StyledMap.hpp) | Builds shaded floors, wall contours and open-frontier geometry. |
 | [StyledChunks.hpp](StyledChunks.hpp) | Reuses unchanged map regions and rebuilds regions affected by exploration. |
-| [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and constructs fractional-width contour quads. |
+| [StyledProjection.hpp](StyledProjection.hpp) | Clips floor shapes and wall lines, and caches contour strokes on a grid that survives renderer position rounding. |
 | [PreparedFloors.hpp](PreparedFloors.hpp) | Prepares bounded floor projection and bounds on the worker so each draw only pans and clips them. |
 | [StyledWorker.hpp](StyledWorker.hpp) | Builds geometry on one background worker using owned snapshots of the map data. |
 | [TerrainCoverage.hpp](TerrainCoverage.hpp) | Marks completed collision coverage so pending room updates keep existing contours and limit native fallback to unfinished terrain. |

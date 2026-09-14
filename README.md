@@ -1,8 +1,8 @@
 # PD2 Exploration Automap — BETA
 
-An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Set campaign and endgame map styles separately, with independent wall and boundary colors.
+An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Campaign and endgame maps have separate styles, colors and boundary thickness settings.
 
-**[Download v0.2.0-beta.8 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.8)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
+**[Download v0.2.0-beta.9 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.9)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
 This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. The release contains no game or renderer binaries other than the plugin itself.
 
@@ -18,6 +18,8 @@ Open the automap once in a game, then go to **Options → Automap Options → Ma
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
 
 Native, Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
+
+Original dims neutral white wall pixels by 40% in fullscreen; colored artwork, icons and the corner minimap retain their brightness.
 
 Connected campaign areas on the same native map layer retain their explored terrain across zone transitions. Exploration lasts for the current game session and is not saved to disk. Walls remain visible while new room geometry is prepared. See [map styles](docs/map-styles.md) for transition behavior and legacy INI compatibility.
 
@@ -76,7 +78,7 @@ Requirements: an installed copy of Diablo II / Project Diablo 2, the supported D
 
 The plugin reads tables automatically from the installed game's archives or active direct overrides. No manual extraction or separate table download is needed. See [table loading](docs/game-tables.md) if hooks install but styling is missing.
 
-**Upgrading:** replace the DLL with the game closed. Existing style preferences continue to load; retired color names resolve to [replacement colors](docs/boundary-settings.md#older-color-settings). Each group inherits legacy preferences until its own keys are saved. Old `MapStyle=native` remains untouched game rendering, now called Original. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
+**Saved preferences:** existing styles continue to load; retired color names resolve to [replacement colors](docs/boundary-settings.md#older-color-settings). Each group inherits legacy preferences until its own keys are saved. Old `MapStyle=native` selects native artwork and discovery, now called Original. Old `RevealRadiusSubtiles` and `RevealMode` entries are ignored and can be removed.
 
 **Uninstalling:** close the game, remove only the plugin's loader entry, and remove its DLL and INI. The DLL is dormant without `-exploration-test`; unloading it from a running game is unsupported.
 
@@ -86,9 +88,7 @@ The plugin reads tables automatically from the installed game's archives or acti
 
 The color lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, Teal, Blue, Violet, Purple, Magenta and White. Wall Color affects custom contours. Water Color adds Light Blue (`#50A5DC`) as the default for Hybrid water and bank edges; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
-The new palette, water color picker and thickness toggle are in the development build after beta.8.
-
-Poisoned Well can supply water references in its custom automap definitions. With those definitions installed, Original and Native show dull-green water edges. Hybrid uses the selected Water Color for shore contours; Styled omits the water artwork. The extra translucent green fill is disabled to reduce drawing cost.
+Poisoned Well can supply water references in its custom automap definitions. With those definitions active, Original and Native show dull-green water edges (`#708860`). No custom game definitions are included in the release. Hybrid uses the selected Water Color for shore contours; Styled omits the water artwork. The extra translucent green fill is disabled to reduce drawing cost.
 
 Default `ExplorationMask.ini`:
 
@@ -138,12 +138,11 @@ The three suites check mask geometry, rendering contracts, menu behavior and wor
 Unchanged geometry, clipping results and water perimeters are cached. A background worker builds new terrain while the renderer uses the latest completed result. Drawing still runs each automap pass. [Performance notes](docs/performance.md) record historical benchmarks and remaining costs; they are not FPS guarantees for this release.
 
 - Discovery is distance-based and can reveal through nearby walls. It is not native tile discovery or line of sight. Hardcoding the radius removes its configuration override, but does not prevent modification of an open-source client.
-- The latest Act 1 raised-bank tile lookup passes automated checks but still needs in-game confirmation. Act 3 bank coloring and the wall-blinking correction have been confirmed in offline play.
 - Contours depend on loaded collision data. Small obstacles may appear, unfamiliar artwork may retain native rendering, and decorative water may lack an outline. Styled can omit roads or bridges that are not classified as navigation artwork.
 - New geometry can lag behind movement. Initial builds, large maps, cache eviction and capture limits can affect performance or omit later styled terrain.
 - Town exemptions use level rectangles, with one already-loaded outdoor neighbor previewed at a time. The plugin does not load or reveal extra rooms.
 - Some independently drawn plugin markers and text bypass the terrain hook. They need separate compatibility checks.
-- Long-session stability and full campaign coverage remain under test. An older prototype hit a D2Glide texture-cache assertion whose cause was not confirmed.
+- Long-session stability and full campaign coverage remain under test; see the performance notes for historical issues and measurement limits.
 
 ## Repository guide
 
