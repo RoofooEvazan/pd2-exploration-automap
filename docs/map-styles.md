@@ -1,6 +1,6 @@
 # Map styles
 
-Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, and **Stylization**. Color rows open lists; Stylization cycles through the four styles. Choices apply immediately and save independently for each group, in both fullscreen and corner views.
+Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, **Water Color**, **Boundary Thickness**, and **Stylization**. Color rows open lists; Boundary Thickness and Stylization cycle through their choices. Choices apply immediately and save independently for each group, in both fullscreen and corner views.
 
 | Choice | Appearance |
 | --- | --- |
@@ -9,27 +9,30 @@ Open the automap once, then choose **Options → Automap Options → Maps Stylin
 | Hybrid | Contours, shaded floors and a frontier alongside native water patterns, roads, landmarks and icons. |
 | Styled | Contour terrain and shaded floors, retaining recognized waypoints, shrines, events, portals, entrances, exits and stairs. |
 
-Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges use light blue. Original and Native keep the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
+Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges follow Water Color, which defaults to Light Blue. Original and Native keep the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
 
 ## Saved preferences
 
 ```ini
 [Automap]
 OverlayOpacity=80
-BoundaryThickness=1.0
 
 [Maps]
 Style=hybrid
 BoundaryColor=teal
 WallColor=white
+WaterColor=light-blue
+BoundaryThickness=1.0
 
 [Campaign]
 Style=native
 BoundaryColor=red
 WallColor=white
+WaterColor=light-blue
+BoundaryThickness=1.0
 ```
 
-`BoundaryThickness` is a shared reveal-edge width multiplier from **0.5 to 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Invalid values use 1.0. Manual edits take effect after restarting.
+`BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
 
 Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` keeps its old untouched-map meaning, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
 

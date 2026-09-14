@@ -78,16 +78,23 @@ static DWORD styledBatchColor=0,styledRestoreColor=0;
 static unsigned overlayOpacity=80;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
 static exploration::BoundaryColor wallColor=exploration::BoundaryColor::White;
+static exploration::BoundaryColor waterColor=exploration::BoundaryColor::LightBlue;
+static DWORD waterEdgeColor=0x50a5dce0;
 struct AppearanceColors {
     exploration::BoundaryColor boundary=exploration::BoundaryColor::Red,wall=exploration::BoundaryColor::White;
+    exploration::BoundaryColor water=exploration::BoundaryColor::LightBlue;
 };
 static AppearanceColors campaignColors,mapsColors;
 static bool activeMaps=false;
 static double boundaryThickness=1.0;
+static double campaignThickness=1.0,mapsThickness=1.0;
 static int boundaryBandWidth=12;
 static void activateColors(bool maps) {
     activeMaps=maps;const auto& colors=maps?mapsColors:campaignColors;
-    boundaryColor=colors.boundary;wallColor=colors.wall;
+    boundaryColor=colors.boundary;wallColor=colors.wall;waterColor=colors.water;
+    waterEdgeColor=exploration::waterRGBA(waterColor,224);
+    boundaryThickness=maps?mapsThickness:campaignThickness;
+    boundaryBandWidth=int(lround(12*boundaryThickness));
 }
 static DWORD fractionalTint=0;
 static std::string settingsPath;
@@ -98,6 +105,7 @@ struct StyledState {
     styled_map::Drawing drawing;
     std::shared_ptr<const styled_map::TerrainCoverage> coverage;
     std::size_t queuedRooms=0,queuedMask=0,floorCells=0,drawingRooms=0;
+    int queuedWidth=0;
     bool captureIncomplete=false;
     bool queuedTownExcluded=false,drawingTownExcluded=false;
     DWORD submitted=0;
@@ -145,8 +153,6 @@ static exploration::ArtworkBounds artworkBounds;
 static unsigned long nativeBoundsTrimmed=0,blankSpritesSkipped=0;
 static std::vector<GlideVertex> sewerCasing,sewerCore,waterCore;
 static exploration::WaterTint waterTint,riverTint;
-// Water/bank edges keep Light Blue independently of the selectable palette.
-static constexpr DWORD waterEdgeColor=0x50a5dce0;
 static unsigned long sewerTraced=0,sewerFallbacks=0;
 struct CachedWallTrace {DWORD length=0;exploration::NativeWallTrace shape;};
 static std::map<std::tuple<DWORD,int,int>,CachedWallTrace> sewerWallTraces;
@@ -489,7 +495,8 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
         if(changedArea){selected=levelKey;selectedArea=p.level;}
         if(auto result=styledWorker->take()) {
             auto it=styledLevels.find(result->level);
-            if(result->session==gameSerial && it!=styledLevels.end() && result->success) {
+            if(result->session==gameSerial && it!=styledLevels.end() && result->success &&
+               (result->level!=levelKey || result->boundaryWidth==boundaryBandWidth)) {
                 it->second.drawing=std::move(result->drawing);it->second.floorCells=result->floorCells;
                 it->second.drawingRooms=result->roomCount;
                 it->second.coverage=std::move(result->coverage);
@@ -505,7 +512,8 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
             sampled=GetTickCount();
             captureStyledRooms(p,levelKey,state);
         }
-        if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size() || state.queuedTownExcluded!=nativeTownActive) && GetTickCount()-state.submitted>=40) {
+        if((state.queuedRooms!=state.floor.rooms.size() || state.queuedMask!=explored->size() ||
+            state.queuedTownExcluded!=nativeTownActive || state.queuedWidth!=boundaryBandWidth) && GetTickCount()-state.submitted>=40) {
             auto request=std::make_unique<styled_map::BuildRequest>();
             request->session=gameSerial;request->level=levelKey;request->maskSize=explored->size();request->player={p.x,p.y};
             request->visible.spans=explored->rows();request->rooms=state.floor.rooms;
@@ -513,6 +521,7 @@ static void updateStyled(const PlayerState& p,std::uint64_t levelKey=0) {
             request->boundaryThroughUnknown=true;request->excludeTown=nativeTownActive;request->townBounds=townBoundary.bounds;
             styledWorker->submit(std::move(request));
             state.queuedRooms=state.floor.rooms.size();state.queuedMask=explored->size();state.queuedTownExcluded=nativeTownActive;state.submitted=GetTickCount();
+            state.queuedWidth=boundaryBandWidth;
         }
         styledActive=state.drawing.quads>0 && (!nativeTownActive || state.drawingTownExcluded);
     } catch(...) {styledCurrent=nullptr;log("Styled map unavailable; retaining normal artwork clipping.");}
@@ -1202,7 +1211,7 @@ static void endPass() {
                 hybridWallsReplaced,hybridDetails,hybridWater,sewerTraced,sewerFallbacks,sewerWaterCells,layerWaits,rasterClips.hits(),rasterClips.misses());fflush(logfile);}
             if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"ARTWORK trimmed=%lu blankSkipped=%lu boundsHits=%zu boundsDecoded=%zu boundsFailures=%zu\n",
                 nativeBoundsTrimmed,blankSpritesSkipped,artworkBounds.hits(),artworkBounds.decoded(),artworkBounds.failures());fflush(logfile);}
-            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"WATER edgeColor=light-blue knownTiles=%zu colorBuilds=%zu riverTraced=%lu riverFallbacks=%lu\n",waterTint.size(),waterTint.builds(),riverTraced,riverFallbacks);fflush(logfile);}
+            if(activeStyle==MapStyle::Hybrid){fprintf(logfile,"WATER edgeColor=%s knownTiles=%zu colorBuilds=%zu riverTraced=%lu riverFallbacks=%lu\n",exploration::waterPreset(waterColor).key,waterTint.size(),waterTint.builds(),riverTraced,riverFallbacks);fflush(logfile);}
             mapTicks=0;mapSamples=0;}
     } catch(...) {styledBatch=nullptr;frontierBatch=nullptr;fractionalFrontier=false;inPass=false;maskActive=false;enabled=false;}
 }
@@ -1275,6 +1284,19 @@ static const char* editingSection(){return exploration::boundary_menu::editingMa
 static AppearanceColors& editingColors(){return exploration::boundary_menu::editingMaps?mapsColors:campaignColors;}
 static exploration::BoundaryColor currentBoundaryColor(){return editingColors().boundary;}
 static exploration::BoundaryColor currentWallColor(){return editingColors().wall;}
+static exploration::BoundaryColor currentWaterColor(){return editingColors().water;}
+static double currentBoundaryThickness(){return exploration::boundary_menu::editingMaps?mapsThickness:campaignThickness;}
+static bool selectBoundaryThickness(unsigned choice) {
+    namespace ui=exploration::boundary_menu;
+    if(choice>=ui::thicknessValues.size())return false;
+    if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),"BoundaryThickness",ui::thicknessKeys[choice],settingsPath.c_str())) {
+        log("Boundary thickness unchanged: unable to save ExplorationMask.ini.");return false;
+    }
+    (ui::editingMaps?mapsThickness:campaignThickness)=ui::thicknessValues[choice];
+    activateColors(activeMaps);
+    if(logfile){fprintf(logfile,"APPEARANCE %s BoundaryThickness=%s; saved.\n",editingSection(),ui::thicknessKeys[choice]);fflush(logfile);}
+    return true;
+}
 static unsigned currentMapStyle() {
     const auto style=exploration::boundary_menu::editingMaps?mapsStyle:campaignStyle;
     for(unsigned i=0;i<std::size(menuStyles);++i)if(style==menuStyles[i])return i;
@@ -1296,9 +1318,9 @@ static bool selectMapStyle(unsigned choice) {
     if(logfile){fprintf(logfile,"APPEARANCE %s Style=%s; saved.\n",editingSection(),menuStyleKeys[choice]);fflush(logfile);}
     return true;
 }
-static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current) {
-    if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
-    const auto& preset=exploration::boundaryPreset(color);
+static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current,bool water=false) {
+    if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size() && !(water && color==exploration::BoundaryColor::LightBlue))return false;
+    const auto& preset=water?exploration::waterPreset(color):exploration::boundaryPreset(color);
     if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),key,preset.key,settingsPath.c_str())) {
         log("Map color unchanged: unable to save ExplorationMask.ini.");return false;
     }
@@ -1308,6 +1330,7 @@ static bool saveMapColor(const char* key,exploration::BoundaryColor color,explor
 }
 static bool selectBoundaryColor(exploration::BoundaryColor color) {return saveMapColor("BoundaryColor",color,editingColors().boundary);}
 static bool selectWallColor(exploration::BoundaryColor color) {return saveMapColor("WallColor",color,editingColors().wall);}
+static bool selectWaterColor(exploration::BoundaryColor color) {return saveMapColor("WaterColor",color,editingColors().water,true);}
 static void ensureBoundaryMenu() {
     static bool attempted=false;
     if(attempted)return;
@@ -1316,7 +1339,8 @@ static void ensureBoundaryMenu() {
     attempted=true;
     const auto ok=exploration::boundary_menu::install(pd,client,
         reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,currentBoundaryColor,
-        selectWallColor,currentWallColor,selectMapStyle,currentMapStyle);
+        selectWallColor,currentWallColor,selectWaterColor,currentWaterColor,selectMapStyle,currentMapStyle,
+        selectBoundaryThickness,currentBoundaryThickness);
     log(ok?"BOUNDARY menu installed: independent Maps Styling and Campaign Styling.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI settings remain available.");
 }
@@ -1328,6 +1352,12 @@ static void loadAppearanceSettings(const std::string& settings) {
     AppearanceColors legacy;
     legacy.boundary=exploration::parseBoundaryColor(value("Automap","BoundaryColor","red"));
     legacy.wall=exploration::parseBoundaryColor(value("Automap","WallColor","white"),exploration::BoundaryColor::White);
+    legacy.water=exploration::parseWaterColor(value("Automap","WaterColor","light-blue"));
+    auto parseThickness=[](const std::string& width,double fallback) {
+        char* end=nullptr;const double parsed=strtod(width.c_str(),&end);
+        return end!=width.c_str() && *end=='\0' && std::isfinite(parsed) && parsed>=0.5 && parsed<=2.0?parsed:fallback;
+    };
+    const double legacyThickness=parseThickness(value("Automap","BoundaryThickness","1.0"),1.0);
     campaignStyle=parseStyle(value("Automap","CampaignStyle","hybrid").c_str(),MapStyle::Hybrid);
     mapsStyle=parseStyle(value("Automap","MapsStyle","hybrid").c_str(),MapStyle::Hybrid);
     auto oldStyle=value("Automap","MapStyle","");
@@ -1343,14 +1373,12 @@ static void loadAppearanceSettings(const std::string& settings) {
         style=parseStyle(value(section,"Style","").c_str(),style);
         colors.boundary=exploration::parseBoundaryColor(value(section,"BoundaryColor",""),legacy.boundary);
         colors.wall=exploration::parseBoundaryColor(value(section,"WallColor",""),legacy.wall);
+        colors.water=exploration::parseWaterColor(value(section,"WaterColor",""),legacy.water);
+        (maps?mapsThickness:campaignThickness)=parseThickness(value(section,"BoundaryThickness",""),legacyThickness);
     }
     activateColors(activeMaps);
     auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
     overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
-    const auto width=value("Automap","BoundaryThickness","1.0");char* end=nullptr;
-    const double parsed=strtod(width.c_str(),&end);
-    boundaryThickness=end!=width.c_str() && *end=='\0' && std::isfinite(parsed) && parsed>=0.5 && parsed<=2.0?parsed:1.0;
-    boundaryBandWidth=int(lround(12*boundaryThickness));
     if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f OverlayOpacity=%u\n",
         styleName(campaignStyle),styleName(mapsStyle),boundaryThickness,overlayOpacity);fflush(logfile);}
 }

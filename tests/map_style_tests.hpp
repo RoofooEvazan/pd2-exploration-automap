@@ -39,6 +39,35 @@ static void testMapStyles() {
     ui::Entry* active=ui::stylingEntries.data();ui::Menu* descriptor=&ui::stylingMenu;DWORD selected=ui::styleRow,last=ui::stylingBackRow;
     ui::activeEntries=&active;ui::activeMenu=&descriptor;ui::selection=&selected;ui::escapeSelection=&last;
     auto& row=ui::stylingEntries[ui::styleRow];
+    ui::selectThickness=selectBoundaryThickness;ui::currentThickness=currentBoundaryThickness;
+    checkContext="independent thickness cycle, immediate group activation and persistence";
+    auto& thicknessEntry=ui::stylingEntries[ui::thicknessRow];
+    for(bool maps:{false,true}) {
+        ui::editingMaps=maps;activateColors(maps);
+        const auto other=maps?campaignThickness:mapsThickness;
+        for(unsigned choice:{2u,3u,0u,1u}) {
+            require(thicknessEntry.press(&thicknessEntry,nullptr) && !ui::thicknessSaveFailed);
+            require(currentBoundaryThickness()==ui::thicknessValues[choice] && boundaryThickness==currentBoundaryThickness());
+            require(boundaryBandWidth==int(lround(12*boundaryThickness)) && (maps?campaignThickness:mapsThickness)==other);
+            menuTextCalls.clear();ui::drawRow(nullptr,400,int(thicknessEntry.y+ui::stylingMenu.textHeight),1,5,-1);
+            require(menuTextCalls.size()==2 && menuTextCalls[0].text==L"Boundary Thickness");
+            const std::string key=ui::thicknessKeys[choice];require(menuTextCalls[1].text==std::wstring(key.begin(),key.end()));
+            loadAppearanceSettings(file);require(currentBoundaryThickness()==ui::thicknessValues[choice]);
+        }
+    }
+    require(WritePrivateProfileStringA("Campaign","WaterColor","invalid",file)!=0);
+    require(WritePrivateProfileStringA("Maps","WaterColor","magenta",file)!=0);
+    require(WritePrivateProfileStringA("Campaign","BoundaryThickness","1.25",file)!=0);
+    loadAppearanceSettings(file);ui::editingMaps=false;activateColors(false);
+    require(waterColor==exploration::BoundaryColor::LightBlue && currentBoundaryThickness()==1.25);
+    require(thicknessEntry.press(&thicknessEntry,nullptr) && currentBoundaryThickness()==1.5);
+    activateColors(true);require(waterColor==exploration::BoundaryColor::Magenta && waterEdgeColor==0xff00ffe0 && boundaryThickness==1.0);
+    settingsPath.clear();const auto beforeWidth=currentBoundaryThickness();
+    require(thicknessEntry.press(&thicknessEntry,nullptr) && ui::thicknessSaveFailed && currentBoundaryThickness()==beforeWidth && boundaryThickness==1.0);
+    require(!selectBoundaryThickness(4) && !ui::cycleThickness(&ui::stylingEntries[ui::stylingBackRow],nullptr));
+    settingsPath=file;ui::thicknessSaveFailed=false;ui::editingMaps=true;
+    require(WritePrivateProfileStringA("Maps","WaterColor",nullptr,file)!=0);loadAppearanceSettings(file);
+    checkContext="style cycle, save failure and unchanged discovery";
     for(unsigned choice:{0u,1u,2u,3u}) {
         require(row.press(&row,nullptr) && !ui::styleSaveFailed && currentMapStyle()==choice);
         menuTextCalls.clear();ui::drawRow(nullptr,400,int(row.y+ui::stylingMenu.textHeight),1,5,-1);
@@ -98,9 +127,51 @@ static void testMapStyles() {
         require(styleFrames==std::vector<DWORD>{10});
     }
     require(DeleteFileA(file)!=0);settingsPath=oldPath;client=nullptr;styledCurrent=nullptr;explored=&emptyMask;
+    campaignThickness=mapsThickness=1.0;campaignColors.water=mapsColors.water=exploration::BoundaryColor::LightBlue;activateColors(activeMaps);
     campaignStyle=mapsStyle=MapStyle::Hybrid;activeStyle=MapStyle::Styled;
     maskActive=styledActive=inPass=haveViewport=false;gameTablesPending=false;styledLevels.clear();
     std::cout<<"PASS: Original/Native/Hybrid/Styled menu cycle and persistence, navigation artwork, terrain suppression, mask/history/cache preservation and safe fallback\n";
+}
+static void testStationaryThicknessUpdates() {
+    checkContext="thickness rebuilds without movement while retaining discovery and completed walls";
+    const auto oldMaps=mapsThickness,oldCampaign=campaignThickness;
+    styled_map::Worker worker;styledWorker=&worker;styledArray=captureArray;styledColor=captureColor;
+    client=nullptr;nativeTownActive=false;maskActive=true;activeStyle=MapStyle::Hybrid;++gameSerial;
+    Mask mask(.25);mask.revealAround({50,50},132);explored=&mask;const auto visible=mask.rows();
+    PlayerState player{50,50,203,12345,54321};lastLevelKey=203;
+    updateStyled(player);auto& state=styledLevels[lastLevelKey];
+    std::vector<std::uint16_t> flags(100*100);state.floor.ingest(0,0,100,100,flags);
+    styled_map::Level reference;reference.ingest(0,0,100,100,flags);require(reference.connect({50,50}));
+    auto boundaryArea=[](const styled_map::Drawing& drawing) {
+        double area=0;for(const auto& layer:drawing.layers)for(const auto& q:layer.redQuads)
+            area+=std::abs((q.c.x-q.a.x)*(q.c.y-q.a.y));
+        return area;
+    };
+    bool hadDrawing=false;std::vector<styled_map::Stroke> walls;
+    for(int width:{24,6,18,12}) {
+        mapsThickness=width/12.0;activateColors(true);
+        const auto expected=reference.build(mask,nullptr,width,true);const auto expectedArea=boundaryArea(expected);
+        require(expectedArea>0);bool received=false;
+        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+        while(std::chrono::steady_clock::now()<deadline) {
+            updateStyled(player);
+            require(mask.rows()==visible);
+            if(hadDrawing) {
+                require(state.floorCells>0 && state.drawing.walls.size()==walls.size());
+                for(std::size_t i=0;i<walls.size();++i)require(state.drawing.walls[i].a.x==walls[i].a.x &&
+                    state.drawing.walls[i].a.y==walls[i].a.y && state.drawing.walls[i].b.x==walls[i].b.x && state.drawing.walls[i].b.y==walls[i].b.y);
+            }
+            if(state.floorCells>0 && state.queuedWidth==width && std::abs(boundaryArea(state.drawing)-expectedArea)<1e-6) {
+                walls=state.drawing.walls;hadDrawing=received=true;break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        require(received);
+    }
+    styledWorker=nullptr;styledCurrent=nullptr;styledLevels.clear();preparedFloors.reset();preparedOwner=nullptr;
+    mapsThickness=oldMaps;campaignThickness=oldCampaign;activateColors(activeMaps);
+    explored=&emptyMask;maskActive=styledActive=false;
+    std::cout<<"PASS: stationary boundary thickness matches full-build geometry, retains exploration and walls, and rejects obsolete-width results\n";
 }
 static void testEmptyAreaPass() {
     checkContext="area-entry boundary before native tiles, both viewports and renderer warmup";

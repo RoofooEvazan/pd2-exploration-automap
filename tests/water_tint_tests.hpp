@@ -54,6 +54,7 @@ static void testWaterTint() {
 
     checkContext="hybrid blue shorelines preserve walls, geometry, alpha and other styles";
     auto oldStyle=activeStyle;auto oldWall=wallColor;auto oldOpacity=overlayOpacity;
+    const auto oldWater=waterColor;const auto oldWaterEdge=waterEdgeColor;
     styledArray=captureAppearanceArray;styledColor=captureColor;originalLine=appearanceNativeLine;
     StyledState state;styledCurrent=&state;
     for(int divisor:{10,20}) {
@@ -63,13 +64,20 @@ static void testWaterTint() {
         state.drawing.walls={{inverse({-10,w*1.75},stable),inverse({double(w+10),w*1.75},stable)}};
         ++gameSerial;waterTint.select(gameSerial,lastLevelKey,divisor);waterTint.add({0,0,w,w*2});
         for(auto style:{MapStyle::Hybrid,MapStyle::Styled})for(auto color:{BoundaryColor::White,BoundaryColor::Orange})for(unsigned opacity:{80u,100u}) {
-            activeStyle=style;wallColor=color;overlayOpacity=opacity;
-            appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,150,150});
-            std::vector<DWORD> expected{overlayColor(0x181818c0),overlayColor(wallRGBA(color,224))};
-            if(style==MapStyle::Hybrid)expected.push_back(overlayColor(0x50a5dce0));
-            require(appearanceColors==expected && !styledBatch);
+            std::vector<float> positions;std::size_t colorBuilds=0;
+            for(unsigned i=0;i<=boundaryPresets.size();++i) {
+                activeStyle=style;wallColor=color;overlayOpacity=opacity;
+                waterColor=static_cast<BoundaryColor>(i);waterEdgeColor=waterRGBA(waterColor,224);
+                appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,150,150});
+                std::vector<DWORD> expected{overlayColor(0x181818c0),overlayColor(wallRGBA(color,224))};
+                if(style==MapStyle::Hybrid)expected.push_back(overlayColor(waterEdgeColor));
+                require(appearanceColors==expected && !styledBatch);
+                if(i==0){positions=appearancePositions;colorBuilds=waterTint.builds();}
+                else require(appearancePositions==positions && waterTint.builds()==colorBuilds);
+            }
         }
     }
+    waterColor=oldWater;waterEdgeColor=oldWaterEdge;
     ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
     checkContext="native water cells register color coverage only in Hybrid";
     testHybridClassification();

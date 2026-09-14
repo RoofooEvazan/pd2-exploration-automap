@@ -27,12 +27,15 @@ static void testBoundaryMenu() {
         for(unsigned shade:{14u,23u,38u,52u,65u,96u,116u})require((boundaryRGBA(color,shade,70)&255)==70);
     }
     require(wallRGBA(BoundaryColor::White,255)==0xffffffff);
+    require(parseWaterColor("LIGHT-BLUE")==BoundaryColor::LightBlue && waterRGBA(BoundaryColor::LightBlue,224)==0x50a5dce0);
+    require(parseWaterColor("invalid")==BoundaryColor::LightBlue && parseWaterColor("",BoundaryColor::Teal)==BoundaryColor::Teal);
     checkContext="independent styling groups and nested color menus";
     const auto oldPath=settingsPath;const auto oldColor=boundaryColor;const auto oldWall=wallColor;
     const auto oldOpacity=overlayOpacity;const auto oldCampaign=campaignStyle,oldMaps=mapsStyle;
+    const auto oldCampaignColors=campaignColors,oldMapsColors=mapsColors;const auto oldWater=waterColor;const auto oldWaterEdge=waterEdgeColor;
     char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"ebc",0,file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","63",file)!=0);loadAppearanceSettings(file);
-    for(auto colors:{mapsColors,campaignColors})require(colors.boundary==BoundaryColor::Red && colors.wall==BoundaryColor::White);
+    for(auto colors:{mapsColors,campaignColors})require(colors.boundary==BoundaryColor::Red && colors.wall==BoundaryColor::White && colors.water==BoundaryColor::LightBlue);
     checkContext="legacy color names resolve without rewriting preferences";
     const std::pair<const char*,BoundaryColor> aliases[]={
         {"NEON-GREEN",BoundaryColor::Green},{"pale-green",BoundaryColor::Green},
@@ -60,6 +63,7 @@ static void testBoundaryMenu() {
     checkContext="independent styling groups and nested color menus";
     ui::selectColor=selectBoundaryColor;ui::currentColor=currentBoundaryColor;
     ui::selectWallColor=selectWallColor;ui::currentWallColor=currentWallColor;
+    ui::selectWaterColor=selectWaterColor;ui::currentWaterColor=currentWaterColor;
     ui::selectStyle=selectMapStyle;ui::currentStyle=currentMapStyle;
     std::array<ui::Entry,9> source{};
     for(unsigned i=0;i<source.size();++i){source[i].type=i?1:0xffffffff;source[i].cell=reinterpret_cast<void*>(0x100+i*4);}
@@ -84,44 +88,58 @@ static void testBoundaryMenu() {
     for(bool maps:{true,false}) {
         auto& group=ui::entries[maps?ui::mapsRow:ui::campaignRow];require(group.press(&group,nullptr));
         require(ui::editingMaps==maps && active==ui::stylingEntries.data() && last==ui::stylingBackRow);
-        for(bool walls:{false,true})for(unsigned i=0;i<boundaryPresets.size();++i) {
-            const auto other=maps?campaignColors:mapsColors;const auto untouched=walls?currentBoundaryColor():currentWallColor();
-            auto& row=ui::stylingEntries[walls?ui::wallRow:ui::boundaryRow];require(row.press(&row,nullptr));
+        for(auto target:{ui::ColorTarget::Boundary,ui::ColorTarget::Wall,ui::ColorTarget::Water})
+        for(unsigned i=0;i<boundaryPresets.size()+(target==ui::ColorTarget::Water?1:0);++i) {
+            const auto other=maps?campaignColors:mapsColors;const auto untouched=editingColors();
+            const bool walls=target==ui::ColorTarget::Wall,water=target==ui::ColorTarget::Water;
+            const auto rowIndex=water?ui::waterRow:walls?ui::wallRow:ui::boundaryRow;
+            auto& row=ui::stylingEntries[rowIndex];require(row.press(&row,nullptr));
             require(active==ui::pickerEntries.data() && last==ui::pickerMenu.count-1);
-            const auto current=walls?currentWallColor():currentBoundaryColor();require(selected==unsigned(current)+1);
+            const auto& desc=ui::pickerMenu;
+            const int top=200-int(desc.count*desc.spacing)/2;
+            require(top>=0 && top+int((desc.count-1)*desc.spacing+desc.textHeight)<=400);
+            const auto current=ui::pickedCurrent()();require(selected==unsigned(current)+1);
             menuTextCalls.clear();ui::drawRow(nullptr,400,int(ui::pickerEntries[0].y+ui::pickerMenu.textHeight),1,5,-1);
             require(menuTextCalls.size()==1 && menuTextCalls[0].font==2 && menuFont==1);
-            require(menuLabel==(walls?L"Wall Color":L"Boundary Color"));
+            require(menuLabel==(water?L"Water Color":walls?L"Wall Color":L"Boundary Color"));
             ui::drawRow(nullptr,400,int(ui::pickerEntries[selected].y+ui::pickerMenu.textHeight),1,5,-1);
-            require(menuLabel==std::wstring(boundaryPreset(current).label)+L" (Selected)" && menuTextCalls.back().font==0);
+            require(menuLabel==std::wstring(ui::pickedPreset(current).label)+L" (Selected)" && menuTextCalls.back().font==0);
             auto& choice=ui::pickerEntries[i+1];require(choice.press(&choice,nullptr));
-            require((walls?currentWallColor():currentBoundaryColor())==static_cast<BoundaryColor>(i));
-            require((walls?currentBoundaryColor():currentWallColor())==untouched);
-            require((maps?campaignColors:mapsColors).boundary==other.boundary && (maps?campaignColors:mapsColors).wall==other.wall);
-            require(active==ui::stylingEntries.data() && selected==(walls?ui::wallRow:ui::boundaryRow) && last==ui::stylingBackRow);
-            char saved[32]{};GetPrivateProfileStringA(maps?"Maps":"Campaign",walls?"WallColor":"BoundaryColor","",saved,32,file);
-            require(!strcmp(saved,boundaryPresets[i].key) && parseBoundaryColor(saved)==static_cast<BoundaryColor>(i));
+            require(ui::pickedCurrent()()==static_cast<BoundaryColor>(i));
+            require((walls || currentWallColor()==untouched.wall) && (water || currentWaterColor()==untouched.water) &&
+                (target==ui::ColorTarget::Boundary || currentBoundaryColor()==untouched.boundary));
+            require((maps?campaignColors:mapsColors).boundary==other.boundary && (maps?campaignColors:mapsColors).wall==other.wall && (maps?campaignColors:mapsColors).water==other.water);
+            require(active==ui::stylingEntries.data() && selected==rowIndex && last==ui::stylingBackRow);
+            char saved[32]{};GetPrivateProfileStringA(maps?"Maps":"Campaign",water?"WaterColor":walls?"WallColor":"BoundaryColor","",saved,32,file);
+            require(!strcmp(saved,(water?waterPreset(static_cast<BoundaryColor>(i)):boundaryPresets[i]).key) &&
+                (water?parseWaterColor(saved):parseBoundaryColor(saved))==static_cast<BoundaryColor>(i));
             menuTextCalls.clear();const int y=int(row.y+ui::stylingMenu.textHeight);ui::drawRow(nullptr,400,y,1,5,-1);
             require(menuTextCalls.size()==2 && menuTextCalls[0].x==170 && menuTextCalls[1].x+int(menuTextCalls[1].text.size()*10)==630);
             require(menuTextCalls[0].font==2 && menuTextCalls[1].font==2 && menuFont==1);
             const auto before=editingColors();loadAppearanceSettings(file);
-            require(editingColors().boundary==before.boundary && editingColors().wall==before.wall && overlayOpacity==63);
+            require(editingColors().boundary==before.boundary && editingColors().wall==before.wall && editingColors().water==before.water && overlayOpacity==63);
         }
-        require(ui::openPicker(true));require(ui::pickerEntries[last].press(active,nullptr));
+        require(ui::openPicker(ui::ColorTarget::Wall));require(ui::pickerEntries[last].press(active,nullptr));
         require(active==ui::stylingEntries.data() && selected==ui::wallRow);
         require(ui::stylingEntries[last].press(active,nullptr));
         require(active==ui::entries.data() && selected==(maps?ui::mapsRow:ui::campaignRow) && last==ui::backRow);
     }
-    require(ui::openStyling(false) && ui::openPicker(false));settingsPath.clear();
-    const auto colorBefore=currentBoundaryColor();require(ui::choose(&ui::pickerEntries[1],nullptr) && ui::saveFailed && currentBoundaryColor()==colorBefore);
-    require(!ui::choose(source.data(),nullptr));
-    ui::drawRow(nullptr,400,int(ui::pickerEntries[0].y+ui::pickerMenu.textHeight),1,5,-1);require(menuLabel==L"Could not save color");
-    settingsPath=file;require(ui::back(active,nullptr) && ui::back(active,nullptr));
-    require(!selectBoundaryColor(static_cast<BoundaryColor>(99)) && !selectWallColor(static_cast<BoundaryColor>(99)));
+    require(ui::openStyling(false));settingsPath.clear();
+    for(auto target:{ui::ColorTarget::Boundary,ui::ColorTarget::Wall,ui::ColorTarget::Water}) {
+        require(ui::openPicker(target));const auto colorBefore=ui::pickedCurrent()();
+        require(ui::choose(&ui::pickerEntries[1],nullptr) && ui::saveFailed && ui::pickedCurrent()()==colorBefore);
+        require(!ui::choose(source.data(),nullptr));
+        ui::drawRow(nullptr,400,int(ui::pickerEntries[0].y+ui::pickerMenu.textHeight),1,5,-1);require(menuLabel==L"Could not save color");
+        require(ui::back(active,nullptr) && selected==ui::pickedRow());
+    }
+    settingsPath=file;require(ui::back(active,nullptr));
+    require(!selectBoundaryColor(static_cast<BoundaryColor>(99)) && !selectWallColor(static_cast<BoundaryColor>(99)) && !selectWaterColor(static_cast<BoundaryColor>(99)));
+    require(!selectBoundaryColor(BoundaryColor::LightBlue) && !selectWallColor(BoundaryColor::LightBlue));
     ui::drawRow(source[0].cell,400,40,1,5,-1);ui::drawRow(nullptr,400,1,1,5,-1);active=source.data();ui::drawRow(nullptr,400,1,1,5,-1);
     require(menuForwards==3);
     settingsPath=oldPath;boundaryColor=oldColor;wallColor=oldWall;require(DeleteFileA(file)!=0);
     campaignStyle=oldCampaign;mapsStyle=oldMaps;overlayOpacity=oldOpacity;
+    campaignColors=oldCampaignColors;mapsColors=oldMapsColors;waterColor=oldWater;waterEdgeColor=oldWaterEdge;
     ui::activeEntries=nullptr;ui::activeMenu=nullptr;ui::selection=ui::escapeSelection=nullptr;ui::saveFailed=false;
     checkContext="menu compatibility guards and active resource transfer";
     std::vector<unsigned char> pd(0x536000),game(0x135000);
@@ -148,7 +166,7 @@ static void testBoundaryMenu() {
     require(*ui::activeEntries==ui::entries.data() && *ui::activeMenu==&ui::menu && *ui::selection==ui::backRow && *ui::escapeSelection==ui::backRow);
     require(ui::entries[ui::backRow].cell==source[8].cell &&
         !memcmp(ui::entries[ui::backRow].switches,source[8].switches,sizeof(source[8].switches))); // resources unchanged after layout
-    require(ui::openStyling(true) && ui::openPicker(false) && ui::back(nullptr,nullptr) && ui::back(nullptr,nullptr));
+    require(ui::openStyling(true) && ui::openPicker(ui::ColorTarget::Boundary) && ui::back(nullptr,nullptr) && ui::back(nullptr,nullptr));
     ui::activeEntries=nullptr;ui::activeMenu=nullptr;ui::selection=ui::escapeSelection=nullptr;
     checkContext="menu rejection of changed profile bytes";
     for(auto offset:{0x22fc79,0x22fe44,0x230410,0x22fc7e,0x22fe3f,0x230416,0x39da90,0x3a3fbc,0x22e7e1,0x22e7ef}) {

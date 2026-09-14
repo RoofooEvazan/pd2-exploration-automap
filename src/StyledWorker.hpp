@@ -53,6 +53,7 @@ struct BuildRequest {
     std::vector<std::shared_ptr<const CapturedRoom>> rooms;
 };
 struct BuildResult {
+    int boundaryWidth=12;
     bool boundaryThroughUnknown=false;
     bool excludesTown=false;
     std::uint64_t session=0,level=0;
@@ -113,6 +114,7 @@ class Worker {
                 result=std::make_unique<BuildResult>();
                 result->session=request->session;result->level=request->level;result->maskSize=request->maskSize;
                 result->roomCount=request->rooms.size();
+                result->boundaryWidth=request->boundaryWidth;
                 result->boundaryThroughUnknown=request->boundaryThroughUnknown;
                 result->excludesTown=request->excludeTown;
                 auto start=std::chrono::steady_clock::now();

@@ -8,13 +8,13 @@ This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.
 
 ## Map styles
 
-Open the automap once in a game, then go to **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each group has its own Boundary Color, Wall Color and Stylization. Changes apply immediately to that group, in both fullscreen and corner views.
+Open the automap once in a game, then go to **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each group has its own Boundary Color, Wall Color, Water Color, Boundary Thickness and Stylization. Changes apply immediately to that group, in both fullscreen and corner views.
 
 | Style | Appearance |
 | --- | --- |
 | **Original** | Unchanged game automap, without custom clipping, shading, contours or entrance emphasis. |
 | **Native** | Original artwork with exploration clipping and a colored boundary, without custom floor shading or contours. |
-| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Recognized water edges use light blue independently of Wall Color. |
+| **Hybrid** | Wall contours, shaded floors and an exploration boundary alongside native water patterns, roads, landmarks and icons. Recognized water edges follow Water Color independently of Wall Color. |
 | **Styled** | Contours replace terrain artwork. Recognized shrines, event markers, waypoints, entrances, exits, stairs and other navigation artwork remain. |
 
 Native, Hybrid and Styled reveal a smooth circle of **33 world subtiles** around the character. The radius is compiled into the plugin and cannot be changed through settings. Towns retain native drawing without exploration clipping; nearby outdoor terrain follows the selected style. Switching styles preserves exploration and colors.
@@ -82,31 +82,34 @@ The plugin reads tables automatically from the installed game's archives or acti
 
 ## Appearance settings
 
-**Boundary Color** and **Wall Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
+**Boundary Color**, **Wall Color** and **Water Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
 
-Both lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, Teal, Blue, Violet, Purple, Magenta and White. Wall Color affects custom contours. Hybrid water and bank edges use light blue; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+The color lists offer Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green, Teal, Blue, Violet, Purple, Magenta and White. Wall Color affects custom contours. Water Color adds Light Blue (`#50A5DC`) as the default for Hybrid water and bank edges; native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
-This palette is in the development build; the beta.8 download still has the previous colors.
+The new palette, water color picker and thickness toggle are in the development build after beta.8.
 
 Default `ExplorationMask.ini`:
 
 ```ini
 [Automap]
 OverlayOpacity=80
-BoundaryThickness=1.0
 
 [Maps]
 Style=hybrid
 BoundaryColor=red
 WallColor=white
+WaterColor=light-blue
+BoundaryThickness=1.0
 
 [Campaign]
 Style=hybrid
 BoundaryColor=red
 WallColor=white
+WaterColor=light-blue
+BoundaryThickness=1.0
 ```
 
-`BoundaryThickness` scales the reveal-edge width from 0.5–2.0; 1.0 keeps the default. It does not alter the fixed reveal radius or wall width.
+**Boundary Thickness** cycles through 0.5, 1.0, 1.5 and 2.0 in each Styling submenu, saving to that group’s `BoundaryThickness` key. The default is 1.0; older shared INI values are inherited until a group chooses its own. It does not alter the fixed reveal radius or wall width.
 
 `OverlayOpacity` scales custom fullscreen alpha from 10–100%. The default is 80%. D2GL's corner minimap uses fixed capture opacity. Manual INI edits require a restart; menu changes do not.
 

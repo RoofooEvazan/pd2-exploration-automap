@@ -1213,6 +1213,7 @@ int main() {
     testMapMarkers();
     testEntranceVisibility();
     testMapStyles();
+    testStationaryThicknessUpdates();
     testEmptyAreaPass();
     testAreaEntryWalls();
     testStableWallRefresh();

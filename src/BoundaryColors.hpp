@@ -6,7 +6,8 @@
 namespace exploration {
 enum class BoundaryColor : unsigned {
     Red, Vermilion, Orange, Amber, Yellow, Chartreuse, Green,
-    Teal, Blue, Violet, Purple, Magenta, White
+    Teal, Blue, Violet, Purple, Magenta, White,
+    LightBlue // Extra choice for water; not part of the boundary/wall palette.
 };
 struct BoundaryPreset { const char* key;const wchar_t* label;unsigned r,g,b; };
 inline constexpr std::array<BoundaryPreset,13> boundaryPresets{{
@@ -24,18 +25,24 @@ inline constexpr std::array<BoundaryPreset,13> boundaryPresets{{
     {"magenta",L"Magenta",0xff,0x00,0xff},
     {"white",L"White",0xff,0xff,0xff}
 }};
+inline constexpr BoundaryPreset waterDefault{"light-blue",L"Light Blue",0x50,0xa5,0xdc};
+inline const BoundaryPreset& waterPreset(BoundaryColor color) {
+    const auto i=static_cast<unsigned>(color);
+    return i<boundaryPresets.size()?boundaryPresets[i]:waterDefault;
+}
 inline const BoundaryPreset& boundaryPreset(BoundaryColor color) {
     auto i=static_cast<unsigned>(color);return boundaryPresets[i<boundaryPresets.size()?i:0];
 }
+inline bool colorKeyMatches(std::string_view value,std::string_view key) {
+    if(value.size()!=key.size())return false;
+    for(std::size_t j=0;j<key.size();++j) {
+        char c=value[j];if(c>='A' && c<='Z')c=char(c-'A'+'a');
+        if(c!=key[j])return false;
+    }
+    return true;
+}
 inline BoundaryColor parseBoundaryColor(std::string_view value,BoundaryColor fallback=BoundaryColor::Red) {
-    auto matches=[&](std::string_view key) {
-        if(value.size()!=key.size())return false;
-        for(std::size_t j=0;j<key.size();++j) {
-            char c=value[j];if(c>='A' && c<='Z')c=char(c-'A'+'a');
-            if(c!=key[j])return false;
-        }
-        return true;
-    };
+    auto matches=[&](std::string_view key){return colorKeyMatches(value,key);};
     for(unsigned i=0;i<boundaryPresets.size();++i)
         if(matches(boundaryPresets[i].key))return static_cast<BoundaryColor>(i);
     // Old INIs resolve to current choices; the picker only saves current keys.
@@ -47,6 +54,9 @@ inline BoundaryColor parseBoundaryColor(std::string_view value,BoundaryColor fal
     if(matches("gray") || matches("grey"))return BoundaryColor::White;
     return fallback;
 }
+inline BoundaryColor parseWaterColor(std::string_view value,BoundaryColor fallback=BoundaryColor::LightBlue) {
+    return colorKeyMatches(value,waterDefault.key)?BoundaryColor::LightBlue:parseBoundaryColor(value,fallback);
+}
 inline std::uint32_t boundaryRGBA(BoundaryColor color,unsigned shade,unsigned alpha) {
     const auto& p=boundaryPreset(color);
     auto channel=[&](unsigned value){auto scaled=shade*value/100;return scaled>255?255:scaled;};
@@ -54,5 +64,9 @@ inline std::uint32_t boundaryRGBA(BoundaryColor color,unsigned shade,unsigned al
 }
 inline std::uint32_t wallRGBA(BoundaryColor color,unsigned alpha) {
     return boundaryRGBA(color,100,alpha);
+}
+inline std::uint32_t waterRGBA(BoundaryColor color,unsigned alpha) {
+    const auto& p=waterPreset(color);
+    return (p.r<<24)|(p.g<<16)|(p.b<<8)|(alpha&255);
 }
 }
