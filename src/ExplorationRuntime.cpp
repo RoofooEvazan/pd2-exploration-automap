@@ -74,7 +74,7 @@ static unsigned long originalWallsDimmed=0;
 static std::vector<GlideVertex> wellWaterVertices;
 static bool wellWallsPending=false;
 static constexpr std::size_t wellVertexLimit=262144,wellOutlineLimit=8192;
-struct WellFillShape {exploration::ArtworkBounds::Key key;std::vector<Rect> rectangles;bool valid=false;};
+struct WellFillShape {exploration::ArtworkBounds::Key key;std::vector<Rect> rectangles;Rect bounds{};bool valid=false;};
 static std::map<DWORD,WellFillShape> wellFillShapes;
 static std::uint64_t wellFillSession=0;
 static unsigned long wellFillDraws=0,wellFillFallbacks=0;
@@ -856,20 +856,27 @@ static void drawEntrances() {
     entrancePaletteDraw(2,bright.data());++entrancePalettePasses;
     for(std::size_t i=0;i<entranceCount;++i)if(corner || entranceCells[i].mode==5)draw(entranceCells[i],false);
 }
-static bool queueWellFill(void* ctx,Rect asset,const std::vector<Rect>& clips) {
-    if(!styledArray || !styledColor || !originalLine)return false;
-    FrameSource source{};if(!frameSource(ctx,&source))return false;
-    if((source.width!=8 && source.width!=16) || source.height!=source.width*2 || source.length>2048)return false;
+static const WellFillShape* wellFillShape(void* ctx) {
+    if(!styledArray || !styledColor || !originalLine)return nullptr;
+    FrameSource source{};if(!frameSource(ctx,&source))return nullptr;
+    if((source.width!=8 && source.width!=16) || source.height!=source.width*2 || source.length>2048)return nullptr;
     if(wellFillSession!=gameSerial){wellFillShapes.clear();wellFillSession=gameSerial;}
     exploration::ArtworkBounds::Key key{reinterpret_cast<std::uintptr_t>(source.file),reinterpret_cast<std::uintptr_t>(source.frame),
         source.index,source.length,source.width,source.height};
-    if(wellFillShapes.size()>=1024 && !wellFillShapes.count(source.index))return false;
+    if(wellFillShapes.size()>=1024 && !wellFillShapes.count(source.index))return nullptr;
     auto& shape=wellFillShapes[source.index];
     if(!(shape.key==key)) {
         shape.key=key;std::array<unsigned char,2048> bytes{};
         shape.valid=copyFrameBytes(source,bytes.data()) && exploration::nativeWaterFill(bytes.data(),source.length,source.width,source.height,shape.rectangles);
+        shape.bounds={source.width,source.height,0,0};
+        if(shape.valid)for(auto r:shape.rectangles) {
+            shape.bounds={std::min(shape.bounds.left,r.left),std::min(shape.bounds.top,r.top),
+                std::max(shape.bounds.right,r.right),std::max(shape.bounds.bottom,r.bottom)};
+        }
     }
-    if(!shape.valid)return false;
+    return shape.valid?&shape:nullptr;
+}
+static bool queueWellFill(const WellFillShape& shape,Rect asset,const std::vector<Rect>& clips) {
     // Reserve the complete cell before appending, so a budget fallback cannot
     // draw half a native fill twice. Rectangle intersections need four vertices.
     if(shape.rectangles.size()*clips.size()>(wellVertexLimit-wellWaterVertices.size())/4)return false;
@@ -899,25 +906,35 @@ static void queueWellWaterForOutline(void* ctx,DWORD id,int x,int y,NativeRect* 
     if(!copyEntranceContext(ctx,context.data())){++wellFillFallbacks;return;}
     context[0]=fill;
     if(!frameBounds(context.data(),x,y,&asset)){++wellFillFallbacks;return;}
-    const auto bounds=exploration::intersect(asset,{std::max(0,native->left),std::max(0,native->top+1),native->right,native->bottom+1});
-    if(bounds.left>=bounds.right || bounds.top>=bounds.bottom)return;
+    const auto fullBounds=exploration::intersect(asset,{std::max(0,native->left),std::max(0,native->top+1),native->right,native->bottom+1});
+    if(fullBounds.left>=fullBounds.right || fullBounds.top>=fullBounds.bottom)return;
+    const auto shape=wellFillShape(context.data());
+    if(!shape){++wellFillFallbacks;return;}
+    if(shape->rectangles.empty())return;
+    // Transparent sprite padding cannot contribute water. Keeping it out of
+    // visibility queries lets fully discovered fills stay cached while walking.
+    const auto& local=shape->bounds;
+    const auto bounds=exploration::intersect({asset.left+local.left,asset.top+local.top,asset.left+local.right,asset.top+local.bottom},
+        fullBounds);
+    const bool hasWaterBounds=bounds.left<bounds.right && bounds.top<bounds.bottom;
     static std::vector<Rect> clips;clips.clear();
     Transform t{};
-    if(activeStyle==MapStyle::Original)clips.push_back(bounds);
+    if(activeStyle==MapStyle::Original){if(hasWaterBounds)clips.push_back(bounds);}
     else {
         if(!transform(t)){++wellFillFallbacks;return;}
         const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
-        cachedRasterClips(bounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
+        if(hasWaterBounds)cachedRasterClips(bounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
+        // A shoreline can lie just beyond its water pixels. Retain the original
+        // registration at viewport/discovery edges, even when no fill is visible.
+        if(clips.empty() && activeStyle==MapStyle::Hybrid)
+            cachedRasterClips(fullBounds,int(t.divisor),sx,sy,0,[&](Rect r){clips.push_back(r);});
     }
     if(!clips.empty()) {
-        if(!queueWellFill(context.data(),asset,clips)){++wellFillFallbacks;return;}
+        if(!queueWellFill(*shape,asset,clips)){++wellFillFallbacks;return;}
         if(activeStyle==MapStyle::Hybrid) {
-            const auto shape=wellFillShapes.find(fill);
-            if(shape!=wellFillShapes.end() && shape->second.valid) {
-                const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
-                waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
-                waterTint.addPixels({asset.left+sx,asset.top+sy,asset.right+sx,asset.bottom+sy},fill,shape->second.rectangles);
-            }
+            const int sx=int(t.ox)-(t.divisor==20?7:8),sy=int(t.oy)-(t.divisor==20?-3:-8);
+            waterTint.select(gameSerial,lastLevelKey,int(t.divisor));
+            waterTint.addPixels({asset.left+sx,asset.top+sy,asset.right+sx,asset.bottom+sy},fill,shape->rectangles);
         }
     }
 }

@@ -15,9 +15,10 @@ class WaterTint {
         }
     };
     std::unordered_set<Tile,Hash> tiles_;
-    std::map<std::pair<int,int>,std::vector<Tile>> bins_;
+    struct Bin {std::vector<Tile> tiles;std::vector<Rect> pixels;std::size_t revision=0;};
+    std::map<std::pair<int,int>,Bin> bins_;
     std::set<std::array<int,4>> pixelTiles_;
-    std::map<std::pair<int,int>,std::vector<Rect>> pixelBins_;
+    std::size_t revision_=0;
     std::size_t pixelRectangles_=0;
     std::uint64_t session_=0,level_=0;
     int divisor_=0;
@@ -59,17 +60,23 @@ class WaterTint {
 public:
     static constexpr std::size_t tileLimit=32768;
     static constexpr std::size_t pixelRectangleLimit=131072;
+    static constexpr std::size_t wallCacheLimit=16384,partCacheLimit=65536;
     struct Part {styled_map::Stroke stroke;bool water;};
 private:
     std::vector<styled_map::Stroke> source_;
     std::vector<Part> parts_;
     std::size_t preparedTiles_=0,builds_=0;
+    using WallKey=std::array<double,5>;
+    struct CachedWall {std::size_t revision;std::vector<Part> parts;};
+    std::map<WallKey,CachedWall> wallCache_;
+    std::size_t cachedParts_=0,wallBuilds_=0;
 public:
     void select(std::uint64_t session,std::uint64_t level,int divisor) {
         if(session==session_ && level==level_ && divisor==divisor_)return;
         session_=session;level_=level;divisor_=divisor;
         tiles_.clear();bins_.clear();source_.clear();parts_.clear();preparedTiles_=0;
-        pixelTiles_.clear();pixelBins_.clear();pixelRectangles_=0;
+        pixelTiles_.clear();pixelRectangles_=0;revision_=0;
+        wallCache_.clear();cachedParts_=0;
     }
     bool add(Rect frame) {
         const int w=frame.right-frame.left,h=frame.bottom-frame.top;
@@ -77,9 +84,11 @@ public:
         const Tile tile{frame.left,frame.bottom,w};
         if(tiles_.find(tile)!=tiles_.end())return true;
         if(size()>=tileLimit)return false;
-        tiles_.insert(tile);
+        tiles_.insert(tile);++revision_;
         for(int y=bin(frame.bottom-w*.5-margin);y<=bin(frame.bottom+margin);++y)
-            for(int x=bin(frame.left-margin);x<=bin(frame.right+margin);++x)bins_[{y,x}].push_back(tile);
+            for(int x=bin(frame.left-margin);x<=bin(frame.right+margin);++x) {
+                auto& bucket=bins_[{y,x}];bucket.tiles.push_back(tile);bucket.revision=revision_;
+            }
         return true;
     }
     bool addPixels(Rect frame,unsigned artwork,const std::vector<Rect>& pixels) {
@@ -89,11 +98,13 @@ public:
         if(pixelTiles_.count(tile))return true;
         if(size()>=tileLimit || pixels.size()>pixelRectangleLimit-pixelRectangles_)return false;
         for(auto r:pixels)if(r.left<0 || r.top<0 || r.right>w || r.bottom>h || r.left>=r.right || r.top>=r.bottom)return false;
-        pixelTiles_.insert(tile);pixelRectangles_+=pixels.size();
+        pixelTiles_.insert(tile);pixelRectangles_+=pixels.size();++revision_;
         for(auto r:pixels) {
             r={r.left+frame.left,r.top+frame.top,r.right+frame.left,r.bottom+frame.top};
             for(int y=bin(r.top-pixelMargin);y<=bin(r.bottom+pixelMargin);++y)
-                for(int x=bin(r.left-pixelMargin);x<=bin(r.right+pixelMargin);++x)pixelBins_[{y,x}].push_back(r);
+                for(int x=bin(r.left-pixelMargin);x<=bin(r.right+pixelMargin);++x) {
+                    auto& bucket=bins_[{y,x}];bucket.pixels.push_back(r);bucket.revision=revision_;
+                }
         }
         return true;
     }
@@ -104,17 +115,30 @@ public:
         if(preparedTiles_==size() && source_.size()==walls.size() && std::equal(source_.begin(),source_.end(),walls.begin(),equal))return parts_;
         ++builds_;source_=walls;preparedTiles_=size();parts_.clear();
         std::vector<std::pair<double,double>> ranges;
+        std::vector<const Bin*> buckets;
         for(const auto& wall:walls) {
-            ranges.clear();
+            ranges.clear();buckets.clear();std::size_t revision=0;
             auto project=[&](Point p){return Point{16*(p.x-p.y)/divisor_,8*(p.x+p.y)/divisor_};};
             const Point a=project(wall.a),b=project(wall.b);
             const int xl=bin(std::min(a.x,b.x)),xr=bin(std::max(a.x,b.x));
             for(int y=bin(std::min(a.y,b.y));y<=bin(std::max(a.y,b.y));++y) {
-                for(auto it=bins_.lower_bound({y,xl});it!=bins_.end() && it->first.first==y && it->first.second<=xr;++it)
-                    for(auto tile:it->second){double lo=0,hi=0;if(cut(a,b,tile,lo,hi))ranges.push_back({lo,hi});}
-                for(auto it=pixelBins_.lower_bound({y,xl});it!=pixelBins_.end() && it->first.first==y && it->first.second<=xr;++it)
-                    for(auto pixels:it->second){double lo=0,hi=0;if(cutPixels(a,b,pixels,lo,hi))ranges.push_back({lo,hi});}
+                for(auto it=bins_.lower_bound({y,xl});it!=bins_.end() && it->first.first==y && it->first.second<=xr;++it) {
+                    buckets.push_back(&it->second);revision=std::max(revision,it->second.revision);
+                }
             }
+            const WallKey key{wall.a.x,wall.a.y,wall.b.x,wall.b.y,double(wall.bank)};
+            auto cached=wallCache_.find(key);
+            // A new tile can affect only walls crossing its bins. Keep the
+            // exact previous partitions for every other wall as exploration grows.
+            if(cached!=wallCache_.end() && cached->second.revision==revision) {
+                parts_.insert(parts_.end(),cached->second.parts.begin(),cached->second.parts.end());continue;
+            }
+            ++wallBuilds_;
+            for(const auto* bucket:buckets) {
+                for(auto tile:bucket->tiles){double lo=0,hi=0;if(cut(a,b,tile,lo,hi))ranges.push_back({lo,hi});}
+                for(auto pixels:bucket->pixels){double lo=0,hi=0;if(cutPixels(a,b,pixels,lo,hi))ranges.push_back({lo,hi});}
+            }
+            const auto start=parts_.size();
             std::sort(ranges.begin(),ranges.end());
             auto at=[&](double t){return Point{wall.a.x+(wall.b.x-wall.a.x)*t,wall.a.y+(wall.b.y-wall.a.y)*t};};
             auto append=[&](double l,double r,bool water){if(r>l)parts_.push_back({{at(l),at(r),wall.bank},water});};
@@ -125,10 +149,18 @@ public:
                 append(cursor,lo,false);append(lo,hi,true);cursor=hi;
             }
             append(cursor,1,false);
+            if(cached!=wallCache_.end()){cachedParts_-=cached->second.parts.size();wallCache_.erase(cached);}
+            const auto count=parts_.size()-start;
+            if(wallCache_.size()<wallCacheLimit && count<=partCacheLimit-cachedParts_) {
+                wallCache_.emplace(key,CachedWall{revision,std::vector<Part>(parts_.begin()+start,parts_.end())});cachedParts_+=count;
+            }
         }
         return parts_;
     }
     std::size_t size() const{return tiles_.size()+pixelTiles_.size();}
     std::size_t builds() const{return builds_;}
+    std::size_t wallBuilds() const{return wallBuilds_;}
+    std::size_t cachedWalls() const{return wallCache_.size();}
+    std::size_t cachedParts() const{return cachedParts_;}
 };
 }

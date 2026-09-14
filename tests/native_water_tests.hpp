@@ -63,9 +63,54 @@ static void testNativeMapWater() {
         {inverse({22,39.5},t),inverse({25,39.5},t)}});
     require(material.size()==2 && material[0].water && !material[1].water);
     // Multiple disjoint clips preserve the original asset origin for each part.
-    require(queueWellFill(context.data(),{10,8,26,40},{{10,39,13,40},{15,39,18,40}}));
+    const auto shape=wellFillShape(context.data());require(shape!=nullptr);
+    require(queueWellFill(*shape,{10,8,26,40},{{10,39,13,40},{15,39,18,40}}));
     require(wellWaterVertices.size()==8 && wellWaterVertices[4].x==15 && wellWaterVertices[5].x==18);
-    wellWaterVertices.resize(wellVertexLimit);require(!queueWellFill(context.data(),{10,8,26,40},{{10,39,18,40}}));wellWaterVertices.clear();
+    wellWaterVertices.resize(wellVertexLimit);require(!queueWellFill(*shape,{10,8,26,40},{{10,39,18,40}}));wellWaterVertices.clear();
+
+    checkContext="shoreline color registration survives water just outside the viewport";
+    activeStyle=MapStyle::Hybrid;context[0]=1693;++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
+    NativeRect aboveWater{0,100,0,32};
+    queueWellWaterForOutline(context.data(),1693,10,40,&aboveWater);
+    require(wellWaterVertices.empty() && waterTint.size()==1);
+    checkContext="shoreline color registration survives water just beyond discovery";
+    Mask beforeWater(.25);beforeWater.revealAround(inverse({16,18},t),12);explored=&beforeWater;
+    ++gameSerial;waterTint.select(gameSerial,lastLevelKey,10);
+    queueWellWaterForOutline(context.data(),1693,10,40,&viewport);
+    require(wellWaterVertices.empty() && waterTint.size()==1);
+
+    checkContext="tight water bounds preserve every visible water pixel and bridge gap";
+    for(int divisor:{10,20})for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Hybrid})for(int pan:{-9,0,13}) {
+        const int w=divisor==10?16:8,h=w*2;const Transform viewTransform{double(divisor),double(pan),-3};
+        put(memory,0xf16b0,divisor);put(memory,0x11c1f8,pan);put(memory,0x11c1fc,-3);
+        frame[1]=w;frame[2]=h;frame[3]=DWORD(-3);frame[4]=2;
+        bytes.clear();
+        for(int row=0;row<h;++row) {
+            if(row<w/2) {
+                bytes.push_back(static_cast<unsigned char>(w));
+                for(int col=0;col<w;++col)bytes.push_back(static_cast<unsigned char>((col<w/4 || col>=w*3/4)?151:255));
+            }
+            bytes.push_back(128);
+        }
+        frame[7]=DWORD(bytes.size());memcpy(frame.data()+8,bytes.data(),bytes.size());
+        context[0]=1693;++gameSerial;activeStyle=style;
+        Mask waterMask(.25);waterMask.revealAround(inverse({24.5,40.5},viewTransform),12);explored=&waterMask;
+        NativeRect cropped{19,30,35,41};Rect asset{};require(frameBounds(context.data(),23,40,&asset));
+        wellWaterVertices.clear();queueWellWaterForOutline(context.data(),1693,23,40,&cropped);
+        std::set<std::pair<int,int>> expected,actual;
+        for(int row=h-w/2;row<h;++row)for(int col=0;col<w;++col) {
+            if(col>=w/4 && col<w*3/4)continue;
+            const int x=asset.left+col,y=asset.top+row;
+            if(x<cropped.left || x>=cropped.right || y<=cropped.top || y>cropped.bottom)continue;
+            if(style==MapStyle::Original || waterMask.contains(inverse({x+.5,y+.5},viewTransform)))expected.insert({x,y});
+        }
+        for(std::size_t q=0;q<wellWaterVertices.size();q+=4) {
+            const auto& a=wellWaterVertices[q];const auto& b=wellWaterVertices[q+2];
+            for(int y=int(a.y);y<int(b.y);++y)for(int x=int(a.x);x<int(b.x);++x)require(actual.insert({x,y}).second);
+        }
+        require(actual==expected && !actual.empty());
+    }
+    explored=&mask;wellWaterVertices.clear();
 
     checkContext="dull green native edges preserve bridge colors and restore the palette";
     std::array<DWORD,256> palette{};palette.fill(0xff010203);palette[132]=0xff18fc00;palette[222]=0xffd8d8d8;

@@ -146,10 +146,14 @@ class Level {
     std::set<std::tuple<int,int,int,int>> rooms_;
     std::vector<Stroke> permanentWalls_;
     std::size_t wallRevision_=0;
-    Row fineFloor(int y) const {
-        Row result;
-        for(auto s:rowAt(floor_.rows(),floor_div(y,4)))result.push_back({s.first*4,s.second*4});
-        return result;
+    mutable Rows fineFloorRows_;
+    mutable std::size_t fineFloorRevision_=0;
+    const Row& fineFloor(int y) const {
+        if(fineFloorRevision_!=revision){fineFloorRows_.clear();fineFloorRevision_=revision;}
+        const int coarse=floor_div(y,4);
+        auto [it,inserted]=fineFloorRows_.try_emplace(coarse);
+        if(inserted)for(auto s:rowAt(floor_.rows(),coarse))it->second.push_back({s.first*4,s.second*4});
+        return it->second;
     }
     Row boundarySpace(int y,const Row& spans,bool throughUnknown,const Rows* reachable=nullptr) const {
         if(!throughUnknown)return overlap(spans,fineFloor(y));
@@ -265,21 +269,36 @@ public:
         // Only unknown space connected to discovered floor may carry a loading
         // frontier. A thin known wall must also stop an arc on its far side.
         // The one-cell halo lets the edge test inspect its outside neighbor.
-        auto available=dilate(visible,1);
-        for(auto it=available.begin();it!=available.end();) {
-            it->second=boundarySpace(it->first,it->second,true);
-            if(it->second.empty())it=available.erase(it);else ++it;
+        const auto halo=dilate(visible,1);
+        Rows available,result;Row known;int coarse=0;bool haveCoarse=false;
+        for(const auto& [y,row]:halo) {
+            const int cy=floor_div(y,4);
+            if(!haveCoarse || coarse!=cy) {
+                coarse=cy;haveCoarse=true;known.clear();
+                for(auto span:rowAt(known_.rows(),cy))known.push_back({span.first*4,span.second*4});
+            }
+            auto unknown=subtract(row,known);
+            if(!unknown.empty())available.emplace(y,std::move(unknown));
+            auto floor=overlap(row,fineFloor(y));
+            if(!floor.empty())result.emplace(y,std::move(floor));
         }
         if(!floor_.size())return available;
+        if(available.empty())return result;
+        // Known floor is already a seed. Connect only the unknown intervals;
+        // dense rooms and their interior obstacles need no graph nodes.
+        auto touches=[&](int y,Span span) {
+            const auto& row=rowAt(result,y);
+            auto it=std::lower_bound(row.begin(),row.end(),span.first,[](Span s,int x){return s.second<=x;});
+            return it!=row.end() && it->first<span.second;
+        };
         struct Node {std::size_t parent;bool seeded;};
         std::vector<Node> nodes;
         auto root=[&](std::size_t i){while(nodes[i].parent!=i){nodes[i].parent=nodes[nodes[i].parent].parent;i=nodes[i].parent;}return i;};
         std::size_t previousStart=0;const Row* previous=nullptr;int previousY=0;
         for(const auto& [y,row]:available) {
-            const auto start=nodes.size();const auto floor=fineFloor(y);std::size_t seed=0;
+            const auto start=nodes.size();
             for(auto span:row) {
-                while(seed<floor.size() && floor[seed].second<=span.first)++seed;
-                nodes.push_back({nodes.size(),seed<floor.size() && floor[seed].first<span.second});
+                nodes.push_back({nodes.size(),touches(y,{span.first-1,span.second+1}) || touches(y-1,span) || touches(y+1,span)});
             }
             if(previous && y==previousY+1) {
                 std::size_t i=0,j=0;
@@ -293,11 +312,12 @@ public:
             }
             previous=&row;previousY=y;previousStart=start;
         }
-        Rows result;std::size_t index=0;
+        std::size_t index=0;
         for(const auto& [y,row]:available)for(auto span:row) {
             if(nodes[root(index)].seeded)result[y].push_back(span);
             ++index;
         }
+        for(auto& [y,row]:result)normalize(row);
         return result;
     }
     template<class VisibleMask> Drawing build(const VisibleMask& explored,const exploration::Rect* region=nullptr,int width=12,bool throughUnknown=false,const Rows* reachable=nullptr) {

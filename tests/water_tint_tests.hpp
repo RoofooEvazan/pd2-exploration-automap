@@ -191,6 +191,53 @@ static void testPixelWaterTint() {
     std::cout<<"PASS: exact water-pixel color splits, dry/bridge exclusions, both zooms, negative bins, layer union, cache reuse and rectangle budget\n";
 }
 
+static void testWaterTintGrowthCache() {
+    using namespace exploration;
+    checkContext="shoreline cache reuses distant walls and refreshes local changes exactly";
+    for(int divisor:{10,20}) {
+        const int w=divisor==10?16:8;
+        const Transform stable{double(divisor),divisor==10?8.0:7.0,divisor==10?-8.0:-3.0};
+        WaterTint tint;tint.select(1,202,divisor);
+        const std::vector<Rect> water{{0,w,2,w*2},{w-2,w,w,w*2}};
+        std::vector<Rect> frames{{-64,-64,-64+w,-64+w*2}};
+        require(tint.addPixels(frames[0],1590,water));
+        std::vector<styled_map::Stroke> walls;
+        for(int x:{-64,0,256})walls.push_back({inverse({double(x-4),-64+w*1.75},stable),inverse({double(x+w+4),-64+w*1.75},stable)});
+        tint.prepare(walls);auto builds=tint.wallBuilds();
+        frames.push_back({1024,1024,1024+w,1024+w*2});require(tint.addPixels(frames.back(),1590,water));
+        tint.prepare(walls);require(tint.wallBuilds()==builds);
+        frames.push_back({0,-64,w,-64+w*2});require(tint.addPixels(frames.back(),1590,water));
+        tint.prepare(walls);require(tint.wallBuilds()==builds+1);
+        for(int step=0;step<30;++step) {
+            const int x=step*4-72,y=-60+(step%5)*w;
+            frames.push_back({x,y,x+w,y+w*2});require(tint.addPixels(frames.back(),1590,water));
+            if(step%3==0)walls.push_back({inverse({double(x-8),double(y+w)},stable),inverse({double(x+w+8),double(y+w*2)},stable),step%2==0});
+            if(step%4==0){std::reverse(walls.begin(),walls.end());walls[0].bank=!walls[0].bank;}
+            const auto actual=tint.prepare(walls);
+            WaterTint fresh;fresh.select(1,202,divisor);
+            for(auto frame:frames)require(fresh.addPixels(frame,1590,water));
+            const auto expected=fresh.prepare(walls);
+            require(actual.size()==expected.size());
+            for(std::size_t i=0;i<actual.size();++i) {
+                const auto& a=actual[i];const auto& b=expected[i];
+                require(a.water==b.water && a.stroke.bank==b.stroke.bank && a.stroke.a.x==b.stroke.a.x &&
+                    a.stroke.a.y==b.stroke.a.y && a.stroke.b.x==b.stroke.b.x && a.stroke.b.y==b.stroke.b.y);
+            }
+        }
+        builds=tint.wallBuilds();tint.select(1,203,divisor);tint.prepare(walls);
+        require(tint.wallBuilds()>builds && tint.cachedWalls()<=walls.size());
+        for(const auto& part:tint.prepare(walls))require(!part.water);
+        tint.select(2,203,divisor);require(!tint.cachedWalls() && !tint.cachedParts());
+    }
+    WaterTint bounded;bounded.select(1,202,10);std::vector<styled_map::Stroke> walls;
+    for(std::size_t i=0;i<WaterTint::wallCacheLimit+50;++i)walls.push_back({{double(i),0},{double(i)+.25,0}});
+    require(bounded.prepare(walls).size()==walls.size());
+    require(bounded.cachedWalls()==WaterTint::wallCacheLimit && bounded.cachedParts()<=WaterTint::partCacheLimit);
+    std::reverse(walls.begin(),walls.end());require(bounded.prepare(walls).size()==walls.size());
+    require(bounded.cachedWalls()==WaterTint::wallCacheLimit);
+    std::cout<<"PASS: local shoreline invalidation, unchanged-wall reuse, exact fresh-build partitions, bank flags, reordered geometry, zoom/session/level changes and bounded overflow\n";
+}
+
 static void testNativeRiverBanks() {
     using namespace exploration;
     using Form=HybridArtwork::RiverBank;

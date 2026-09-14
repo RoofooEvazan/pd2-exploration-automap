@@ -1090,6 +1090,17 @@ static void testRasterCache() {
     }
     for(int i=0;i<20000;++i){result.clear();cache->query({i,0,i+1,1,0},[&](auto emit){emit(Rect{i,0,i+1,1});},collect);
         require(result.size()==1 && result[0].left==i);}
+    checkContext="repeated visible tiles survive cache conflicts during growth";
+    cache->invalidate();std::size_t rebuilt=0;
+    for(int pass=0;pass<3;++pass) {
+        rebuilt=0;cache->grow();
+        for(int y=0;y<40;++y)for(int x=0;x<50;++x) {
+            const Rect r{x*16,y*8,x*16+16,y*8+8};result.clear();
+            cache->query({r.left,r.top,r.right,r.bottom,0},[&](auto emit){++rebuilt;emit(r);},collect);
+            require(result.size()==1 && result[0].left==r.left && result[0].top==r.top && result[0].right==r.right && result[0].bottom==r.bottom);
+        }
+        if(pass)require(rebuilt<200);
+    }
     for(int divisor:{10,20}) {
         ++gameSerial;Mask mask(.25);explored=&mask;
         for(int y=-50;y<70;++y){mask.revealRange(y,-60,5);if(y%8<5)mask.revealRange(y,20,80);}
@@ -1239,6 +1250,7 @@ int main() {
     testStableWallRefresh();
     testWaterTint();
     testPixelWaterTint();
+    testWaterTintGrowthCache();
     testNativeRiverBanks();
     testGroundBanks();
     testNativeMapWater();
