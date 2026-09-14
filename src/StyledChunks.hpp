@@ -8,6 +8,7 @@ class ChunkedMap {
     static constexpr int side=64;
     int padding=14,width_=12;
     bool throughUnknown_=false;
+    Rows previousBoundary_;
     using Key=std::pair<int,int>;
     Level floor_;
     Rows previousVisible_,previousFloor_,previousKnown_;
@@ -114,7 +115,7 @@ public:
     template<class VisibleMask> Drawing build(const VisibleMask& visible,int width=12,bool throughUnknown=false) {
         width=std::clamp(width,6,24);
         if(width_!=width || throughUnknown_!=throughUnknown) {
-            chunks_.clear();previousVisible_.clear();previousFloor_.clear();previousKnown_.clear();previousRevision_=0;
+            chunks_.clear();previousVisible_.clear();previousFloor_.clear();previousKnown_.clear();previousBoundary_.clear();previousRevision_=0;
             width_=width;throughUnknown_=throughUnknown;padding=width+2;
         }
         std::set<Key> dirty;
@@ -122,6 +123,10 @@ public:
         if(previousRevision_!=floor_.revision) {
             changes(previousFloor_,floor_.floorRows(),4,dirty);
             changes(previousKnown_,floor_.knownRows(),4,dirty);
+        }
+        if(throughUnknown_ && !dirty.empty()) {
+            auto boundary=floor_.reachableBoundary(visible.rows());
+            changes(previousBoundary_,boundary,1,dirty);previousBoundary_=std::move(boundary);
         }
         rebuiltChunks=0;
         while(!dirty.empty()) {
@@ -137,7 +142,7 @@ public:
             exploration::Rect bounds{minX*side,minY*side,(maxX+1)*side,(maxY+1)*side};
             auto view=window(visible.rows(),bounds);
             if(view.spans.empty()){for(auto key:group)chunks_.erase(key);continue;}
-            auto drawing=floor_.build(view,&bounds,width_,throughUnknown_);replace(group,drawing);rebuiltChunks+=group.size();
+            auto drawing=floor_.build(view,&bounds,width_,throughUnknown_,throughUnknown_?&previousBoundary_:nullptr);replace(group,drawing);rebuiltChunks+=group.size();
         }
         previousVisible_=visible.rows();
         if(previousRevision_!=floor_.revision) {

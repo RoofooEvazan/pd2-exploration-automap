@@ -157,7 +157,7 @@ static void testPixelWaterTint() {
         // Independent texel-rectangle oracle also checks exact-once coverage.
         for(int i=0;i<1000;++i) {
             const double x=-36+(w+8)*(i+.5)/1000;unsigned hits=0;bool wet=false;
-            for(auto r:water)wet|=x>=r.left-33 && x<r.right-31;
+            for(auto r:water)wet|=x>=r.left-33.5 && x<r.right-30.5;
             for(auto part:parts) {
                 auto a=project(part.stroke.a,stable),b=project(part.stroke.b,stable);
                 if(x>=a.x && x<b.x){++hits;require(part.water==wet);}
@@ -170,6 +170,16 @@ static void testPixelWaterTint() {
         // An object on the dry part above the water strips stays white.
         auto dry=tint.prepare({{inverse({-32.,-32.+w/2},stable),inverse({-32.+w,-32.+w/2},stable)}});
         require(dry.size()==1 && !dry[0].water);
+        // Repeated river corners fall 1.2-1.44 texels outside their box-filtered
+        // native fill. Those subpixel gaps must not revert to the wall color.
+        for(double offset:{1.2,1.3,1.44}) {
+            const double edge=-32-offset;
+            const auto corner=tint.prepare({{inverse({edge,y-.1},stable),inverse({edge,y+.1},stable)}});
+            require(corner.size()==1 && corner[0].water);
+        }
+        const double bridge=-32+w*.5;
+        const auto gap=tint.prepare({{inverse({bridge,y-.1},stable),inverse({bridge,y+.1},stable)}});
+        require(gap.size()==1 && !gap[0].water);
         // Different floor layers at one placement contribute a union.
         require(tint.addPixels(frame,1591,{{w/4,w,w*3/4,w*2}}));
         parts=tint.prepare(walls);require(parts.size()==3 && parts[1].water);

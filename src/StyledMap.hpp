@@ -151,25 +151,26 @@ class Level {
         for(auto s:rowAt(floor_.rows(),floor_div(y,4)))result.push_back({s.first*4,s.second*4});
         return result;
     }
-    Row boundarySpace(int y,const Row& spans,bool throughUnknown) const {
+    Row boundarySpace(int y,const Row& spans,bool throughUnknown,const Rows* reachable=nullptr) const {
         if(!throughUnknown)return overlap(spans,fineFloor(y));
+        if(reachable)return overlap(spans,rowAt(*reachable,y));
         Row blocked;
         for(auto s:subtract(rowAt(known_.rows(),floor_div(y,4)),rowAt(floor_.rows(),floor_div(y,4))))
             blocked.push_back({s.first*4,s.second*4});
         return subtract(spans,blocked);
     }
-    Rows openFrontier(const Rows& visible,int width,bool throughUnknown) const {
+    Rows openFrontier(const Rows& visible,int width,bool throughUnknown,const Rows* reachable) const {
         Rows seeds;
         for(const auto& entry:visible) {
             int y=entry.first;Row row;
             for(int dy:{-1,1}) {
-                auto edge=boundarySpace(y+dy,boundarySpace(y,subtract(entry.second,rowAt(visible,y+dy)),throughUnknown),throughUnknown);
+                auto edge=boundarySpace(y+dy,boundarySpace(y,subtract(entry.second,rowAt(visible,y+dy)),throughUnknown,reachable),throughUnknown,reachable);
                 row.insert(row.end(),edge.begin(),edge.end());
             }
             for(auto s:entry.second) {
                 for(int side:{-1,1}) {
                     int x=side<0?s.first:s.second-1,outside=x+side;
-                    if(!boundarySpace(y,{{x,x+1}},throughUnknown).empty() && !boundarySpace(y,{{outside,outside+1}},throughUnknown).empty())
+                    if(!boundarySpace(y,{{x,x+1}},throughUnknown,reachable).empty() && !boundarySpace(y,{{outside,outside+1}},throughUnknown,reachable).empty())
                         row.push_back({x,x+1});
                 }
             }
@@ -260,14 +261,53 @@ public:
     bool contains(Point p) const {return floor_.contains(p);}
     std::size_t size() const {return floor_.size();}
     std::size_t roomCount() const {return rooms_.size();}
-    template<class VisibleMask> Drawing build(const VisibleMask& explored,const exploration::Rect* region=nullptr,int width=12,bool throughUnknown=false) {
+    Rows reachableBoundary(const Rows& visible) const {
+        // Only unknown space connected to discovered floor may carry a loading
+        // frontier. A thin known wall must also stop an arc on its far side.
+        // The one-cell halo lets the edge test inspect its outside neighbor.
+        auto available=dilate(visible,1);
+        for(auto it=available.begin();it!=available.end();) {
+            it->second=boundarySpace(it->first,it->second,true);
+            if(it->second.empty())it=available.erase(it);else ++it;
+        }
+        if(!floor_.size())return available;
+        struct Node {std::size_t parent;bool seeded;};
+        std::vector<Node> nodes;
+        auto root=[&](std::size_t i){while(nodes[i].parent!=i){nodes[i].parent=nodes[nodes[i].parent].parent;i=nodes[i].parent;}return i;};
+        std::size_t previousStart=0;const Row* previous=nullptr;int previousY=0;
+        for(const auto& [y,row]:available) {
+            const auto start=nodes.size();const auto floor=fineFloor(y);std::size_t seed=0;
+            for(auto span:row) {
+                while(seed<floor.size() && floor[seed].second<=span.first)++seed;
+                nodes.push_back({nodes.size(),seed<floor.size() && floor[seed].first<span.second});
+            }
+            if(previous && y==previousY+1) {
+                std::size_t i=0,j=0;
+                while(i<row.size() && j<previous->size()) {
+                    if(row[i].first<(*previous)[j].second && (*previous)[j].first<row[i].second) {
+                        const auto a=root(start+i),b=root(previousStart+j);
+                        if(a!=b){nodes[b].parent=a;nodes[a].seeded=nodes[a].seeded || nodes[b].seeded;}
+                    }
+                    if(row[i].second<(*previous)[j].second)++i;else ++j;
+                }
+            }
+            previous=&row;previousY=y;previousStart=start;
+        }
+        Rows result;std::size_t index=0;
+        for(const auto& [y,row]:available)for(auto span:row) {
+            if(nodes[root(index)].seeded)result[y].push_back(span);
+            ++index;
+        }
+        return result;
+    }
+    template<class VisibleMask> Drawing build(const VisibleMask& explored,const exploration::Rect* region=nullptr,int width=12,bool throughUnknown=false,const Rows* reachable=nullptr) {
         Drawing drawing;
         if(wallRevision_!=revision)buildWalls();
         const auto& visible=explored.rows();
-        // Loaded solid terrain stops the frontier. During area loading, unknown
-        // space may carry the exploration edge, but never floor shading or walls.
+        Rows boundary;
+        if(throughUnknown && !reachable){boundary=reachableBoundary(visible);reachable=&boundary;}
         width=std::clamp(width,6,24);
-        const auto open=openFrontier(visible,width,throughUnknown);
+        const auto open=openFrontier(visible,width,throughUnknown,reachable);
         constexpr int radii[]={0,1,3,5,7,9,12};
         Rows outer=visible;
         for(std::size_t layer=0;layer<drawing.layers.size();++layer) {
@@ -278,7 +318,7 @@ public:
             for(const auto& entry:outer) {
                 int y=entry.first;
                 Row band=subtract(entry.second,rowAt(inner,y));
-                Row red=layer+1<drawing.layers.size()?overlap(boundarySpace(y,band,throughUnknown),rowAt(open,y)):Row{};
+                Row red=layer+1<drawing.layers.size()?overlap(boundarySpace(y,band,throughUnknown,reachable),rowAt(open,y)):Row{};
                 Row gray=subtract(overlap(band,fineFloor(y)),red);
                 if(!gray.empty())grayRows.emplace(y,std::move(gray));
                 if(!red.empty())redRows.emplace(y,std::move(red));

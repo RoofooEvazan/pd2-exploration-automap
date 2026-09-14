@@ -22,6 +22,7 @@ class WaterTint {
     std::uint64_t session_=0,level_=0;
     int divisor_=0;
     static constexpr double margin=1.5;
+    static constexpr double pixelMargin=1.5;
     static int bin(double value){return int(std::floor(value/32));}
     // A supported native floor frame contains a 2:1 diamond at its foot.
     // Intersect with its four half-planes, padded for the contour's texel width.
@@ -40,12 +41,12 @@ class WaterTint {
         return hi>lo;
     }
     static bool cutPixels(Point a,Point b,Rect pixels,double& lo,double& hi) {
-        // One texel covers rounding between native artwork and floor contours.
-        // Dry regions and bridge pixels inside a partial water tile stay out.
+        // Half-texel downsampling plus native placement rounding can leave the
+        // collision shoreline 1.2 texels outside the visible water pixels.
         lo=0;hi=1;
         for(int axis=0;axis<2;++axis) {
             const double start=axis?a.y:a.x,delta=axis?b.y-a.y:b.x-a.x;
-            const double low=(axis?pixels.top:pixels.left)-1.0,high=(axis?pixels.bottom:pixels.right)+1.0;
+            const double low=(axis?pixels.top:pixels.left)-pixelMargin,high=(axis?pixels.bottom:pixels.right)+pixelMargin;
             if(delta==0){if(start<low || start>high)return false;}
             else {
                 double l=(low-start)/delta,r=(high-start)/delta;if(l>r)std::swap(l,r);
@@ -91,8 +92,8 @@ public:
         pixelTiles_.insert(tile);pixelRectangles_+=pixels.size();
         for(auto r:pixels) {
             r={r.left+frame.left,r.top+frame.top,r.right+frame.left,r.bottom+frame.top};
-            for(int y=bin(r.top-1);y<=bin(r.bottom+1);++y)
-                for(int x=bin(r.left-1);x<=bin(r.right+1);++x)pixelBins_[{y,x}].push_back(r);
+            for(int y=bin(r.top-pixelMargin);y<=bin(r.bottom+pixelMargin);++y)
+                for(int x=bin(r.left-pixelMargin);x<=bin(r.right+pixelMargin);++x)pixelBins_[{y,x}].push_back(r);
         }
         return true;
     }

@@ -87,7 +87,59 @@ static void testTerrainCoverage() {
     empty.uncovered({0,0,0,5},20,[&](exploration::Rect){CHECK(false);});
     std::cout<<"PASS: completed terrain coverage and bounded complement match independent world-cell oracle at both zooms, joined rooms, gaps and empty snapshots\n";
 }
+static void testWallBoundedFrontier() {
+    // The exploration disk reaches beyond a one-subtile wall into uncaptured
+    // space. Unknown pixels on that side must not form a second outer arc.
+    for(int offset:{-40,0,240})for(bool doorway:{false,true}) {
+        styled_map::Level level;styled_map::ChunkedMap cached;
+        std::vector<std::uint16_t> flags(24*24,1);
+        for(int y=1;y<23;++y)for(int x=1;x<23;++x)flags[y*24+x]=0;
+        if(doorway)for(int y=9;y<15;++y)flags[y*24+23]=0;
+        level.ingest(offset,offset,24,24,flags);cached.floor().ingest(offset,offset,24,24,flags);
+        CHECK(level.connect({offset+12.,offset+12.}) && cached.floor().connect({offset+12.,offset+12.}));
+        exploration::Mask visible(.25);visible.revealAround({offset+12.,offset+12.},132);
+        auto drawing=level.build(visible,nullptr,12,true);
+        sameDrawing(cached.build(visible,12,true),drawing);
+        std::size_t boundary=0;for(const auto& layer:drawing.layers)boundary+=layer.redQuads.size();
+        CHECK((boundary>0)==doorway);
+        cached.build(visible,12,true);CHECK(cached.rebuiltChunks==0);
+
+        // Independent pixel BFS checks interval connectivity, including the
+        // one-cell halo, room walls and the exit into unknown space.
+        const auto reachable=level.reachableBoundary(visible.rows());
+        std::set<std::pair<int,int>> allowed,expected;
+        for(const auto& [y,row]:visible.rows())for(auto span:row)for(int x=span.first;x<span.second;++x)
+            for(auto step:std::array<std::pair<int,int>,5>{{{0,0},{1,0},{-1,0},{0,1},{0,-1}}}) {
+                const int xx=x+step.first,yy=y+step.second;
+                auto divide=[](int n){return n/4-(n%4<0);};
+                const int wx=divide(xx)-offset,wy=divide(yy)-offset;
+                if(wx<0 || wy<0 || wx>=24 || wy>=24 || !(flags[wy*24+wx]&1))allowed.emplace(xx,yy);
+            }
+        std::vector<std::pair<int,int>> queue;
+        for(auto cell:allowed)if(level.contains({(cell.first+.5)*.25,(cell.second+.5)*.25})) {
+            expected.insert(cell);queue.push_back(cell);
+        }
+        for(std::size_t i=0;i<queue.size();++i)for(auto step:std::array<std::pair<int,int>,4>{{{1,0},{-1,0},{0,1},{0,-1}}}) {
+            const auto cell=std::make_pair(queue[i].first+step.first,queue[i].second+step.second);
+            if(allowed.count(cell) && expected.insert(cell).second)queue.push_back(cell);
+        }
+        std::set<std::pair<int,int>> actual;
+        for(const auto& [y,row]:reachable)for(auto span:row)for(int x=span.first;x<span.second;++x)actual.emplace(x,y);
+        CHECK(actual==expected);
+
+        // Discovering a second island beyond the wall cannot seed an unknown
+        // component. Loading an open neighbor invalidates all affected chunks.
+        visible.revealAround({offset+70.,offset+12.},28);
+        sameDrawing(cached.build(visible,24,true),level.build(visible,nullptr,24,true));
+        level.ingest(offset+24,offset,24,24,std::vector<std::uint16_t>(24*24));
+        cached.floor().ingest(offset+24,offset,24,24,std::vector<std::uint16_t>(24*24));
+        CHECK(level.connect({offset+12.,offset+12.}) && cached.floor().connect({offset+12.,offset+12.}));
+        sameDrawing(cached.build(visible,24,true),level.build(visible,nullptr,24,true));
+    }
+    std::cout<<"PASS: unknown-space frontier stops beyond thin walls, open entries remain, interval reachability matches pixel BFS and chunk/full builds agree\n";
+}
 int main() {
+    testWallBoundedFrontier();
     testTerrainCoverage();
     testPreparedFloors();
     styled_map::Drawing split;
