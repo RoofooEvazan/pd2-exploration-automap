@@ -45,13 +45,20 @@ The **Boundary Thickness** row cycles through **0.5 → 1.0 → 1.5 → 2.0 → 
 
 Older shared values under `[Automap]` supply the default until a group saves its own value. Without either key, the default is 1.0. INI values between 0.5 and 2.0 remain supported; the next menu click advances to the next listed step. Manual edits require a restart.
 
-## Fullscreen stylization opacity
+## Native Fade
 
-Each Styling submenu has a **Stylization Opacity** row. It opens a percentage list from **30% to 100% in 5% steps**. Choose a value with the mouse or Up/Down and Enter; Back/Escape cancels. A failed save leaves the current opacity active and keeps the list open.
+Use the existing **Fade** row in Automap Options to control fullscreen walls and water in all four styles. Original and Native retain the game's artwork fading. Hybrid and Styled apply the same modes to their custom walls, water edges, floor shading and exploration boundary:
 
-`StylizationOpacity` is saved independently under `[Maps]` and `[Campaign]`, defaulting to **100**. INI values accept whole percentages and are clamped to 30–100; missing or malformed values use 100. The retired shared `[Automap] OverlayOpacity` key is ignored and can be removed.
+| Fade | Fullscreen behavior |
+| --- | --- |
+| No | Retains each layer's base alpha. |
+| Center | Fades the area around the screen center in the native 25%, 50% and 75% bands. |
+| Everything | Applies the native half-opacity multiplier throughout. |
+| Auto | Uses the native three-quarter opacity while standing or walking; other animations retain base alpha. |
 
-Opacity scales custom fullscreen floors, boundaries and wall/water contours once, without a separate fullscreen cap. It does not change native artwork, icons or Original's white-wall dimming. The corner minimap keeps D2GL's fixed capture opacity. Changing opacity requires no geometry rebuild.
+Center follows the native logical screen dimensions and shifts with side panels. Custom geometry is split only where it crosses a fade band, without rebuilding exploration or terrain. No, Everything and Auto retain the existing geometry and submission count. Center uses four alpha groups with bounded scratch storage.
+
+The corner minimap keeps D2GL's fixed capture opacity. Protected icons retain their native behavior and the existing entrance emphasis; Original's white-wall dimming remains. There are no separate opacity controls in Maps Styling, Campaign Styling or the INI. Old `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed.
 
 ## Fixed reveal distance
 
@@ -61,4 +68,4 @@ The fixed radius prevents settings-based expansion, but an open-source client ca
 
 ## Validation
 
-The runtime suite checks all seven RGB values and the Cyan/White defaults, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. Opacity checks cover independent persistence, all accepted percentages, range limits, retired overrides, list navigation, save failures and unchanged contour geometry. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.
+The runtime suite checks all seven RGB values and the Cyan/White defaults, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. Appearance-default checks verify the palette and styles and ensure retired opacity settings cannot change rendering. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.

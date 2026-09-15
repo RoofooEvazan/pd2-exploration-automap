@@ -34,18 +34,15 @@ using SelectStyle=bool(*)(unsigned);
 using CurrentStyle=unsigned(*)();
 using CurrentThickness=double(*)();
 inline constexpr unsigned mapsRow=8,campaignRow=9,backRow=10;
-inline constexpr unsigned boundaryRow=1,wallRow=2,waterRow=3,thicknessRow=4,styleRow=5,opacityRow=6,stylingBackRow=7;
+inline constexpr unsigned boundaryRow=1,wallRow=2,waterRow=3,thicknessRow=4,styleRow=5,stylingBackRow=6;
 inline constexpr std::array<double,4> thicknessValues{0.5,1.0,1.5,2.0};
 inline constexpr std::array<const char*,4> thicknessKeys{"0.5","1.0","1.5","2.0"};
-inline constexpr unsigned opacityMinimum=30,opacityMaximum=100,opacityStep=5;
-inline constexpr unsigned opacityChoices=(opacityMaximum-opacityMinimum)/opacityStep+1;
 enum class ColorTarget { Boundary, Wall, Water };
 inline constexpr std::array<const wchar_t*,4> styleLabels{L"Original",L"Native",L"Hybrid",L"Styled"};
 inline std::array<Entry,11> entries{};
-inline std::array<Entry,8> stylingEntries{};
+inline std::array<Entry,7> stylingEntries{};
 inline std::array<Entry,boundaryPresets.size()+2> pickerEntries{};
-inline std::array<Entry,opacityChoices+2> opacityEntries{};
-inline Menu menu{},stylingMenu{},pickerMenu{},opacityMenu{};
+inline Menu menu{},stylingMenu{},pickerMenu{};
 inline Entry** activeEntries=nullptr;
 inline Menu** activeMenu=nullptr;
 inline DWORD* selection=nullptr;
@@ -64,9 +61,6 @@ inline SelectStyle selectStyle=nullptr;
 inline CurrentStyle currentStyle=nullptr;
 inline SelectStyle selectThickness=nullptr;
 inline CurrentThickness currentThickness=nullptr;
-inline SelectStyle selectOpacity=nullptr;
-inline CurrentStyle currentOpacity=nullptr;
-inline bool opacitySaveFailed=false;
 inline bool thicknessSaveFailed=false;
 inline bool styleSaveFailed=false;
 inline bool installed=false,saveFailed=false;
@@ -85,17 +79,15 @@ inline BOOL __fastcall back(Entry*,void*) {
     if(!activeEntries || !activeMenu || !selection || !escapeSelection)return FALSE;
     if(*activeEntries==pickerEntries.data() && *activeMenu==&pickerMenu)
         activate(stylingMenu,stylingEntries.data(),pickedRow());
-    else if(*activeEntries==opacityEntries.data() && *activeMenu==&opacityMenu)
-        activate(stylingMenu,stylingEntries.data(),opacityRow);
     else if(*activeEntries==stylingEntries.data() && *activeMenu==&stylingMenu)
         activate(menu,entries.data(),editingMaps?mapsRow:campaignRow);
     else return FALSE;
-    saveFailed=styleSaveFailed=thicknessSaveFailed=opacitySaveFailed=false;return TRUE;
+    saveFailed=styleSaveFailed=thicknessSaveFailed=false;return TRUE;
 }
 inline BOOL openStyling(bool maps) {
     if(!activeEntries || !activeMenu || !selection || !escapeSelection ||
        *activeEntries!=entries.data() || *activeMenu!=&menu)return FALSE;
-    editingMaps=maps;styleSaveFailed=thicknessSaveFailed=opacitySaveFailed=false;
+    editingMaps=maps;styleSaveFailed=thicknessSaveFailed=false;
     activate(stylingMenu,stylingEntries.data(),boundaryRow);return TRUE;
 }
 inline BOOL __fastcall openMaps(Entry*,void*) {return openStyling(true);}
@@ -127,22 +119,6 @@ inline BOOL openPicker(ColorTarget target) {
 inline BOOL __fastcall openBoundary(Entry*,void*) {return openPicker(ColorTarget::Boundary);}
 inline BOOL __fastcall openWalls(Entry*,void*) {return openPicker(ColorTarget::Wall);}
 inline BOOL __fastcall openWater(Entry*,void*) {return openPicker(ColorTarget::Water);}
-inline BOOL __fastcall openOpacity(Entry* row,void*) {
-    if(!activeEntries || !activeMenu || !selection || !escapeSelection || !currentOpacity || !selectOpacity ||
-       *activeEntries!=stylingEntries.data() || *activeMenu!=&stylingMenu || row!=&stylingEntries[opacityRow])return FALSE;
-    opacitySaveFailed=false;
-    const auto value=std::clamp(currentOpacity(),opacityMinimum,opacityMaximum);
-    activate(opacityMenu,opacityEntries.data(),1+(value-opacityMinimum+opacityStep/2)/opacityStep);return TRUE;
-}
-inline BOOL __fastcall chooseOpacity(Entry* row,void*) {
-    if(!activeEntries || !activeMenu || *activeEntries!=opacityEntries.data() || *activeMenu!=&opacityMenu || !selectOpacity)return FALSE;
-    for(unsigned i=0;i<opacityChoices;++i)if(row==&opacityEntries[i+1]) {
-        opacitySaveFailed=!selectOpacity(opacityMinimum+i*opacityStep);
-        if(!opacitySaveFailed)back(nullptr,nullptr);
-        return TRUE;
-    }
-    return FALSE;
-}
 inline BOOL __fastcall cycleStyle(Entry* row,void*) {
     if(!activeEntries || !activeMenu || *activeEntries!=stylingEntries.data() || *activeMenu!=&stylingMenu ||
        row!=&stylingEntries[styleRow] || !selectStyle || !currentStyle)return FALSE;
@@ -180,12 +156,6 @@ inline void makeMenu(const Menu& source,const Entry* sourceEntries) {
     stylingEntries[waterRow].press=openWater;
     stylingEntries[thicknessRow].press=cycleThickness;
     stylingEntries[styleRow].press=cycleStyle;stylingEntries[stylingBackRow].press=back;
-    stylingEntries[opacityRow].press=openOpacity;
-    opacityMenu=source;opacityMenu.count=DWORD(opacityEntries.size());
-    opacityMenu.spacing=22;opacityMenu.textHeight=20;opacityMenu.barHeight=21;
-    opacityEntries={};opacityEntries[0].type=0xffffffff;
-    for(unsigned i=1;i+1<opacityEntries.size();++i)opacityEntries[i].press=chooseOpacity;
-    opacityEntries.back().press=back;
     pickerMenu=source;pickerMenu.count=DWORD(pickerEntries.size());
     pickerMenu.spacing=24;pickerMenu.textHeight=22;pickerMenu.barHeight=23;
     pickerEntries={};pickerEntries[0].type=0xffffffff;
@@ -202,7 +172,7 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
         else if(y==int(entries[campaignRow].y+menu.textHeight))swprintf_s(label,L"Campaign Styling");
     } else if(*activeEntries==stylingEntries.data()) {
         const wchar_t* value=nullptr;
-        wchar_t thicknessText[32]{},opacityText[32]{};
+        wchar_t thicknessText[32]{};
         if(y==int(stylingEntries[0].y+stylingMenu.textHeight))
             swprintf_s(label,L"%s",editingMaps?L"Maps Styling":L"Campaign Styling");
         else if(y==int(stylingEntries[stylingBackRow].y+stylingMenu.textHeight))swprintf_s(label,L"Back");
@@ -222,8 +192,6 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
             if(!wcschr(thicknessText,L'.'))wcscat_s(thicknessText,L".0");
             value=thicknessSaveFailed?L"Save failed":thicknessText;
             if(thicknessSaveFailed)color=1;
-        } else if(y==int(stylingEntries[opacityRow].y+stylingMenu.textHeight) && currentOpacity) {
-            swprintf_s(label,L"Stylization Opacity");swprintf_s(opacityText,L"%u%%",currentOpacity());value=opacityText;
         }
         if(value) {
             // Native option labels start 230 pixels left of center; values
@@ -233,19 +201,6 @@ inline void __fastcall drawRow(void* cell,int x,int y,int align,int mode,int ext
             drawText(label,x-230,y,color,0);
             drawText(value,x+230-int(width),y,color,0);
             textSize(old);return;
-        }
-    } else if(*activeEntries==opacityEntries.data()) {
-        font=0;
-        for(unsigned i=0;i<opacityMenu.count;++i)if(y==int(opacityEntries[i].y+opacityMenu.textHeight)) {
-            if(i==0) {
-                font=2;color=opacitySaveFailed?1:4;
-                swprintf_s(label,L"%s",opacitySaveFailed?L"Could not save opacity":L"Stylization Opacity");
-            } else if(i+1==opacityMenu.count)swprintf_s(label,L"Back");
-            else {
-                const auto value=opacityMinimum+(i-1)*opacityStep;
-                swprintf_s(label,L"%u%%%s",value,value==currentOpacity()?L" (Selected)":L"");
-            }
-            break;
         }
     } else if(*activeEntries==pickerEntries.data()) {
         font=0; // Compact native font: the full list fits 480- and 600-high views.
@@ -311,8 +266,7 @@ inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,
                     SelectColor select,CurrentColor current,SelectColor selectWall,CurrentColor currentWall,
                     SelectColor selectWater,CurrentColor currentWater,
                     SelectStyle chooseStyle,CurrentStyle selectedStyle,
-                    SelectStyle chooseThickness,CurrentThickness selectedThickness,
-                    SelectStyle chooseOpacityValue,CurrentStyle selectedOpacity) {
+                    SelectStyle chooseThickness,CurrentThickness selectedThickness) {
     if(installed)return true;
     if(!client || !win || !compatible(pd,client) || !profile(win,0xcf000,0x4b95c21d))return false;
     const auto d=GetProcAddress(reinterpret_cast<HMODULE>(win),MAKEINTRESOURCEA(10150));
@@ -335,7 +289,6 @@ inline bool install(unsigned char* pd,unsigned char* client,unsigned char* win,
         selectWaterColor=selectWater;currentWaterColor=currentWater;
         selectStyle=chooseStyle;currentStyle=selectedStyle;
         selectThickness=chooseThickness;currentThickness=selectedThickness;
-        selectOpacity=chooseOpacityValue;currentOpacity=selectedOpacity;
         makeMenu(*reinterpret_cast<Menu*>(pd+0x39da90),reinterpret_cast<Entry*>(pd+0x3a3fb0));
         originalText=reinterpret_cast<CellText>(client+0xd372);
         drawText=reinterpret_cast<DrawText>(d);textSize=reinterpret_cast<TextSize>(s);textWidth=reinterpret_cast<TextWidth>(w);

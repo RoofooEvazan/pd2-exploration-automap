@@ -1168,7 +1168,8 @@ static void testWaterReuse() {
 #include "map_marker_tests.hpp"
 #include "entrance_visibility_tests.hpp"
 #include "map_style_tests.hpp"
-#include "opacity_menu_tests.hpp"
+#include "appearance_defaults_tests.hpp"
+#include "native_fade_tests.hpp"
 #include "area_entry_tests.hpp"
 #include "water_tint_tests.hpp"
 #include "ground_bank_tests.hpp"
@@ -1259,6 +1260,7 @@ int main() {
     testOverlaidWaterBanks();
     testNativeMapWater();
     testOriginalWallBrightness();
-    testOpacityMenu();
+    testAppearanceDefaults();
+    testNativeFade();
     return 0;
 }

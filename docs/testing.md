@@ -17,7 +17,8 @@ The default suites use synthetic data and mocked game/renderer calls. They need 
 | `runtime_tests` | Native quad coverage and UVs, fractional lines, state restoration, failure cleanup, terrain classification, town/exploration unions, shared campaign layers, bounded table reads and fallback paths. |
 | `map_style_tests.hpp` | Original bypass, Styled terrain suppression and navigation retention, both zooms, style cycling, persistence, legacy precedence, failed saves and retained history/caches. |
 | `boundary_menu_tests.hpp` | Seven RGB presets, independent color/thickness persistence, stationary thickness updates, Back/Escape, label alignment, heading fonts, resource ownership and menu signature guards. |
-| `opacity_menu_tests.hpp` | Independent fullscreen opacity, requested defaults, 30–100 bounds, retired shared override, percentage selection, save failures, layout and unchanged contour geometry. |
+| `appearance_defaults_tests.hpp` | Seven-color defaults, independent map styles and ignored legacy opacity settings. |
+| `native_fade_tests.hpp` | Native Fade modes, center-band coverage without overlaps, panel offsets, Auto animation, guarded reads, minimap bypass and wall/water alpha restoration. |
 | `area_entry_tests.hpp` | Neighbor capture, retained contours, unfinished-terrain fallback and layer isolation. |
 | `water_tint_tests.hpp` / `ground_bank_tests.hpp` | Cached/fresh shoreline splits, native river traces, layered DT1 water material, dry-prop and bridge exclusions, bank tags and cache ownership. |
 | `native_water_tests.hpp` | No added green water fill in any style, preserved shoreline coverage, white-only Original fullscreen dimming and palette restoration. |
@@ -63,7 +64,8 @@ The inspected direct tables contain 132 campaign entries, 111 ordinary wall IDs 
 | `GROUND_BANKS` | Per-room bank/water material reads, matching tiles, tagged cells and read failures. |
 | `TABLE` | Read status, byte count and resolver source. A successful read still needs to pass parsing. |
 | `CAMPAIGN layers`, `HYBRID classified`, `STYLE` | Accepted definitions and selected internal styles. Styles use the same names as the menu: original, native, hybrid and styled. |
-| `BOUNDARY`, `APPEARANCE` | Menu installation and loaded/saved styles, colors, thickness and per-group opacity. |
+| `BOUNDARY`, `APPEARANCE` | Menu installation and loaded/saved styles, colors and thickness. |
+| `FADE native fullscreen controls ready` | Native Fade binding accepted; unsupported layouts retain base custom alpha. |
 | `DISCOVERY mode=hardcoded`, `radiusSubtiles=33.00` | Fixed reveal policy. |
 | `mapMs` | CPU time between automap callbacks, not total frame time or GPU cost. |
 | `workerBuildMs`, `revealLatencyMs` | Latest completed build duration and queue-to-completion time. |
@@ -75,7 +77,6 @@ The inspected direct tables contain 132 campaign entries, 111 ordinary wall IDs 
 | `HYBRID wallsReplaced`, `detailsRetained`, `waterRetained` | Cumulative classification counts, including off-screen/unrevealed artwork. |
 | `sewerTraced`, `sewerFallbacks`, `sewerWaterCells` | Accepted sewer wall/water cells and native fallbacks. Water is collected before exploration clipping. |
 | `ARTWORK trimmed`, `blankSkipped`, `boundsHits`, `boundsDecoded`, `boundsFailures` | Occupied-bounds reuse, decoding and fallback. |
-| `APPEARANCE CampaignOpacity`, `MapsOpacity` | Independent custom fullscreen alpha scales. |
 | `ENTRANCES drawn`, `palettePasses`, `fallbacks` | Entrance submissions, grouped brightness passes and native fallback counts. |
 | `MARKERS sampled`, `added`, `alreadyNative` | Loaded-unit sampling, fallback icons and native duplicate skips. |
 
@@ -87,7 +88,7 @@ Use the [documented offline launch](../README.md#install-and-run), retaining cus
 
 1. Cycle Original, Native, Hybrid and Styled independently under Maps Styling and Campaign Styling, in both views. Check native artwork/discovery and dimmed white fullscreen walls in Original, original artwork with a boundary in Native, native details in Hybrid, and contour terrain with navigation artwork in Styled. Return to Hybrid and verify retained exploration and colors.
 2. Open all three color lists in each group. Check mouse/keyboard selection, headings, Cyan, White and the seven-color palette, Back/Escape and saved preferences after restarting. Cycle thickness through 0.5, 1.0, 1.5 and 2.0 while stationary; only the selected group should change.
-3. Open Stylization Opacity in each group. Compare 30%, 65% and 100% in fullscreen, then verify that the corner minimap is unchanged. Check independent saved values, Back/Escape and persistence after restarting.
+3. Cycle Fade through No, Center, Everything and Auto in Original, Native, Hybrid and Styled. Check fullscreen walls and water, center bands while panning/opening side panels, and Auto while standing, walking and running. Confirm the corner minimap is unchanged.
 4. Visit a road, waypoint, shrine/event, cave entrance and stair/exit symbol. Check the reveal edge and entrance emphasis in both views.
 5. Cross a town gate and an adjoining campaign boundary, then return. Approach Black Marsh/Tamoe Highland slowly: walls inside the reveal circle should appear before the area label changes. Check the walls and reveal edge immediately on entry, without walking farther. Repeat in Hybrid and Styled, in both views. Repeat portal/waypoint travel and hide the map for several seconds. Save/exit and start a new game to check reset behavior.
 6. Walk continuously while rooms load and watch already-drawn walls for blinking, in Hybrid and Styled at both map sizes. Inspect sewer walls, channels and bridges, then a nearly explored endgame map. Compare moving/stationary frame times and capture the log.

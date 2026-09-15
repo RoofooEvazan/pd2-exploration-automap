@@ -13,7 +13,8 @@ Three test programs check the map algorithms and renderer-call behavior using sy
 | [mask_tests.cpp](mask_tests.cpp) | Explored cells, reveal boundaries, clipping coverage, movement, and session state. |
 | [runtime_tests.cpp](runtime_tests.cpp) | Native clipping, hybrid contours and protected details, sewer styling, towns, shared campaign areas, session guards, and bounded native game-table reads. |
 | [boundary_menu_tests.hpp](boundary_menu_tests.hpp) | Seven exact RGB presets, independent color/thickness persistence, stationary thickness changes, picker navigation/Back/Escape, menu alignment and headings, save failures, native guards, resource ownership and unchanged drawing geometry. |
-| [opacity_menu_tests.hpp](opacity_menu_tests.hpp) | Independent fullscreen opacity, requested defaults, 30–100 bounds, retired shared override, percentage selection, save failures, layout and unchanged contour geometry. |
+| [appearance_defaults_tests.hpp](appearance_defaults_tests.hpp) | Seven-color defaults, independent map styles and ignored legacy opacity settings. |
+| [native_fade_tests.hpp](native_fade_tests.hpp) | Native Fade modes, center-band coverage without overlaps, panel offsets, Auto animation, guarded reads, minimap bypass and wall/water alpha restoration. |
 | [map_marker_tests.hpp](map_marker_tests.hpp) | Shrine/event tables, guarded loaded-unit reads, sample expiry, visibility, native registration and duplicate suppression in both sizes. |
 | [fixed_distance_tests.hpp](fixed_distance_tests.hpp) | Hardcoded 33-subtile coverage, ignored legacy distance settings, resolution independence, movement, teleport gaps, towns and preserved appearance settings. |
 | [styled_tests.cpp](styled_tests.cpp) | Floor shading, stable binary16 wall widths and stroke-cache equivalence, open edges, boundaries behind thin walls and at open entrances, interval connectivity against pixel BFS, cached-versus-full geometry, and background worker snapshots. |

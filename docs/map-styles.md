@@ -1,6 +1,6 @@
 # Map styles
 
-Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, **Water Color**, **Boundary Thickness**, **Stylization** and **Stylization Opacity**. Colors and opacity open lists; Boundary Thickness and Stylization cycle through their choices. Preferences apply immediately and save independently for each group. Opacity affects fullscreen only; the other settings apply to both views.
+Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, **Water Color**, **Boundary Thickness** and **Stylization**. Colors open lists; Boundary Thickness and Stylization cycle through their choices. Preferences apply immediately and save independently for each group in both views.
 
 | Choice | Appearance |
 | --- | --- |
@@ -13,7 +13,7 @@ Towns retain native drawing without exploration clipping. Their outdoor preview 
 
 ## Default preferences
 
-Maps default to Styled; Campaign defaults to Hybrid. Both use Cyan boundaries, White walls and water, 1.0 boundary thickness and 100% stylization opacity.
+Maps default to Styled; Campaign defaults to Hybrid. Both use Cyan boundaries, White walls and water, 1.0 boundary thickness. Fullscreen opacity follows the existing Fade option.
 
 ```ini
 [Maps]
@@ -22,7 +22,6 @@ BoundaryColor=cyan
 WallColor=white
 WaterColor=white
 BoundaryThickness=1.0
-StylizationOpacity=100
 
 [Campaign]
 Style=hybrid
@@ -30,12 +29,11 @@ BoundaryColor=cyan
 WallColor=white
 WaterColor=white
 BoundaryThickness=1.0
-StylizationOpacity=100
 ```
 
 `BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
 
-`StylizationOpacity` scales custom fullscreen drawing from 30–100%, with a 5% step selector in each submenu. The corner minimap retains its fixed opacity. The old shared `OverlayOpacity` key no longer applies. See [appearance settings](boundary-settings.md#fullscreen-stylization-opacity) for input handling.
+The existing Automap **Fade** setting controls fullscreen wall and water drawing across all four styles. Custom terrain follows its No, Center, Everything and Auto modes; the corner minimap retains its fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored.
 
 Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` selects native artwork and discovery, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
 

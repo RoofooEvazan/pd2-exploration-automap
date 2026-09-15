@@ -1,16 +1,16 @@
 # PD2 Exploration Automap — BETA
 
-An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Campaign and endgame maps have separate styles, colors, boundary thickness and fullscreen opacity settings.
+An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Campaign and endgame maps have separate styles, colors and boundary thickness settings.
 
 **[Download v0.2.0-beta.9 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.9)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
 This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. The release contains no game or renderer binaries other than the plugin itself.
 
-**Development settings:** the colors, defaults and opacity controls below describe the current source. The published beta.9 download predates these changes.
+**Development settings:** the colors and defaults below describe the current source. The published beta.9 download predates these changes.
 
 ## Map styles
 
-Open the automap once in a game, then go to **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each group has its own Boundary Color, Wall Color, Water Color, Boundary Thickness, Stylization and Stylization Opacity. Changes apply immediately. Opacity affects fullscreen only; the other settings apply to both fullscreen and corner views.
+Open the automap once in a game, then go to **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each group has its own Boundary Color, Wall Color, Water Color, Boundary Thickness and Stylization. Changes apply immediately in both fullscreen and corner views.
 
 | Style | Appearance |
 | --- | --- |
@@ -101,7 +101,6 @@ BoundaryColor=cyan
 WallColor=white
 WaterColor=white
 BoundaryThickness=1.0
-StylizationOpacity=100
 
 [Campaign]
 Style=hybrid
@@ -109,12 +108,11 @@ BoundaryColor=cyan
 WallColor=white
 WaterColor=white
 BoundaryThickness=1.0
-StylizationOpacity=100
 ```
 
 **Boundary Thickness** cycles through 0.5, 1.0, 1.5 and 2.0 in each Styling submenu, saving to that group’s `BoundaryThickness` key. The default is 1.0; older shared INI values are inherited until a group chooses its own. It does not alter the fixed reveal radius or wall width.
 
-**Stylization Opacity** opens a percentage list from **30% to 100%**, in 5% steps. Maps and Campaign each save `StylizationOpacity`, defaulting to 100. It scales custom fullscreen floors, boundaries and contours without an additional fullscreen multiplier. The corner minimap retains D2GL's fixed capture opacity. The old shared `[Automap] OverlayOpacity` key is ignored. Manual INI edits require a restart; menu changes do not.
+The existing **Fade** option controls fullscreen walls and water in Original, Native, Hybrid and Styled. Custom contours, floors and boundaries follow the same No, Center, Everything and Auto modes. The corner minimap retains D2GL's fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed. Manual INI edits require a restart; menu changes do not.
 
 Recognized entrance/exit symbols and cave/stair artwork receive **75% more alpha**, capped at full opacity. Already-solid artwork and the fixed-alpha corner view use a brightness boost instead. See [entrance visibility](docs/entrance-visibility.md) for classification and renderer limits.
 

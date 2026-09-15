@@ -28,6 +28,7 @@
 #include "BoundaryColors.hpp"
 #include "BoundaryMenu.hpp"
 #include "MapMarkers.hpp"
+#include "NativeFade.hpp"
 #include <unordered_map>
 #include <set>
 using exploration::Point;
@@ -87,7 +88,7 @@ static DWORD brighterPaletteColor(DWORD color) {
 }
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
-static unsigned overlayOpacity=100,campaignOpacity=100,mapsOpacity=100;
+static unsigned overlayOpacity=100;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Cyan;
 static exploration::BoundaryColor wallColor=exploration::BoundaryColor::White;
 static exploration::BoundaryColor waterColor=exploration::BoundaryColor::White;
@@ -107,7 +108,6 @@ static void activateColors(bool maps) {
     waterEdgeColor=exploration::waterRGBA(waterColor,224);
     boundaryThickness=maps?mapsThickness:campaignThickness;
     boundaryBandWidth=int(lround(12*boundaryThickness));
-    overlayOpacity=maps?mapsOpacity:campaignOpacity;
 }
 static DWORD fractionalTint=0;
 static std::string settingsPath;
@@ -142,6 +142,40 @@ static double styledBuildMs=0;
 static double styledLatencyMs=0;
 static std::size_t styledRebuiltChunks=0,styledTotalChunks=0;
 static unsigned char* client=nullptr;
+template<class T> T read(const void* p,size_t offset=0);
+static bool nativeFadeBound=false;
+static exploration::NativeFade nativeFade;
+static bool bindNativeFade(unsigned char* module) {
+    __try {
+        if(!module)return false;
+        // Relocated references in the native getter and terrain fade dispatch.
+        return module[0x5f9c0]==0x83 && module[0x5f9c1]==0x3d &&
+            read<const void*>(module,0x5f9c2)==module+0x11c1b0 && module[0x5f9c6]==1 &&
+            module[0x5f9c7]==0xa1 && read<const void*>(module,0x5f9c8)==module+0x11c208 &&
+            module[0x60346]==0xe8 && module+0x6034b+read<int>(module,0x60347)==module+0x5f9c0 &&
+            module[0x603b3]==0xa1 && read<const void*>(module,0x603b4)==module+0xf9e18 &&
+            module[0x603c2]==0xa1 && read<const void*>(module,0x603c3)==module+0xf9e14;
+    } __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static void sampleNativeFade() {
+    nativeFade={};
+    __try {
+        if(!nativeFadeBound || !client || read<DWORD>(client,0x11c8b8)!=1 || read<DWORD>(client,0x11c1b0)!=0)return;
+        const unsigned mode=read<DWORD>(client,0x11c208);
+        if(mode>3)return;
+        exploration::NativeFade value;value.mode=mode;
+        if(mode==1) {
+            const int w=read<int>(client,0xf9e14),h=read<int>(client,0xf9e18),screenW=read<int>(client,0xdbc48);
+            const int side=read<int>(client,0x11c414);
+            if(w<1 || w>10000 || h<1 || h>10000 || screenW<1 || screenW>10000 || side<0 || side>2)return;
+            value.center={double(w/2+(side==1?-screenW/4:side==2?screenW/4:0)),double(h/2-10)};
+        } else if(mode==3) {
+            const auto unit=read<const unsigned char*>(client,0x11bbfc);if(!unit)return;
+            const unsigned animation=read<unsigned char>(unit,0x18);value.idle=animation==0 || animation==2;
+        }
+        nativeFade=value;
+    } __except(EXCEPTION_EXECUTE_HANDLER){nativeFade={};}
+}
 static CellDraw originalCell=nullptr;
 static LineDraw originalLine=nullptr;
 static void* originalBegin=nullptr;
@@ -286,7 +320,7 @@ template<class Emit> static void cachedUnfinishedClips(Rect bounds,int divisor,i
     },[&](Rect r){emit(Rect{r.left-shiftX,r.top-shiftY,r.right-shiftX,r.bottom-shiftY});});
 }
 static void log(const char* msg) { if(logfile) {fprintf(logfile,"%s\n",msg);fflush(logfile);} }
-template<class T> T read(const void* p,size_t offset=0) {
+template<class T> T read(const void* p,size_t offset) {
     return *reinterpret_cast<const T*>(static_cast<const unsigned char*>(p)+offset);
 }
 // SEH contains optional metadata reads; no exception crosses game callbacks.
@@ -1069,7 +1103,7 @@ static void beginPass() {
     nativeMarkers.clear();markerArtworkFile=nullptr;
     entranceCount=entranceClipCount=0;entranceAlpha=-1;
     QueryPerformanceCounter(&passStarted);
-    try {update();sampleMapMarkers(GetTickCount());if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
+    try {update();sampleNativeFade();sampleMapMarkers(GetTickCount());if(isTown(observedLevel))InterlockedIncrement(&townPasses);haveViewport=false;inPass=true;} catch(...) {maskActive=false;enabled=false;}
 }
 static void submitLine(Point start,Point end) {
     if(hypot(end.x-start.x,end.y-start.y)<1e-6)return;
@@ -1079,20 +1113,54 @@ static void submitLine(Point start,Point end) {
     InterlockedIncrement(&fractionalCount);
 }
 static void submitFractionalLine() {
-    if(fractionalTint && styledColor)styledColor(overlayColor(fractionalTint));
-    if(frontierBatch)for(const auto& line:*frontierBatch)submitLine(line.first,line.second);
-    else submitLine(frontierA,frontierB);
+    auto submit=[&](Point a,Point b){
+        if(!fractionalTint || !styledColor){submitLine(a,b);return;}
+        const DWORD color=overlayColor(fractionalTint);
+        nativeFade.line(a,b,[&](Point start,Point end,unsigned fade){
+            styledColor((color&0xffffff00u)|exploration::NativeFade::scale(color&255,fade));submitLine(start,end);
+        });
+    };
+    if(frontierBatch)for(const auto& line:*frontierBatch)submit(line.first,line.second);
+    else submit(frontierA,frontierB);
     if(fractionalTint && styledColor)styledColor(0x84848400u|overlayAlpha(255));
+}
+static void submitStyledBatch() {
+    const DWORD color=overlayColor(styledBatchColor);
+    struct Restore {~Restore(){styledColor(styledRestoreColor);}} restore;
+    if(nativeFade.mode!=1 || styledBatch->size()%4) {
+        styledColor((color&0xffffff00u)|exploration::NativeFade::scale(color&255,nativeFade.alpha({})));
+        styledArray(5,DWORD(styledBatch->size()),styledBatch->data());return;
+    }
+    // Four alpha batches, bounded scratch, and no changes to cached geometry.
+    static std::array<std::vector<GlideVertex>,4> groups;
+    static std::vector<const void*> pointers;
+    constexpr unsigned alphas[]={64,128,192,255};
+    auto flush=[&](unsigned group){
+        auto& vertices=groups[group];if(vertices.empty())return;
+        pointers.clear();for(const auto& v:vertices)pointers.push_back(&v);
+        styledColor((color&0xffffff00u)|exploration::NativeFade::scale(color&255,alphas[group]));
+        styledArray(5,DWORD(pointers.size()),pointers.data());vertices.clear();
+    };
+    for(auto& vertices:groups)vertices.clear();
+    for(std::size_t i=0;i<styledBatch->size();i+=4) {
+        auto point=[&](unsigned n){const auto v=static_cast<const GlideVertex*>((*styledBatch)[i+n]);return Point{v->x,v->y};};
+        nativeFade.partition({point(0),point(1),point(2),point(3)},[&](const styled_map::Quad& q,unsigned alpha){
+            const unsigned group=alpha==255?3:alpha/64-1;auto& vertices=groups[group];
+            if(vertices.size()+4>16384)flush(group);
+            for(auto p:{q.a,q.b,q.c,q.d})vertices.push_back({float(p.x),float(p.y),0xffffffff,1,0,0,0});
+        });
+    }
+    for(unsigned i=0;i<4;++i)flush(i);
 }
 static void __stdcall floatLineHook(const void* a,const void* b) {
     if(styledBatch) {
-        styledColor(overlayColor(styledBatchColor));styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
+        submitStyledBatch();
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatLine(a,b);
 }
 static void __stdcall floatPointHook(const void* a) {
     // A short segment may round to one pixel in D2gfx; preserve it as a line.
     if(styledBatch) {
-        styledColor(overlayColor(styledBatchColor));styledArray(5,DWORD(styledBatch->size()),styledBatch->data());styledColor(styledRestoreColor);
+        submitStyledBatch();
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatPoint(a);
 }
 static void drawFrontier(Point a,Point b,DWORD tint=0) {
@@ -1425,18 +1493,6 @@ static exploration::BoundaryColor currentBoundaryColor(){return editingColors().
 static exploration::BoundaryColor currentWallColor(){return editingColors().wall;}
 static exploration::BoundaryColor currentWaterColor(){return editingColors().water;}
 static double currentBoundaryThickness(){return exploration::boundary_menu::editingMaps?mapsThickness:campaignThickness;}
-static unsigned currentStylizationOpacity(){return exploration::boundary_menu::editingMaps?mapsOpacity:campaignOpacity;}
-static bool selectStylizationOpacity(unsigned opacity) {
-    if(opacity<30 || opacity>100)return false;
-    const auto text=std::to_string(opacity);
-    if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),"StylizationOpacity",text.c_str(),settingsPath.c_str())) {
-        log("Stylization opacity unchanged: unable to save ExplorationMask.ini.");return false;
-    }
-    (exploration::boundary_menu::editingMaps?mapsOpacity:campaignOpacity)=opacity;
-    activateColors(activeMaps);
-    if(logfile){fprintf(logfile,"APPEARANCE %s StylizationOpacity=%u; saved.\n",editingSection(),opacity);fflush(logfile);}
-    return true;
-}
 static bool selectBoundaryThickness(unsigned choice) {
     namespace ui=exploration::boundary_menu;
     if(choice>=ui::thicknessValues.size())return false;
@@ -1491,7 +1547,7 @@ static void ensureBoundaryMenu() {
     const auto ok=exploration::boundary_menu::install(pd,client,
         reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,currentBoundaryColor,
         selectWallColor,currentWallColor,selectWaterColor,currentWaterColor,selectMapStyle,currentMapStyle,
-        selectBoundaryThickness,currentBoundaryThickness,selectStylizationOpacity,currentStylizationOpacity);
+        selectBoundaryThickness,currentBoundaryThickness);
     log(ok?"BOUNDARY menu installed: independent Maps Styling and Campaign Styling.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI settings remain available.");
 }
@@ -1526,15 +1582,11 @@ static void loadAppearanceSettings(const std::string& settings) {
         colors.wall=exploration::parseBoundaryColor(value(section,"WallColor",""),legacy.wall);
         colors.water=exploration::parseWaterColor(value(section,"WaterColor",""),legacy.water);
         (maps?mapsThickness:campaignThickness)=parseThickness(value(section,"BoundaryThickness",""),legacyThickness);
-        const auto opacityText=value(section,"StylizationOpacity","");
-        char* end=nullptr;const long opacity=strtol(opacityText.c_str(),&end,10);
-        // Group opacity replaces the retired shared fullscreen override.
-        (maps?mapsOpacity:campaignOpacity)=end!=opacityText.c_str() && *end=='\0'?
-            static_cast<unsigned>(std::clamp(opacity,30L,100L)):100u;
     }
+    overlayOpacity=100; // No settings override; retain each layer's own alpha.
     activateColors(activeMaps);
-    if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f CampaignOpacity=%u MapsOpacity=%u\n",
-        styleName(campaignStyle),styleName(mapsStyle),boundaryThickness,campaignOpacity,mapsOpacity);fflush(logfile);}
+    if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f\n",
+        styleName(campaignStyle),styleName(mapsStyle),boundaryThickness);fflush(logfile);}
 }
 static void loadStyles() {
     // Initialization precedes PD2 archive mounting; defer table reads until a player exists.
@@ -1668,6 +1720,9 @@ extern "C" __declspec(dllexport) void __cdecl InitExplorationMask() {
     auto glide=reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Glide.dll"));
     auto gfx=GetModuleHandleA("D2gfx.dll"),wrapper=GetModuleHandleA("glide3x.dll");
     if(!client || !glide || !gfx || !wrapper){log("Not installed: expected Glide modules unavailable.");return;}
+    nativeFadeBound=bindNativeFade(client);
+    log(nativeFadeBound?"FADE native fullscreen controls ready: No, Center, Everything, Auto.":
+        "FADE binding unavailable; retaining custom layer alpha.");
     if(!bindMenuState(GetModuleHandleA("D2Win.dll"))){log("Not installed: menu/session reader layout differs.");return;}
     try {loadStyles();}catch(...) {campaignStyle=MapStyle::Native;mapsStyle=MapStyle::Native;
         log("Hybrid/style settings unavailable; using native exploration styling.");}
