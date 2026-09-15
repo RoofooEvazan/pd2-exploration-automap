@@ -19,7 +19,7 @@ See the [default INI](../ExplorationMask.ini) and [appearance settings](boundary
 
 `BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
 
-The existing Automap **Fade** setting controls fullscreen wall and water drawing across all four styles. Custom terrain follows its No, Center, Everything and Auto modes; the corner minimap retains its fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored.
+The existing Automap **Fade** setting controls fullscreen wall and water drawing across all four styles. Custom walls, water and floor shading follow its No, Center, Everything and Auto modes. Exploration boundaries keep their base opacity, and the corner minimap retains its fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored.
 
 Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` selects native artwork and discovery, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
 

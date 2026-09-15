@@ -14,7 +14,7 @@ static void testBoundaryMenu() {
     checkContext="boundary presets, native menu guards, persistence and draw-time changes";
     using namespace exploration;
     namespace ui=exploration::boundary_menu;
-    const DWORD rgb[]={0xff0000,0xffff00,0x00ff00,0x008080,0x00ffff,0xff00ff,0xffffff};
+    const DWORD rgb[]={0xff0000,0xffff00,0x00ff00,0x00ffff,0xff00ff,0xffffff};
     static_assert(std::size(rgb)==boundaryPresets.size(),"palette coverage");
     require(parseBoundaryColor("MAGENTA")==BoundaryColor::Magenta && parseBoundaryColor("invalid")==BoundaryColor::Cyan);
     require(parseBoundaryColor("",BoundaryColor::White)==BoundaryColor::White);
@@ -27,7 +27,7 @@ static void testBoundaryMenu() {
     }
     require(wallRGBA(BoundaryColor::White,255)==0xffffffff);
     require(parseWaterColor("LIGHT-BLUE")==BoundaryColor::Cyan && waterRGBA(BoundaryColor::Cyan,224)==0x00ffffe0);
-    require(parseWaterColor("invalid")==BoundaryColor::Cyan && parseWaterColor("",BoundaryColor::Teal)==BoundaryColor::Teal);
+    require(parseWaterColor("invalid")==BoundaryColor::Cyan && parseWaterColor("",BoundaryColor::Magenta)==BoundaryColor::Magenta);
     checkContext="independent styling groups and nested color menus";
     const auto oldPath=settingsPath;const auto oldColor=boundaryColor;const auto oldWall=wallColor;
     const auto oldOpacity=overlayOpacity;const auto oldCampaign=campaignStyle,oldMaps=mapsStyle;
@@ -48,10 +48,10 @@ static void testBoundaryMenu() {
         require(parseBoundaryColor(alias.first)==alias.second);
         require(WritePrivateProfileStringA("Automap","BoundaryColor",alias.first,file)!=0);
         require(WritePrivateProfileStringA("Automap","WallColor",alias.first,file)!=0);
-        require(WritePrivateProfileStringA("Maps","BoundaryColor","Teal",file)!=0);
+        require(WritePrivateProfileStringA("Maps","BoundaryColor","Magenta",file)!=0);
         require(WritePrivateProfileStringA("Campaign","WallColor",alias.first,file)!=0);
         const auto before=bytes();loadAppearanceSettings(file);
-        require(mapsColors.boundary==BoundaryColor::Teal && mapsColors.wall==alias.second);
+        require(mapsColors.boundary==BoundaryColor::Magenta && mapsColors.wall==alias.second);
         require(campaignColors.boundary==alias.second && campaignColors.wall==alias.second);
         require(bytes()==before && overlayOpacity==100);
     }

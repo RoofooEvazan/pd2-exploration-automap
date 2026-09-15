@@ -1,6 +1,6 @@
 static void testAppearanceDefaults() {
     using namespace exploration;
-    checkContext="seven-color defaults and retired opacity settings";
+    checkContext="six-color defaults and retired opacity settings";
     char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"ead",0,file)!=0);
     const auto oldPath=settingsPath;loadAppearanceSettings(file);
     require(mapsStyle==MapStyle::Styled && campaignStyle==MapStyle::Hybrid);
@@ -17,11 +17,11 @@ static void testAppearanceDefaults() {
             require(overlayAlpha(255)==255 && overlayColor(0xffffffe0)==0xffffffe0);
         }
     }
-    for(const char* retired:{"vermilion","orange","amber","chartreuse","blue","violet","purple"}) {
+    for(const char* retired:{"vermilion","orange","amber","chartreuse","blue","violet","purple","teal"}) {
         for(auto fallback:{BoundaryColor::Cyan,BoundaryColor::White})require(parseBoundaryColor(retired,fallback)==fallback);
         for(const auto& preset:boundaryPresets)require(!colorKeyMatches(retired,preset.key));
     }
     require(parseWaterColor("light-blue")==BoundaryColor::Cyan);
     require(DeleteFileA(file)!=0);settingsPath=oldPath;
-    std::cout<<"PASS: seven-color defaults, independent styles and ignored legacy opacity settings\n";
+    std::cout<<"PASS: six-color defaults, independent styles and ignored legacy opacity settings\n";
 }

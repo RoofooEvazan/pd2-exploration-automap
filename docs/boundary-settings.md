@@ -6,14 +6,13 @@ Boundary, wall and water colors are independent. Reveal distance is fixed at **3
 
 Independent **Boundary Color**, **Wall Color** and **Water Color** list pickers are available under **Options → Automap Options → Maps Styling** or **Campaign Styling**. Open the automap once in an offline game to initialize the extension. Click a color row, then click a named color or use Up/Down and Enter. The current color is marked **(Selected)**. Choosing a color saves it immediately and returns to its Styling submenu. **Back** or **Escape** returns without changing it. If saving fails, the picker stays open and the previous color remains active.
 
-All three lists offer the seven colors below. Each styling group saves its own `BoundaryColor`, `WallColor` and `WaterColor`; omitted keys inherit legacy preferences or default to Cyan, White and White respectively. [Stylization](map-styles.md) selects Original, Native, Hybrid or Styled independently for each group. Labels and values use native formatting, with larger headings in the color lists.
+All three lists offer the six colors below. Each styling group saves its own `BoundaryColor`, `WallColor` and `WaterColor`; omitted keys inherit legacy preferences or default to Cyan, White and White respectively. [Stylization](map-styles.md) selects Original, Native, Hybrid or Styled independently for each group. Labels and values use native formatting, with larger headings in the color lists.
 
 | Color | INI value | Base RGB |
 | --- | --- | --- |
 | Red | `red` | `#FF0000` |
 | Yellow | `yellow` | `#FFFF00` |
 | Green | `green` | `#00FF00` |
-| Teal | `teal` | `#008080` |
 | Cyan | `cyan` | `#00FFFF` |
 | Magenta | `magenta` | `#FF00FF` |
 | White | `white` | `#FFFFFF` |
@@ -37,7 +36,7 @@ Older INIs load without being rewritten. Color names are case-insensitive, and t
 | `pale-yellow`, `pale-lemon` | Yellow |
 | `gray`, `grey` | White |
 
-Vermilion, Orange, Amber, Chartreuse, Blue, Violet, Purple and Pale Peach are no longer supported choices. Invalid or missing group colors inherit a supported legacy `[Automap]` value; otherwise boundaries default to Cyan, and walls and water default to White. Light Blue is removed from the water list; an existing `light-blue` preference resolves to Cyan.
+Vermilion, Orange, Amber, Chartreuse, Blue, Violet, Purple, Teal and Pale Peach are no longer supported choices. Invalid or missing group colors inherit a supported legacy `[Automap]` value; otherwise boundaries default to Cyan, and walls and water default to White. Light Blue is removed from the water list; an existing `light-blue` preference resolves to Cyan.
 
 ## Boundary thickness
 
@@ -47,7 +46,7 @@ Older shared values under `[Automap]` supply the default until a group saves its
 
 ## Native Fade
 
-Use the existing **Fade** row in Automap Options to control fullscreen walls and water in all four styles. Original and Native retain the game's artwork fading. Hybrid and Styled apply the same modes to their custom walls, water edges, floor shading and exploration boundary:
+Use the existing **Fade** row in Automap Options to control fullscreen walls and water in all four styles. Original and Native retain the game's artwork fading. Hybrid and Styled apply the same modes to their custom walls, water edges and floor shading:
 
 | Fade | Fullscreen behavior |
 | --- | --- |
@@ -58,7 +57,7 @@ Use the existing **Fade** row in Automap Options to control fullscreen walls and
 
 Center follows the native logical screen dimensions and shifts with side panels. Custom geometry is split only where it crosses a fade band, without rebuilding exploration or terrain. No, Everything and Auto retain the existing geometry and submission count. Center uses four alpha groups with bounded scratch storage.
 
-The corner minimap keeps D2GL's fixed capture opacity. Protected icons retain their native behavior and the existing entrance emphasis; Original's white-wall dimming remains. There are no separate opacity controls in Maps Styling, Campaign Styling or the INI. Old `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed.
+Exploration boundaries keep their base opacity in every Fade mode. The corner minimap keeps D2GL's fixed capture opacity. Protected icons retain their native behavior and the existing entrance emphasis; Original's white-wall dimming remains. There are no separate opacity controls in Maps Styling, Campaign Styling or the INI. Old `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed.
 
 ## Fixed reveal distance
 
@@ -68,4 +67,4 @@ The fixed radius prevents settings-based expansion, but an open-source client ca
 
 ## Validation
 
-The runtime suite checks all seven RGB values and the Cyan/White defaults, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. Appearance-default checks verify the palette and styles and ensure retired opacity settings cannot change rendering. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.
+The runtime suite checks all six RGB values and the Cyan/White defaults, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. Appearance-default checks verify the palette and styles and ensure retired opacity settings cannot change rendering. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.

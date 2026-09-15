@@ -5,14 +5,13 @@
 #include <string_view>
 namespace exploration {
 enum class BoundaryColor : unsigned {
-    Red, Yellow, Green, Teal, Cyan, Magenta, White
+    Red, Yellow, Green, Cyan, Magenta, White
 };
 struct BoundaryPreset { const char* key;const wchar_t* label;unsigned r,g,b; };
-inline constexpr std::array<BoundaryPreset,7> boundaryPresets{{
+inline constexpr std::array<BoundaryPreset,6> boundaryPresets{{
     {"red",L"Red",0xff,0x00,0x00},
     {"yellow",L"Yellow",0xff,0xff,0x00},
     {"green",L"Green",0x00,0xff,0x00},
-    {"teal",L"Teal",0x00,0x80,0x80},
     {"cyan",L"Cyan",0x00,0xff,0xff},
     {"magenta",L"Magenta",0xff,0x00,0xff},
     {"white",L"White",0xff,0xff,0xff}

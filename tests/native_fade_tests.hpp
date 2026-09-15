@@ -61,8 +61,9 @@ static void testNativeFade() {
     for(unsigned animation=0;animation<20;++animation){unit[0x18]=BYTE(animation);sampleNativeFade();
         require(nativeFade.alpha({})==((animation==0 || animation==2)?192u:255u));
     }
-    for(unsigned mode=0;mode<4;++mode){put(memory,0x11c208,mode);put(memory,0x11c8b8,DWORD(0));sampleNativeFade();require(nativeFade.mode==0);
-        put(memory,0x11c8b8,DWORD(1));put(memory,0x11c1b0,DWORD(1));sampleNativeFade();require(nativeFade.mode==0);put(memory,0x11c1b0,DWORD(0));
+    for(unsigned mode=0;mode<4;++mode)for(DWORD visible:{0u,1u}) {
+        put(memory,0x11c208,mode);put(memory,0x11c8b8,visible);sampleNativeFade();require(nativeFade.mode==mode);
+        put(memory,0x11c1b0,DWORD(1));sampleNativeFade();require(nativeFade.mode==0);put(memory,0x11c1b0,DWORD(0));
     }
     put(memory,0x11c208,DWORD(9));sampleNativeFade();require(nativeFade.mode==0);
     put(memory,0x11c208,DWORD(1));put(memory,0xf9e14,0);sampleNativeFade();require(nativeFade.mode==0);
@@ -83,6 +84,29 @@ static void testNativeFade() {
             require(batchColor==styledRestoreColor && appearancePositions.size()==8);
         }
     }
-    nativeFade={};styledBatch=nullptr;client=oldClient;
-    std::cout<<"PASS: native Fade No/Center/Everything/Auto, exact center coverage, bounded batching, view guards, panel offsets, Auto movement and wall/water alpha restoration\n";
+    checkContext="PD2 fullscreen with automap_on cleared fades terrain but never boundary batches";
+    client=memory.data();nativeFadeBound=true;styledBatch=nullptr;
+    put(memory,0x11c8b8,DWORD(0));put(memory,0x11c1b0,DWORD(0));
+    put(memory,0xf9e14,800);put(memory,0xf9e18,600);put(memory,0x11c414,0);unit[0x18]=0;
+    for(unsigned mode=0;mode<4;++mode)for(bool boundary:{false,true}) {
+        put(memory,0x11c208,mode);sampleNativeFade();
+        for(DWORD color:{0xffffffe0u,0x00ffffe0u,0x56606438u,0x00ffffafu}) {
+            appearanceColors.clear();appearancePositions.clear();
+            submitStyledVertices(pointers,color,{0,0,800,600},boundary);
+            const unsigned alpha=boundary?255:mode==1?64:mode==2?128:mode==3?192:255;
+            require(appearanceColors==std::vector<DWORD>{(color&0xffffff00u)|NativeFade::scale(color&255,alpha)});
+            require(appearancePositions==std::vector<float>({380,280,420,280,420,300,380,300}));
+            require(batchColor==(0x84848400u|(color&255)) && !styledBatch && !styledBatchBoundary);
+        }
+    }
+    checkContext="fractional boundary accents ignore every Fade mode";
+    originalFloatLine=captureAppearanceLine;
+    for(unsigned mode=0;mode<4;++mode) {
+        nativeFade={mode,true,{400,290}};appearanceColors.clear();appearancePositions.clear();
+        drawFrontier({380,290},{420,290},0x00ffffff);
+        require(appearanceColors==std::vector<DWORD>{0x00ffffff} && appearancePositions==std::vector<float>({380,290,420,290}));
+        require(!fractionalFrontier && batchColor==0x848484ff);
+    }
+    nativeFade={};nativeFadeBound=false;styledBatch=nullptr;client=oldClient;
+    std::cout<<"PASS: native Fade modes, center coverage, bounded batching, PD2 fullscreen with cleared visibility flag, native small-map bypass, terrain alpha restoration and unfaded boundaries\n";
 }

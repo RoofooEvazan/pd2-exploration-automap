@@ -34,7 +34,7 @@ The metadata cache stays below 1 MiB, including scratch space. Keys include sour
 
 ## Fullscreen Fade
 
-Native Fade is sampled once per automap pass. No, Everything and Auto apply an alpha multiplier without adding geometry or submissions. Center splits only geometry crossing its fade bands and groups it into four alpha batches, with at most 16,384 scratch vertices per group before flushing. Cached terrain stays unchanged. The corner minimap bypasses this processing.
+Native Fade is sampled once per automap pass. PD2 can render fullscreen with the legacy visibility flag cleared, so this flag does not gate the sample. Boundary batches bypass Fade. No, Everything and Auto apply an alpha multiplier without adding geometry or submissions. Center splits only geometry crossing its fade bands and groups it into four alpha batches, with at most 16,384 scratch vertices per group before flushing. Cached terrain stays unchanged. Native small maps bypass this processing; D2GL's corner capture retains its fixed opacity.
 
 Center can add clipping and draw work; the component measurements below predate this path and do not measure its gameplay cost.
 

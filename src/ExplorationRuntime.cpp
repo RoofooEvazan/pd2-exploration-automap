@@ -88,6 +88,7 @@ static DWORD brighterPaletteColor(DWORD color) {
 }
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
+static bool styledBatchBoundary=false;
 static unsigned overlayOpacity=100;
 static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Cyan;
 static exploration::BoundaryColor wallColor=exploration::BoundaryColor::White;
@@ -160,7 +161,9 @@ static bool bindNativeFade(unsigned char* module) {
 static void sampleNativeFade() {
     nativeFade={};
     __try {
-        if(!nativeFadeBound || !client || read<DWORD>(client,0x11c8b8)!=1 || read<DWORD>(client,0x11c1b0)!=0)return;
+        // PD2 can draw fullscreen with automap_on cleared. D2GL owns visibility
+        // and overrides alpha for its corner capture; only skip native small maps.
+        if(!nativeFadeBound || !client || read<DWORD>(client,0x11c1b0)!=0)return;
         const unsigned mode=read<DWORD>(client,0x11c208);
         if(mode>3)return;
         exploration::NativeFade value;value.mode=mode;
@@ -1113,20 +1116,17 @@ static void submitLine(Point start,Point end) {
     InterlockedIncrement(&fractionalCount);
 }
 static void submitFractionalLine() {
-    auto submit=[&](Point a,Point b){
-        if(!fractionalTint || !styledColor){submitLine(a,b);return;}
-        const DWORD color=overlayColor(fractionalTint);
-        nativeFade.line(a,b,[&](Point start,Point end,unsigned fade){
-            styledColor((color&0xffffff00u)|exploration::NativeFade::scale(color&255,fade));submitLine(start,end);
-        });
-    };
-    if(frontierBatch)for(const auto& line:*frontierBatch)submit(line.first,line.second);
-    else submit(frontierA,frontierB);
+    if(fractionalTint && styledColor)styledColor(overlayColor(fractionalTint));
+    if(frontierBatch)for(const auto& line:*frontierBatch)submitLine(line.first,line.second);
+    else submitLine(frontierA,frontierB);
     if(fractionalTint && styledColor)styledColor(0x84848400u|overlayAlpha(255));
 }
 static void submitStyledBatch() {
     const DWORD color=overlayColor(styledBatchColor);
     struct Restore {~Restore(){styledColor(styledRestoreColor);}} restore;
+    if(styledBatchBoundary) {
+        styledColor(color);styledArray(5,DWORD(styledBatch->size()),styledBatch->data());return;
+    }
     if(nativeFade.mode!=1 || styledBatch->size()%4) {
         styledColor((color&0xffffff00u)|exploration::NativeFade::scale(color&255,nativeFade.alpha({})));
         styledArray(5,DWORD(styledBatch->size()),styledBatch->data());return;
@@ -1162,6 +1162,11 @@ static void __stdcall floatPointHook(const void* a) {
     if(styledBatch) {
         submitStyledBatch();
     } else if(fractionalFrontier)submitFractionalLine();else originalFloatPoint(a);
+}
+static void submitStyledVertices(const std::vector<const void*>& pointers,DWORD color,Rect viewport,bool boundary=false) {
+    struct Reset {~Reset(){styledBatch=nullptr;styledBatchBoundary=false;}} reset;
+    styledBatch=&pointers;styledBatchColor=color;styledRestoreColor=0x84848400u|(color&255);styledBatchBoundary=boundary;
+    originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,color&255);
 }
 static void drawFrontier(Point a,Point b,DWORD tint=0) {
     frontierA=a;frontierB=b;fractionalFrontier=true;fractionalTint=tint;
@@ -1223,9 +1228,7 @@ static void drawHybridWalls(const Transform& t,Rect viewport) {
     auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
         if(vertices.empty())return;pointers.clear();
         for(const auto& vertex:vertices)pointers.push_back(&vertex);
-        styledBatchColor=color;styledRestoreColor=0x84848400u|(color&255);styledBatch=&pointers;
-        originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,color&255);
-        styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
+        submitStyledVertices(pointers,color,viewport);styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     };
     submit(casing,0x181818c0);submit(core,exploration::wallRGBA(wallColor,224));submit(waterVertices,waterEdgeColor);
 }
@@ -1251,12 +1254,9 @@ static void drawStyled(const Transform& t,Rect viewport) {
         }
         if(vertices.empty())continue;
         for(const auto& vertex:vertices)pointers.push_back(&vertex);
-        styledBatchColor=red?exploration::boundaryRGBA(boundaryColor,layer.gray,layer.alpha):
+        const DWORD color=red?exploration::boundaryRGBA(boundaryColor,layer.gray,layer.alpha):
             (layer.gray*0x01010100u)|layer.alpha;
-        styledRestoreColor=0x84848400u|layer.alpha;
-        styledBatch=&pointers;
-        originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,layer.alpha);
-        styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
+        submitStyledVertices(pointers,color,viewport,red!=0);styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
     }
     if(activeStyle==MapStyle::Hybrid){
         // Sewer wall faces and floor-edge contours are offset from one another.
@@ -1357,9 +1357,7 @@ static void drawEntryFrontier(const Transform& t,Rect viewport) {
     });
     if(vertices.empty())return;
     for(const auto& v:vertices)pointers.push_back(&v);
-    styledBatch=&pointers;styledBatchColor=exploration::boundaryRGBA(boundaryColor,100,175);styledRestoreColor=0x848484af;
-    originalLine(viewport.left,viewport.top,viewport.left+1,viewport.top,frontierColor,175);
-    styledBatch=nullptr;
+    submitStyledVertices(pointers,exploration::boundaryRGBA(boundaryColor,100,175),viewport,true);
 }
 static void endPass() {
     InterlockedIncrement(&endCount);
@@ -1378,9 +1376,7 @@ static void endPass() {
             static std::vector<const void*> pointers;
             auto submit=[&](const std::vector<GlideVertex>& vertices,DWORD color){
                 if(vertices.empty())return;pointers.clear();for(const auto& vertex:vertices)pointers.push_back(&vertex);
-                styledBatch=&pointers;styledBatchColor=color;styledRestoreColor=0x84848400u|(color&255);
-                originalLine(passViewport.left,passViewport.top,passViewport.left+1,passViewport.top,frontierColor,color&255);
-                styledBatch=nullptr;styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
+                submitStyledVertices(pointers,color,passViewport);styledQuadCount+=static_cast<unsigned long>(vertices.size()/4);
             };
             submit(sewerWaterFill,0x56606438);submit(sewerCasing,0x181818c0);
             submit(sewerCore,exploration::wallRGBA(wallColor,224));

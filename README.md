@@ -86,7 +86,7 @@ The plugin reads tables automatically from the installed game's archives or acti
 
 **Boundary Color**, **Wall Color** and **Water Color** open separate lists in each Styling submenu. Select a color by mouse or with Up/Down and Enter. Changes save immediately; Back or Escape cancels.
 
-All three color lists offer Red, Yellow, Green, Teal, Cyan (`#00FFFF`), Magenta and White. Boundaries default to Cyan; walls and water edges default to White. Wall Color affects custom contours, and Water Color affects recognized Hybrid water and bank edges. Native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
+All three color lists offer Red, Yellow, Green, Cyan (`#00FFFF`), Magenta and White. Boundaries default to Cyan; walls and water edges default to White. Wall Color affects custom contours, and Water Color affects recognized Hybrid water and bank edges. Native artwork and icons keep their colors. [Color values and menu compatibility](docs/boundary-settings.md) are documented separately.
 
 Poisoned Well can supply water references in its custom automap definitions. With those definitions active, Original and Native show dull-green water edges (`#708860`). No custom game definitions are included in the release. Hybrid uses the selected Water Color for shore contours; Styled omits the water artwork. The extra translucent green fill is disabled to reduce drawing cost.
 
@@ -110,7 +110,7 @@ BoundaryThickness=1.0
 
 **Boundary Thickness** cycles through 0.5, 1.0, 1.5 and 2.0 in each Styling submenu, saving to that group’s `BoundaryThickness` key. The default is 1.0; older shared INI values are inherited until a group chooses its own. It does not alter the fixed reveal radius or wall width.
 
-The existing **Fade** option controls fullscreen walls and water in Original, Native, Hybrid and Styled. Custom contours, floors and boundaries follow the same No, Center, Everything and Auto modes. The corner minimap retains D2GL's fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed. Manual INI edits require a restart; menu changes do not.
+The existing **Fade** option controls fullscreen walls and water in Original, Native, Hybrid and Styled. Custom contours and floors follow the same No, Center, Everything and Auto modes. Boundaries retain their base opacity in every Fade mode. The corner minimap retains D2GL's fixed capture opacity. Legacy `StylizationOpacity` and `OverlayOpacity` keys are ignored and can be removed. Manual INI edits require a restart; menu changes do not.
 
 Recognized entrance/exit symbols and cave/stair artwork receive **75% more alpha**, capped at full opacity. Already-solid artwork and the fixed-alpha corner view use a brightness boost instead. See [entrance visibility](docs/entrance-visibility.md) for classification and renderer limits.
 
