@@ -6,8 +6,8 @@ Runtime hooks, data ownership and cache limits for the tested binary set. The [s
 
 ```text
 automap begin
-  -> read player/session state; update exploration history
-  -> Original: leave game rendering unchanged
+  -> read player/session state; update exploration history and sample native Fade
+  -> Original: retain native artwork/discovery, with neutral white fullscreen walls dimmed
   -> Native: clip original artwork and draw the exploration boundary
   -> Native/Hybrid/Styled: capture loaded collision data; submit worker snapshot
 
@@ -37,9 +37,9 @@ Town bounds come from guarded level reads, are converted from DRLG tiles to worl
 
 The render thread reads only already-loaded room collision grids, copying them into owned immutable room records. Static wall (`0x0001`) and blank (`0x0020`) flags exclude cells from floor shading. Transient actor/item/object flags do not turn floor into holes. Connectivity selects components reached by the player, limiting isolated collision artifacts.
 
-Act 1 outdoor room captures also read ground tile library names from the supported 1.13c layout: the floor list is at `room+8`, and D2CMP stores the filename pointer at `tileEntry+0x58`. A bank-material mask follows the owned collision snapshot; the worker uses it to split contour colors without adding geometry or discovery. Each room scan is capped at 16,384 floor tiles. The library lookup still needs live confirmation on raised grassy banks.
+Act 1 outdoor room captures also read ground tile library names from the supported 1.13c layout: the floor list is at `room+8`, and D2CMP stores the filename pointer at `tileEntry+0x58`. A bank-material mask follows the owned collision snapshot; the worker uses it to split contour colors without adding geometry or discovery. Each room scan is capped at 16,384 floor tiles.
 
-The worker combines connected floor with the explored region. Seven shade layers form the reveal band. Open floor beyond the mask seeds the colored frontier; a boundary against known walls does not. Colors are selected at draw time. Wall strokes use the configured core RGB and a dark casing; source brightness also matters in D2GL's fixed-opacity minimap. The edge uses layered geometry, not a continuous blur.
+The worker combines connected floor with the explored region. Seven shade layers form the reveal band. Open floor beyond the mask seeds the colored frontier; a boundary against known walls does not. Colors and native fullscreen Fade are applied at draw time. Wall strokes use the configured core RGB and a dark casing; source brightness also matters in D2GL's fixed-opacity minimap. The edge uses layered geometry, not a continuous blur.
 
 `StyledChunks.hpp` caches 64-by-64 fine-cell regions (16-by-16 world subtiles). Snapshot differences invalidate affected regions with filter padding sized to the boundary width (14 fine cells at the default, up to 26). Half-open ownership prevents repeated shade and wall coverage at cache boundaries. Adjacent matching quads are compacted before publication. Projection quickly accepts contained quads, rejects off-screen quads, and clips only viewport crossings.
 

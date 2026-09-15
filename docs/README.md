@@ -5,7 +5,7 @@ Start with the [installation instructions](../README.md#install-and-run).
 | Guide | Contents |
 | --- | --- |
 | [Map styles](map-styles.md) | Independent campaign/map settings, four styles, transitions and legacy preferences. |
-| [Colors and reveal distance](boundary-settings.md) | Color lists, RGB values, boundary thickness and the fixed radius. |
+| [Appearance settings](boundary-settings.md) | Colors, boundary thickness, native Fade and the fixed reveal radius. |
 | [Entrance visibility](entrance-visibility.md) | Entrance emphasis, classification and renderer limits. |
 | [Shrine and event icons](map-markers.md) | Native symbols, loaded-unit fallback and duplicate suppression. |
 | [Campaign terrain](campaign-prototype.md) | Hybrid walls, sewer channels, towns and connected areas. |

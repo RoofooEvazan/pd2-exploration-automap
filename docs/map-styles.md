@@ -15,21 +15,7 @@ Towns retain native drawing without exploration clipping. Their outdoor preview 
 
 Maps default to Styled; Campaign defaults to Hybrid. Both use Cyan boundaries, White walls and water, 1.0 boundary thickness. Fullscreen opacity follows the existing Fade option.
 
-```ini
-[Maps]
-Style=styled
-BoundaryColor=cyan
-WallColor=white
-WaterColor=white
-BoundaryThickness=1.0
-
-[Campaign]
-Style=hybrid
-BoundaryColor=cyan
-WallColor=white
-WaterColor=white
-BoundaryThickness=1.0
-```
+See the [default INI](../ExplorationMask.ini) and [appearance settings](boundary-settings.md) for color values, thickness and Fade behavior.
 
 `BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
 

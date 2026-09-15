@@ -32,6 +32,12 @@ Some native water/detail sprites have large transparent margins. `ArtworkBounds.
 
 The metadata cache stays below 1 MiB, including scratch space. Keys include source file/frame identity, index, dimensions and encoded length; area/session changes invalidate it. The supported profile treats DC6 frames as immutable. Invalid metadata, failed reads or unsupported encoding use the original clipping path. Texture preparation and UVs remain native.
 
+## Fullscreen Fade
+
+Native Fade is sampled once per automap pass. No, Everything and Auto apply an alpha multiplier without adding geometry or submissions. Center splits only geometry crossing its fade bands and groups it into four alpha batches, with at most 16,384 scratch vertices per group before flushing. Cached terrain stays unchanged. The corner minimap bypasses this processing.
+
+Center can add clipping and draw work; the component measurements below predate this path and do not measure its gameplay cost.
+
 ## Beta.9 component measurements
 
 The final wall-stroke change reduced median CPU time from **2.7092 to 1.0981 ms** at automap divisor 10, and **2.6747 to 1.0051 ms** at divisor 20. The fixture contains 3,200 strokes in a panning 1280×720 viewport, with 400 passes including 40 warmup passes. It measures wall preparation, clipping and batching through mocked native/Glide callbacks.
