@@ -2,8 +2,8 @@
   "description": "Fingerprints of the tested Windows x86 PD2/D2GL files and plugin, with activation and loader settings.",
   "activationArgument": "-exploration-test",
   "architecture": "x86",
-  "testedModuleSha256": "579177395640399cd0aff7775a4045cdd16884797ff2e235f1c40d511a73ca35",
-  "validation": "All three Win32 Release suites passed standalone and with installed artwork/table/archive fixtures. Coverage includes all four native Fade modes, fullscreen wall/water alpha, center-band clipping, side-panel offsets, minimap bypass, seven-color defaults, independent settings and ignored legacy opacity keys. The local build was accepted for publication after offline testing; broad version coverage and sustained game performance remain under test.",
+  "testedModuleSha256": "1790aa8872eeb0e0f936ad7b2615fb779f5c1b460650dc670192e3effc562ff9",
+  "validation": "All three clean Win32 Release suites passed standalone and with installed artwork/table/archive fixtures. Coverage includes native Fade modes, PD2 fullscreen with its legacy visibility flag cleared, wall/water alpha, unfaded boundaries, center-band clipping, six-color defaults, independent settings and ignored legacy opacity keys. The packaged DLL is the build confirmed offline and approved for version 1.0. Online support, broad version coverage and sustained game performance are not established.",
   "engineSha256": {
     "D2Client.dll": "dd8bc6025de921216a97c17f97cd1a50fbb85926e838ec60e13451448836d906",
     "D2gfx.dll": "50284647a28e8839028e8acb021a6ebe48c006e431139969ccd0fe126e6e8811",
@@ -16,8 +16,8 @@
   },
   "loaderEntry": "ExplorationMask.dll:cdecl:InitExplorationMask",
   "profile": "Tested PD2/D2GL binary set",
-  "release": "v0.2.0-beta.10",
-  "status": "BETA",
+  "release": "v1.0.0",
+  "status": "RELEASE",
   "developmentTableFixturesSha256": {
     "data/global/excel/automap.txt": "40cfbb6bc46ffb515776633feb54922f7a1bddc98c0f2f82f50cd6fb19a94b41",
     "data/global/excel/Objects.txt": "6d9c44306e9c8f428892b474b082c5abf1e09bcf1fdd471ea7c8e70e9f6c349f",

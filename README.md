@@ -1,8 +1,8 @@
-# PD2 Exploration Automap — BETA
+# PD2 Exploration Automap 1.0
 
 An exploration automap for Project Diablo 2, with shaded floors, wall contours and a colored boundary around explored terrain. Campaign and endgame maps have separate styles, colors and boundary thickness settings.
 
-**[Download v0.2.0-beta.10 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v0.2.0-beta.10)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
+**[Download v1.0.0 — Windows x86](https://github.com/RoofooEvazan/pd2-exploration-automap/releases/tag/v1.0.0)** · [Settings](#appearance-settings) · [Screenshots](docs/screenshots/) · [Build from source](#build-from-source)
 
 This is an unofficial plugin for the [tested PD2/D2GL binary set](compatibility.json). Testing has been offline; online compatibility and broad version support are not established. Only the plugin DLL is distributed; game and renderer files come from your installation.
 

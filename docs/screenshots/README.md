@@ -54,7 +54,7 @@ Explored sewer terrain and an open green frontier.
 <details>
 <summary>Earlier Automap Options menu</summary>
 
-The former five-color cycling row. Beta.7 has Map Style and separate color lists.
+The former five-color cycling row. Current releases have separate Maps Styling and Campaign Styling submenus with color lists.
 
 ![Earlier Automap Options menu](automap-options-boundary-color.png)
 

@@ -57,4 +57,4 @@ map, activate the shrine/event, and walk away and back. Confirm the native icon,
 placement, visibility and FPS. `ExplorationMask.log` includes marker-definition
 counts and `MARKERS sampled=... added=... alreadyNative=...` diagnostics.
 
-An offline beta.6 check confirmed shrine/event display. Its log accepted 95 object definitions and seven event actor definitions, with both fallback submissions and native duplicate skips. Counts depend on the active tables. Beta.7 retains this path, with regression coverage for style switching and icon preservation.
+An offline beta.6 check confirmed shrine/event display. Its log accepted 95 object definitions and seven event actor definitions, with both fallback submissions and native duplicate skips. Counts depend on the active tables. The current release retains this path, with regression coverage for style switching and icon preservation.

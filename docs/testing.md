@@ -16,7 +16,7 @@ The default suites use synthetic data and mocked game/renderer calls. They need 
 | `styled_tests` | Floor connectivity, exact shade coverage, open-edge classification, viewport clipping, incremental/full-build equivalence, prepared coordinates, wall joins, worker coalescing and session isolation. |
 | `runtime_tests` | Native quad coverage and UVs, fractional lines, state restoration, failure cleanup, terrain classification, town/exploration unions, shared campaign layers, bounded table reads and fallback paths. |
 | `map_style_tests.hpp` | Original bypass, Styled terrain suppression and navigation retention, both zooms, style cycling, persistence, legacy precedence, failed saves and retained history/caches. |
-| `boundary_menu_tests.hpp` | Seven RGB presets, independent color/thickness persistence, stationary thickness updates, Back/Escape, label alignment, heading fonts, resource ownership and menu signature guards. |
+| `boundary_menu_tests.hpp` | Six RGB presets, independent color/thickness persistence, stationary thickness updates, Back/Escape, label alignment, heading fonts, resource ownership and menu signature guards. |
 | `appearance_defaults_tests.hpp` | Six-color defaults, independent map styles and ignored legacy opacity settings. |
 | `native_fade_tests.hpp` | Native Fade modes, center-band coverage without overlaps, panel offsets, Auto animation, guarded reads, PD2 fullscreen with the legacy visibility flag cleared, native small-map bypass, wall/water alpha restoration and unfaded boundaries. |
 | `area_entry_tests.hpp` | Neighbor capture, retained contours, unfinished-terrain fallback and layer isolation. |
