@@ -100,7 +100,7 @@ static void testGroundBanks() {
         ++gameSerial;waterTint.select(gameSerial,lastLevelKey,divisor);riverTint.select(gameSerial,lastLevelKey,divisor);
         const Transform t{double(divisor),-200,80};
         for(auto style:{MapStyle::Hybrid,MapStyle::Styled}) {
-            activeStyle=style;wallColor=exploration::BoundaryColor::Orange;
+            activeStyle=style;wallColor=exploration::BoundaryColor::Magenta;
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,500,500});
             std::vector<DWORD> colors{overlayColor(0x181818c0),overlayColor(exploration::wallRGBA(wallColor,224))};
             if(style==MapStyle::Hybrid)colors.push_back(overlayColor(waterEdgeColor));

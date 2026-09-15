@@ -14,10 +14,9 @@ static void testBoundaryMenu() {
     checkContext="boundary presets, native menu guards, persistence and draw-time changes";
     using namespace exploration;
     namespace ui=exploration::boundary_menu;
-    const DWORD rgb[]={0xff0000,0xe34239,0xffa500,0xffbf00,0xffff00,0x7fff00,0x00ff00,
-        0x008080,0x0000ff,0x7f00ff,0x800080,0xff00ff,0xffffff};
+    const DWORD rgb[]={0xff0000,0xffff00,0x00ff00,0x008080,0x00ffff,0xff00ff,0xffffff};
     static_assert(std::size(rgb)==boundaryPresets.size(),"palette coverage");
-    require(parseBoundaryColor("MAGENTA")==BoundaryColor::Magenta && parseBoundaryColor("invalid")==BoundaryColor::Red);
+    require(parseBoundaryColor("MAGENTA")==BoundaryColor::Magenta && parseBoundaryColor("invalid")==BoundaryColor::Cyan);
     require(parseBoundaryColor("",BoundaryColor::White)==BoundaryColor::White);
     for(unsigned i=0;i<std::size(rgb);++i) {
         const auto color=static_cast<BoundaryColor>(i);
@@ -27,21 +26,21 @@ static void testBoundaryMenu() {
         for(unsigned shade:{14u,23u,38u,52u,65u,96u,116u})require((boundaryRGBA(color,shade,70)&255)==70);
     }
     require(wallRGBA(BoundaryColor::White,255)==0xffffffff);
-    require(parseWaterColor("LIGHT-BLUE")==BoundaryColor::LightBlue && waterRGBA(BoundaryColor::LightBlue,224)==0x50a5dce0);
-    require(parseWaterColor("invalid")==BoundaryColor::LightBlue && parseWaterColor("",BoundaryColor::Teal)==BoundaryColor::Teal);
+    require(parseWaterColor("LIGHT-BLUE")==BoundaryColor::Cyan && waterRGBA(BoundaryColor::Cyan,224)==0x00ffffe0);
+    require(parseWaterColor("invalid")==BoundaryColor::Cyan && parseWaterColor("",BoundaryColor::Teal)==BoundaryColor::Teal);
     checkContext="independent styling groups and nested color menus";
     const auto oldPath=settingsPath;const auto oldColor=boundaryColor;const auto oldWall=wallColor;
     const auto oldOpacity=overlayOpacity;const auto oldCampaign=campaignStyle,oldMaps=mapsStyle;
     const auto oldCampaignColors=campaignColors,oldMapsColors=mapsColors;const auto oldWater=waterColor;const auto oldWaterEdge=waterEdgeColor;
     char temp[MAX_PATH]{},file[MAX_PATH]{};require(GetTempPathA(MAX_PATH,temp)>0 && GetTempFileNameA(temp,"ebc",0,file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","63",file)!=0);loadAppearanceSettings(file);
-    for(auto colors:{mapsColors,campaignColors})require(colors.boundary==BoundaryColor::Red && colors.wall==BoundaryColor::White && colors.water==BoundaryColor::LightBlue);
+    for(auto colors:{mapsColors,campaignColors})require(colors.boundary==BoundaryColor::Cyan && colors.wall==BoundaryColor::White && colors.water==BoundaryColor::White);
     checkContext="legacy color names resolve without rewriting preferences";
     const std::pair<const char*,BoundaryColor> aliases[]={
         {"NEON-GREEN",BoundaryColor::Green},{"pale-green",BoundaryColor::Green},
-        {"CyAn",BoundaryColor::Teal},{"light-blue",BoundaryColor::Blue},{"pale-blue",BoundaryColor::Blue},
+        {"CyAn",BoundaryColor::Cyan},{"light-blue",BoundaryColor::Cyan},{"pale-blue",BoundaryColor::Cyan},
         {"pale-yellow",BoundaryColor::Yellow},{"pale-lemon",BoundaryColor::Yellow},
-        {"pale-peach",BoundaryColor::Orange},{"gray",BoundaryColor::White},{"grey",BoundaryColor::White}
+        {"gray",BoundaryColor::White},{"grey",BoundaryColor::White}
     };
     auto bytes=[&](){std::ifstream input(file,std::ios::binary);require(bool(input));
         return std::string((std::istreambuf_iterator<char>(input)),{});};
@@ -49,12 +48,12 @@ static void testBoundaryMenu() {
         require(parseBoundaryColor(alias.first)==alias.second);
         require(WritePrivateProfileStringA("Automap","BoundaryColor",alias.first,file)!=0);
         require(WritePrivateProfileStringA("Automap","WallColor",alias.first,file)!=0);
-        require(WritePrivateProfileStringA("Maps","BoundaryColor","Vermilion",file)!=0);
+        require(WritePrivateProfileStringA("Maps","BoundaryColor","Teal",file)!=0);
         require(WritePrivateProfileStringA("Campaign","WallColor",alias.first,file)!=0);
         const auto before=bytes();loadAppearanceSettings(file);
-        require(mapsColors.boundary==BoundaryColor::Vermilion && mapsColors.wall==alias.second);
+        require(mapsColors.boundary==BoundaryColor::Teal && mapsColors.wall==alias.second);
         require(campaignColors.boundary==alias.second && campaignColors.wall==alias.second);
-        require(bytes()==before && overlayOpacity==63);
+        require(bytes()==before && overlayOpacity==100);
     }
     require(WritePrivateProfileStringA("Automap","BoundaryColor",nullptr,file)!=0);
     require(WritePrivateProfileStringA("Automap","WallColor",nullptr,file)!=0);
@@ -89,7 +88,7 @@ static void testBoundaryMenu() {
         auto& group=ui::entries[maps?ui::mapsRow:ui::campaignRow];require(group.press(&group,nullptr));
         require(ui::editingMaps==maps && active==ui::stylingEntries.data() && last==ui::stylingBackRow);
         for(auto target:{ui::ColorTarget::Boundary,ui::ColorTarget::Wall,ui::ColorTarget::Water})
-        for(unsigned i=0;i<boundaryPresets.size()+(target==ui::ColorTarget::Water?1:0);++i) {
+        for(unsigned i=0;i<boundaryPresets.size();++i) {
             const auto other=maps?campaignColors:mapsColors;const auto untouched=editingColors();
             const bool walls=target==ui::ColorTarget::Wall,water=target==ui::ColorTarget::Water;
             const auto rowIndex=water?ui::waterRow:walls?ui::wallRow:ui::boundaryRow;
@@ -117,7 +116,7 @@ static void testBoundaryMenu() {
             require(menuTextCalls.size()==2 && menuTextCalls[0].x==170 && menuTextCalls[1].x+int(menuTextCalls[1].text.size()*10)==630);
             require(menuTextCalls[0].font==2 && menuTextCalls[1].font==2 && menuFont==1);
             const auto before=editingColors();loadAppearanceSettings(file);
-            require(editingColors().boundary==before.boundary && editingColors().wall==before.wall && editingColors().water==before.water && overlayOpacity==63);
+            require(editingColors().boundary==before.boundary && editingColors().wall==before.wall && editingColors().water==before.water && overlayOpacity==100);
         }
         require(ui::openPicker(ui::ColorTarget::Wall));require(ui::pickerEntries[last].press(active,nullptr));
         require(active==ui::stylingEntries.data() && selected==ui::wallRow);
@@ -134,7 +133,6 @@ static void testBoundaryMenu() {
     }
     settingsPath=file;require(ui::back(active,nullptr));
     require(!selectBoundaryColor(static_cast<BoundaryColor>(99)) && !selectWallColor(static_cast<BoundaryColor>(99)) && !selectWaterColor(static_cast<BoundaryColor>(99)));
-    require(!selectBoundaryColor(BoundaryColor::LightBlue) && !selectWallColor(BoundaryColor::LightBlue));
     ui::drawRow(source[0].cell,400,40,1,5,-1);ui::drawRow(nullptr,400,1,1,5,-1);active=source.data();ui::drawRow(nullptr,400,1,1,5,-1);
     require(menuForwards==3);
     settingsPath=oldPath;boundaryColor=oldColor;wallColor=oldWall;require(DeleteFileA(file)!=0);
@@ -235,7 +233,7 @@ static void testPersonalizedDrawing() {
             appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,viewport);
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))}));
             require(appearancePositions==geometry && batchColor==0x848484e0 && !styledBatch);
-            // Sewer walls follow the selection; water edges keep light blue.
+            // Sewer walls and water use independent selected colors.
             // Neither setting changes the native fill or contrast casing.
             sewerCasing.assign(testQuad,testQuad+4);sewerCore=sewerCasing;sewerWaterFill=sewerCasing;sewerWater.clear();
             waterCore=sewerCasing;
@@ -243,7 +241,7 @@ static void testPersonalizedDrawing() {
             observedLevel=92;passViewport=viewport;markerArtworkFile=nullptr;
             appearanceColors.clear();appearancePositions.clear();endPass();
             require(appearanceColors==std::vector<DWORD>({overlayColor(0x56606438),overlayColor(0x181818c0),
-                overlayColor(wallRGBA(wallColor,224)),overlayColor(0x50a5dce0)}));
+                overlayColor(wallRGBA(wallColor,224)),overlayColor(waterEdgeColor)}));
             require(sewerCore.empty() && sewerCasing.empty() && sewerWaterFill.empty() && waterCore.empty());
             // Styled mode uses the same fractional contour casing and core.
             // Fallback line accents still preserve ordinary and collapsed strokes.

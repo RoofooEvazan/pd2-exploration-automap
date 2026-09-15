@@ -1,6 +1,6 @@
 # Map styles
 
-Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, **Water Color**, **Boundary Thickness**, and **Stylization**. Color rows open lists; Boundary Thickness and Stylization cycle through their choices. Choices apply immediately and save independently for each group, in both fullscreen and corner views.
+Open the automap once, then choose **Options → Automap Options → Maps Styling** or **Campaign Styling**. Each submenu has **Boundary Color**, **Wall Color**, **Water Color**, **Boundary Thickness**, **Stylization** and **Stylization Opacity**. Colors and opacity open lists; Boundary Thickness and Stylization cycle through their choices. Preferences apply immediately and save independently for each group. Opacity affects fullscreen only; the other settings apply to both views.
 
 | Choice | Appearance |
 | --- | --- |
@@ -9,30 +9,33 @@ Open the automap once, then choose **Options → Automap Options → Maps Stylin
 | Hybrid | Contours, shaded floors and a frontier alongside native water patterns, roads, landmarks and icons. |
 | Styled | Contour terrain and shaded floors, retaining recognized waypoints, shrines, events, portals, entrances, exits and stairs. |
 
-Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges follow Water Color, which defaults to Light Blue. Original dims neutral white fullscreen walls by 40%; colored pixels, protected icons and the corner minimap are unaffected. Native keeps the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
+Towns retain native drawing without exploration clipping. Their outdoor preview uses Campaign Styling. Wall Color affects Hybrid walls and Styled contours. Recognized Hybrid water/bank edges follow Water Color, which defaults to White. Original dims neutral white fullscreen walls by 40%; colored pixels, protected icons and the corner minimap are unaffected. Native keeps the game's wall colors. The entrance visibility boost applies to recognized artwork in Hybrid and Styled. No quest markers or exit arrows are added.
 
-## Saved preferences
+## Default preferences
+
+Maps default to Styled; Campaign defaults to Hybrid. Both use Cyan boundaries, White walls and water, 1.0 boundary thickness and 100% stylization opacity.
 
 ```ini
-[Automap]
-OverlayOpacity=80
-
 [Maps]
-Style=hybrid
-BoundaryColor=teal
+Style=styled
+BoundaryColor=cyan
 WallColor=white
-WaterColor=light-blue
+WaterColor=white
 BoundaryThickness=1.0
+StylizationOpacity=100
 
 [Campaign]
-Style=native
-BoundaryColor=red
+Style=hybrid
+BoundaryColor=cyan
 WallColor=white
-WaterColor=light-blue
+WaterColor=white
 BoundaryThickness=1.0
+StylizationOpacity=100
 ```
 
 `BoundaryThickness` is saved separately for Maps and Campaign. The menu cycles through **0.5, 1.0, 1.5 and 2.0**. It scales the edge and its fade bands inward, with quarter-subtile rounding. It does not change exploration distance, wall contour width or icon size. Missing or invalid group values inherit `[Automap] BoundaryThickness`, or default to 1.0. The active boundary rebuilds on the worker after a menu change, even while standing still. Manual edits take effect after restarting.
+
+`StylizationOpacity` scales custom fullscreen drawing from 30–100%, with a 5% step selector in each submenu. The corner minimap retains its fixed opacity. The old shared `OverlayOpacity` key no longer applies. See [appearance settings](boundary-settings.md#fullscreen-stylization-opacity) for input handling.
 
 Legacy colors and styles in `[Automap]` supply defaults until the corresponding group key is saved. Legacy `MapStyle=native` selects native artwork and discovery, now **Original**. In the new `[Maps]` and `[Campaign]` sections, `Style=native` means original artwork with exploration clipping and a boundary. A failed menu save keeps the current choice and displays **Save failed**.
 

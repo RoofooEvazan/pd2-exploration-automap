@@ -63,9 +63,9 @@ static void testWaterTint() {
         Mask mask(.25);mask.revealAround({0,0},132);explored=&mask;
         state.drawing.walls={{inverse({-10,w*1.75},stable),inverse({double(w+10),w*1.75},stable)}};
         ++gameSerial;waterTint.select(gameSerial,lastLevelKey,divisor);waterTint.add({0,0,w,w*2});
-        for(auto style:{MapStyle::Hybrid,MapStyle::Styled})for(auto color:{BoundaryColor::White,BoundaryColor::Orange})for(unsigned opacity:{80u,100u}) {
+        for(auto style:{MapStyle::Hybrid,MapStyle::Styled})for(auto color:{BoundaryColor::White,BoundaryColor::Magenta})for(unsigned opacity:{80u,100u}) {
             std::vector<float> positions;std::size_t colorBuilds=0;
-            for(unsigned i=0;i<=boundaryPresets.size();++i) {
+            for(unsigned i=0;i<boundaryPresets.size();++i) {
                 activeStyle=style;wallColor=color;overlayOpacity=opacity;
                 waterColor=static_cast<BoundaryColor>(i);waterEdgeColor=waterRGBA(waterColor,224);
                 appearanceColors.clear();appearancePositions.clear();drawHybridWalls(t,{0,0,150,150});
@@ -131,13 +131,13 @@ static void testWaterTint() {
         wallColor=BoundaryColor::White;overlayOpacity=80;
         appearanceColors.clear();appearancePositions.clear();drawHybridWalls({double(divisor),-40,-20},{0,0,150,150});
         auto expected=std::vector<DWORD>({overlayColor(0x181818c0),overlayColor(wallRGBA(wallColor,224))});
-        if(water)expected.push_back(overlayColor(0x50a5dce0));
+        if(water)expected.push_back(overlayColor(waterEdgeColor));
         require(appearanceColors==expected);
         state.drawing.walls.clear();
     }
     waterTint.select(++gameSerial,lastLevelKey,10);client=nullptr;inPass=haveViewport=maskActive=styledActive=false;
     activeStyle=oldStyle;wallColor=oldWall;overlayOpacity=oldOpacity;styledCurrent=nullptr;explored=&emptyMask;
-    std::cout<<"PASS: light-blue Hybrid water edges; disjoint contour coverage, both zooms, material/object protection, cache reuse, bounded storage, session/layer isolation and independent wall colors\n";
+    std::cout<<"PASS: selected Hybrid water edges; disjoint contour coverage, both zooms, material/object protection, cache reuse, bounded storage, session/layer isolation and independent wall colors\n";
 }
 static void testPixelWaterTint() {
     using namespace exploration;
@@ -262,7 +262,7 @@ static void testNativeRiverBanks() {
     StyledState state;state.floorCells=1;styledCurrent=&state;
     originalCell=captureCell;styledArray=captureAppearanceArray;styledColor=captureColor;originalLine=appearanceNativeLine;
     NativeRect view{0,150,0,149};passViewport={0,0,150,150};
-    observedLevel=2;wallColor=BoundaryColor::Orange;overlayOpacity=80;
+    observedLevel=2;wallColor=BoundaryColor::Magenta;overlayOpacity=80;
     riverBankTraces.clear();
     for(int divisor:{10,20})for(bool town:{false,true})for(auto style:{MapStyle::Original,MapStyle::Native,MapStyle::Hybrid,MapStyle::Styled}) {
         checkContext="native bank survives empty collision mesh and town-only visibility";

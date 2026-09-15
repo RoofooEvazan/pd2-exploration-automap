@@ -8,8 +8,8 @@ The C++17 implementation of the plugin: tracking explored space, preparing map g
 | [GameTables.hpp](GameTables.hpp) | Loads owned, size-limited table data through the verified Storm file resolver, using archives or active direct overrides. |
 | [MapMarkers.hpp](MapMarkers.hpp) | Reads active shrine/event definitions and bounded loaded-unit snapshots for missing native endgame icons. |
 | [ExplorationMask.hpp](ExplorationMask.hpp) | Tracks explored cells and grows the reveal area as the player moves. |
-| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines thirteen presets, the Light Blue water default, exact RGB values and legacy INI color aliases. |
-| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent Maps Styling and Campaign Styling submenus, each with style, water/wall/boundary colors and thickness choices, native navigation and Escape handling. |
+| [BoundaryColors.hpp](BoundaryColors.hpp) | Defines seven presets, exact RGB values and legacy INI color aliases. |
+| [BoundaryMenu.hpp](BoundaryMenu.hpp) | Adds independent Maps Styling and Campaign Styling submenus with style, colors, thickness and fullscreen opacity, native navigation and Escape handling. |
 | [SessionIdentity.hpp](SessionIdentity.hpp) | Distinguishes game sessions from loading, map pauses, and travel using menu/player/act-seed identity. |
 | [ProjectedMask.hpp](ProjectedMask.hpp) | Converts the exploration mask into screen-space clipping for native artwork. |
 | [RasterClipCache.hpp](RasterClipCache.hpp) | Reuses exact artwork clipping across frames and map panning, with bounded storage and immediate coverage invalidation. |

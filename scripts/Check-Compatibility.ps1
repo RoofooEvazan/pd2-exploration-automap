@@ -44,7 +44,7 @@ foreach ($file in $profile.optionalMenuSha256.PSObject.Properties) {
     $menuMatch = (Test-Path -LiteralPath $candidate -PathType Leaf) -and
         ((Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash -ieq $file.Value)
     if ($menuMatch) { Write-Host 'Automap settings menu: profiled PD2 file matches; runtime layout checks still apply.' }
-    else { Write-Host 'Automap settings menu: unrecognized or missing PD2 file; use Style, BoundaryColor, WallColor, WaterColor and BoundaryThickness in the INI Maps/Campaign sections if rows are unavailable.' }
+    else { Write-Host 'Automap settings menu: unrecognized or missing PD2 file; use Style, BoundaryColor, WallColor, WaterColor, BoundaryThickness and StylizationOpacity in the INI Maps/Campaign sections if rows are unavailable.' }
 }
 if (-not $allMatch) {
     Write-Host 'This installation does not match the tested binary set. Do not install this build.'

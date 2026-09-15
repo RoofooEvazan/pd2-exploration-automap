@@ -11,7 +11,7 @@ static void testFixedDistance() {
     require(WritePrivateProfileStringA("Automap","MapsStyle","styled",file)!=0);
     require(WritePrivateProfileStringA("Automap","BoundaryColor","cyan",file)!=0);
     require(WritePrivateProfileStringA("Automap","OverlayOpacity","70",file)!=0);
-    require(WritePrivateProfileStringA("Automap","WallColor","pale-peach",file)!=0);
+    require(WritePrivateProfileStringA("Automap","WallColor","white",file)!=0);
     std::vector<unsigned char> memory(0x11c210);client=memory.data();enabled=true;
     PlayerState p{100.125,100.125,202,876543,876543};
     DWORD now=500000;
@@ -20,7 +20,7 @@ static void testFixedDistance() {
         for(const char* mode:{"circle","native-average","invalid"}) {
             require(WritePrivateProfileStringA("Automap","RevealMode",mode,file)!=0);
             loadAppearanceSettings(file);
-            require(boundaryColor==exploration::BoundaryColor::Teal && wallColor==exploration::BoundaryColor::Orange && overlayOpacity==70);
+            require(boundaryColor==exploration::BoundaryColor::Cyan && wallColor==exploration::BoundaryColor::White && overlayOpacity==100);
             require(campaignStyle==MapStyle::Native && mapsStyle==MapStyle::Styled);
             ++p.id; // Fresh exploration exposes any oversized circle.
             for(auto dims:{std::pair<int,int>{1068,600},{4096,4096},{640,480},{0,INT_MAX}}) {

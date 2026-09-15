@@ -24,7 +24,7 @@ static void testMapStyles() {
             require(selectMapStyle(choice));loadAppearanceSettings(file);
             require(currentMapStyle()==choice && (maps?mapsStyle:campaignStyle)==menuStyles[choice]);
             require((maps?campaignStyle:mapsStyle)==other);
-            require(currentBoundaryColor()==exploration::BoundaryColor::Teal && currentWallColor()==exploration::BoundaryColor::White);
+            require(currentBoundaryColor()==exploration::BoundaryColor::Cyan && currentWallColor()==exploration::BoundaryColor::White);
         }
     }
     for(const char* width:{"0.5","1","1.5","2"}) {
@@ -59,7 +59,7 @@ static void testMapStyles() {
     require(WritePrivateProfileStringA("Maps","WaterColor","magenta",file)!=0);
     require(WritePrivateProfileStringA("Campaign","BoundaryThickness","1.25",file)!=0);
     loadAppearanceSettings(file);ui::editingMaps=false;activateColors(false);
-    require(waterColor==exploration::BoundaryColor::LightBlue && currentBoundaryThickness()==1.25);
+    require(waterColor==exploration::BoundaryColor::White && currentBoundaryThickness()==1.25);
     require(thicknessEntry.press(&thicknessEntry,nullptr) && currentBoundaryThickness()==1.5);
     activateColors(true);require(waterColor==exploration::BoundaryColor::Magenta && waterEdgeColor==0xff00ffe0 && boundaryThickness==1.0);
     settingsPath.clear();const auto beforeWidth=currentBoundaryThickness();
@@ -127,7 +127,7 @@ static void testMapStyles() {
         require(styleFrames==std::vector<DWORD>{10});
     }
     require(DeleteFileA(file)!=0);settingsPath=oldPath;client=nullptr;styledCurrent=nullptr;explored=&emptyMask;
-    campaignThickness=mapsThickness=1.0;campaignColors.water=mapsColors.water=exploration::BoundaryColor::LightBlue;activateColors(activeMaps);
+    campaignThickness=mapsThickness=1.0;campaignColors.water=mapsColors.water=exploration::BoundaryColor::White;activateColors(activeMaps);
     campaignStyle=mapsStyle=MapStyle::Hybrid;activeStyle=MapStyle::Styled;
     maskActive=styledActive=inPass=haveViewport=false;gameTablesPending=false;styledLevels.clear();
     std::cout<<"PASS: Original/Native/Hybrid/Styled menu cycle and persistence, navigation artwork, terrain suppression, mask/history/cache preservation and safe fallback\n";

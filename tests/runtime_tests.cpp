@@ -699,7 +699,7 @@ static void __stdcall captureSewerShade(DWORD mode,DWORD count,const void* data)
 }
 static void __stdcall captureHybridArray(DWORD mode,DWORD count,const void* data) {
     require(mode==5 && count>0 && count%4==0 && data);
-    require(batchColor==0x181818c0 || batchColor==exploration::wallRGBA(wallColor,224) || batchColor==0x50a5dce0);
+    require(batchColor==0x181818c0 || batchColor==exploration::wallRGBA(wallColor,224) || batchColor==waterEdgeColor);
     if(batchColor==0x181818c0)++casingCalls;else ++coreCalls;
     auto vertices=static_cast<const GlideVertex* const*>(data);
     for(DWORD i=0;i<count;i+=4) {
@@ -1051,6 +1051,8 @@ static void __stdcall opacityCaptureArray(DWORD mode,DWORD count,const void*){re
 static void __stdcall opacityCaptureLine(int,int,int,int,DWORD,DWORD alpha){opacityLineAlpha=alpha;}
 static void testOverlayOpacity() {
     checkContext="overlay alpha and native color restoration";
+    require(overlayOpacity==100 && overlayAlpha(255)==255);
+    overlayOpacity=80;
     require(overlayOpacity==80 && overlayAlpha(255)==204 && overlayColor(0x949494e0)==0x949494b3);
     GlideVertex q[4]{};std::vector<const void*> p{q,q+1,q+2,q+3};
     styledBatch=&p;styledBatchColor=0x56606438;styledRestoreColor=0x84848438;
@@ -1166,13 +1168,14 @@ static void testWaterReuse() {
 #include "map_marker_tests.hpp"
 #include "entrance_visibility_tests.hpp"
 #include "map_style_tests.hpp"
+#include "opacity_menu_tests.hpp"
 #include "area_entry_tests.hpp"
 #include "water_tint_tests.hpp"
 #include "ground_bank_tests.hpp"
 #include "native_water_tests.hpp"
 int main() {
     std::cout<<std::unitbuf;
-    require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Hybrid);
+    require(styleForLevel(2)==MapStyle::Hybrid && styleForLevel(203)==MapStyle::Styled);
     mapsStyle=MapStyle::Styled; // Repeat rendering contracts in Styled mode.
     testOverlayOpacity(); // Existing rendering contracts then run at 100%.
     testContacts();testInstalledArtwork();
@@ -1256,5 +1259,6 @@ int main() {
     testOverlaidWaterBanks();
     testNativeMapWater();
     testOriginalWallBrightness();
+    testOpacityMenu();
     return 0;
 }

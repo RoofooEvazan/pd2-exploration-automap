@@ -87,14 +87,14 @@ static DWORD brighterPaletteColor(DWORD color) {
 }
 static const std::vector<const void*>* styledBatch=nullptr;
 static DWORD styledBatchColor=0,styledRestoreColor=0;
-static unsigned overlayOpacity=80;
-static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Red;
+static unsigned overlayOpacity=100,campaignOpacity=100,mapsOpacity=100;
+static exploration::BoundaryColor boundaryColor=exploration::BoundaryColor::Cyan;
 static exploration::BoundaryColor wallColor=exploration::BoundaryColor::White;
-static exploration::BoundaryColor waterColor=exploration::BoundaryColor::LightBlue;
-static DWORD waterEdgeColor=0x50a5dce0;
+static exploration::BoundaryColor waterColor=exploration::BoundaryColor::White;
+static DWORD waterEdgeColor=0xffffffe0;
 struct AppearanceColors {
-    exploration::BoundaryColor boundary=exploration::BoundaryColor::Red,wall=exploration::BoundaryColor::White;
-    exploration::BoundaryColor water=exploration::BoundaryColor::LightBlue;
+    exploration::BoundaryColor boundary=exploration::BoundaryColor::Cyan,wall=exploration::BoundaryColor::White;
+    exploration::BoundaryColor water=exploration::BoundaryColor::White;
 };
 static AppearanceColors campaignColors,mapsColors;
 static bool activeMaps=false;
@@ -107,6 +107,7 @@ static void activateColors(bool maps) {
     waterEdgeColor=exploration::waterRGBA(waterColor,224);
     boundaryThickness=maps?mapsThickness:campaignThickness;
     boundaryBandWidth=int(lround(12*boundaryThickness));
+    overlayOpacity=maps?mapsOpacity:campaignOpacity;
 }
 static DWORD fractionalTint=0;
 static std::string settingsPath;
@@ -147,7 +148,7 @@ static void* originalBegin=nullptr;
 static void* originalEnd=nullptr;
 static bool inPass=false,maskActive=false,enabled=true,installed=false;
 enum class MapStyle { Original, Native, Styled, Hybrid };
-static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Hybrid,activeStyle=MapStyle::Styled;
+static MapStyle campaignStyle=MapStyle::Hybrid,mapsStyle=MapStyle::Styled,activeStyle=MapStyle::Styled;
 static exploration::HybridArtwork hybridArtwork;
 static exploration::MapMarkerDefinitions mapMarkerDefinitions;
 static std::vector<exploration::MapMarker> mapMarkers;
@@ -1424,6 +1425,18 @@ static exploration::BoundaryColor currentBoundaryColor(){return editingColors().
 static exploration::BoundaryColor currentWallColor(){return editingColors().wall;}
 static exploration::BoundaryColor currentWaterColor(){return editingColors().water;}
 static double currentBoundaryThickness(){return exploration::boundary_menu::editingMaps?mapsThickness:campaignThickness;}
+static unsigned currentStylizationOpacity(){return exploration::boundary_menu::editingMaps?mapsOpacity:campaignOpacity;}
+static bool selectStylizationOpacity(unsigned opacity) {
+    if(opacity<30 || opacity>100)return false;
+    const auto text=std::to_string(opacity);
+    if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),"StylizationOpacity",text.c_str(),settingsPath.c_str())) {
+        log("Stylization opacity unchanged: unable to save ExplorationMask.ini.");return false;
+    }
+    (exploration::boundary_menu::editingMaps?mapsOpacity:campaignOpacity)=opacity;
+    activateColors(activeMaps);
+    if(logfile){fprintf(logfile,"APPEARANCE %s StylizationOpacity=%u; saved.\n",editingSection(),opacity);fflush(logfile);}
+    return true;
+}
 static bool selectBoundaryThickness(unsigned choice) {
     namespace ui=exploration::boundary_menu;
     if(choice>=ui::thicknessValues.size())return false;
@@ -1457,7 +1470,7 @@ static bool selectMapStyle(unsigned choice) {
     return true;
 }
 static bool saveMapColor(const char* key,exploration::BoundaryColor color,exploration::BoundaryColor& current,bool water=false) {
-    if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size() && !(water && color==exploration::BoundaryColor::LightBlue))return false;
+    if(static_cast<unsigned>(color)>=exploration::boundaryPresets.size())return false;
     const auto& preset=water?exploration::waterPreset(color):exploration::boundaryPreset(color);
     if(settingsPath.empty() || !WritePrivateProfileStringA(editingSection(),key,preset.key,settingsPath.c_str())) {
         log("Map color unchanged: unable to save ExplorationMask.ini.");return false;
@@ -1478,7 +1491,7 @@ static void ensureBoundaryMenu() {
     const auto ok=exploration::boundary_menu::install(pd,client,
         reinterpret_cast<unsigned char*>(GetModuleHandleA("D2Win.dll")),selectBoundaryColor,currentBoundaryColor,
         selectWallColor,currentWallColor,selectWaterColor,currentWaterColor,selectMapStyle,currentMapStyle,
-        selectBoundaryThickness,currentBoundaryThickness);
+        selectBoundaryThickness,currentBoundaryThickness,selectStylizationOpacity,currentStylizationOpacity);
     log(ok?"BOUNDARY menu installed: independent Maps Styling and Campaign Styling.":
         "BOUNDARY menu unavailable: supported menu signatures differ. INI settings remain available.");
 }
@@ -1488,16 +1501,16 @@ static void loadAppearanceSettings(const std::string& settings) {
         char text[64]{};GetPrivateProfileStringA(section,key,fallback,text,64,settings.c_str());return std::string(text);
     };
     AppearanceColors legacy;
-    legacy.boundary=exploration::parseBoundaryColor(value("Automap","BoundaryColor","red"));
+    legacy.boundary=exploration::parseBoundaryColor(value("Automap","BoundaryColor","cyan"));
     legacy.wall=exploration::parseBoundaryColor(value("Automap","WallColor","white"),exploration::BoundaryColor::White);
-    legacy.water=exploration::parseWaterColor(value("Automap","WaterColor","light-blue"));
+    legacy.water=exploration::parseWaterColor(value("Automap","WaterColor","white"),exploration::BoundaryColor::White);
     auto parseThickness=[](const std::string& width,double fallback) {
         char* end=nullptr;const double parsed=strtod(width.c_str(),&end);
         return end!=width.c_str() && *end=='\0' && std::isfinite(parsed) && parsed>=0.5 && parsed<=2.0?parsed:fallback;
     };
     const double legacyThickness=parseThickness(value("Automap","BoundaryThickness","1.0"),1.0);
     campaignStyle=parseStyle(value("Automap","CampaignStyle","hybrid").c_str(),MapStyle::Hybrid);
-    mapsStyle=parseStyle(value("Automap","MapsStyle","hybrid").c_str(),MapStyle::Hybrid);
+    mapsStyle=parseStyle(value("Automap","MapsStyle","styled").c_str(),MapStyle::Styled);
     auto oldStyle=value("Automap","MapStyle","");
     // Legacy Native selects Original artwork/discovery. Per-group Native
     // selects exploration clipping and a boundary instead.
@@ -1513,12 +1526,15 @@ static void loadAppearanceSettings(const std::string& settings) {
         colors.wall=exploration::parseBoundaryColor(value(section,"WallColor",""),legacy.wall);
         colors.water=exploration::parseWaterColor(value(section,"WaterColor",""),legacy.water);
         (maps?mapsThickness:campaignThickness)=parseThickness(value(section,"BoundaryThickness",""),legacyThickness);
+        const auto opacityText=value(section,"StylizationOpacity","");
+        char* end=nullptr;const long opacity=strtol(opacityText.c_str(),&end,10);
+        // Group opacity replaces the retired shared fullscreen override.
+        (maps?mapsOpacity:campaignOpacity)=end!=opacityText.c_str() && *end=='\0'?
+            static_cast<unsigned>(std::clamp(opacity,30L,100L)):100u;
     }
     activateColors(activeMaps);
-    auto opacity=GetPrivateProfileIntA("Automap","OverlayOpacity",80,settings.c_str());
-    overlayOpacity=opacity>=10 && opacity<=100?opacity:80;
-    if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f OverlayOpacity=%u\n",
-        styleName(campaignStyle),styleName(mapsStyle),boundaryThickness,overlayOpacity);fflush(logfile);}
+    if(logfile){fprintf(logfile,"APPEARANCE Campaign=%s Maps=%s BoundaryThickness=%.2f CampaignOpacity=%u MapsOpacity=%u\n",
+        styleName(campaignStyle),styleName(mapsStyle),boundaryThickness,campaignOpacity,mapsOpacity);fflush(logfile);}
 }
 static void loadStyles() {
     // Initialization precedes PD2 archive mounting; defer table reads until a player exists.

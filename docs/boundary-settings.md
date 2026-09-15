@@ -1,4 +1,4 @@
-# Colors and reveal distance
+# Appearance settings and reveal distance
 
 Boundary, wall and water colors are independent. Reveal distance is fixed at **33 world subtiles**, with a smooth circular edge and quarter-subtile movement precision.
 
@@ -6,21 +6,15 @@ Boundary, wall and water colors are independent. Reveal distance is fixed at **3
 
 Independent **Boundary Color**, **Wall Color** and **Water Color** list pickers are available under **Options → Automap Options → Maps Styling** or **Campaign Styling**. Open the automap once in an offline game to initialize the extension. Click a color row, then click a named color or use Up/Down and Enter. The current color is marked **(Selected)**. Choosing a color saves it immediately and returns to its Styling submenu. **Back** or **Escape** returns without changing it. If saving fails, the picker stays open and the previous color remains active.
 
-All three lists offer the thirteen colors below. Water Color also offers Light Blue (`#50A5DC`), its default. Each styling group saves its own `BoundaryColor`, `WallColor` and `WaterColor`; omitted keys inherit legacy preferences or default to Red, White and Light Blue respectively. [Stylization](map-styles.md) selects Original, Native, Hybrid or Styled independently for each group. Labels and values use native formatting, with larger headings in the color lists.
+All three lists offer the seven colors below. Each styling group saves its own `BoundaryColor`, `WallColor` and `WaterColor`; omitted keys inherit legacy preferences or default to Cyan, White and White respectively. [Stylization](map-styles.md) selects Original, Native, Hybrid or Styled independently for each group. Labels and values use native formatting, with larger headings in the color lists.
 
 | Color | INI value | Base RGB |
 | --- | --- | --- |
 | Red | `red` | `#FF0000` |
-| Vermilion | `vermilion` | `#E34239` |
-| Orange | `orange` | `#FFA500` |
-| Amber | `amber` | `#FFBF00` |
 | Yellow | `yellow` | `#FFFF00` |
-| Chartreuse | `chartreuse` | `#7FFF00` |
 | Green | `green` | `#00FF00` |
 | Teal | `teal` | `#008080` |
-| Blue | `blue` | `#0000FF` |
-| Violet | `violet` | `#7F00FF` |
-| Purple | `purple` | `#800080` |
+| Cyan | `cyan` | `#00FFFF` |
 | Magenta | `magenta` | `#FF00FF` |
 | White | `white` | `#FFFFFF` |
 
@@ -34,24 +28,30 @@ The extension supports the profiled expansion menu in `ProjectDiablo.dll` (SHA-2
 
 ## Older color settings
 
-Beta.9 replaces the earlier palette. Older INIs load without being rewritten. Retired names resolve as follows in either styling group:
+Older INIs load without being rewritten. Color names are case-insensitive, and the menu saves only current names.
 
 | Old INI value | Current choice |
 | --- | --- |
 | `neon-green`, `pale-green` | Green |
-| `cyan` | Teal |
-| `light-blue`, `pale-blue` | Blue |
+| `light-blue`, `pale-blue` | Cyan |
 | `pale-yellow`, `pale-lemon` | Yellow |
-| `pale-peach` | Orange |
 | `gray`, `grey` | White |
 
-Red, Orange, Magenta and White keep their names and use the new RGB values. Color names are case-insensitive. Choosing a color in the menu saves its current name to that group. Missing or invalid values inherit the legacy `[Automap]` preference, or default to Red for boundaries and White for walls. For `WaterColor`, `light-blue` selects the original `#50A5DC` tint; missing values retain that default.
+Vermilion, Orange, Amber, Chartreuse, Blue, Violet, Purple and Pale Peach are no longer supported choices. Invalid or missing group colors inherit a supported legacy `[Automap]` value; otherwise boundaries default to Cyan, and walls and water default to White. Light Blue is removed from the water list; an existing `light-blue` preference resolves to Cyan.
 
 ## Boundary thickness
 
 The **Boundary Thickness** row cycles through **0.5 → 1.0 → 1.5 → 2.0 → 0.5**. Each styling group saves its own `BoundaryThickness`. Changes update fullscreen and corner boundaries through the worker, even without movement; exploration and existing contours remain visible. The setting leaves wall/water width and reveal distance unchanged. A failed save retains the previous thickness.
 
 Older shared values under `[Automap]` supply the default until a group saves its own value. Without either key, the default is 1.0. INI values between 0.5 and 2.0 remain supported; the next menu click advances to the next listed step. Manual edits require a restart.
+
+## Fullscreen stylization opacity
+
+Each Styling submenu has a **Stylization Opacity** row. It opens a percentage list from **30% to 100% in 5% steps**. Choose a value with the mouse or Up/Down and Enter; Back/Escape cancels. A failed save leaves the current opacity active and keeps the list open.
+
+`StylizationOpacity` is saved independently under `[Maps]` and `[Campaign]`, defaulting to **100**. INI values accept whole percentages and are clamped to 30–100; missing or malformed values use 100. The retired shared `[Automap] OverlayOpacity` key is ignored and can be removed.
+
+Opacity scales custom fullscreen floors, boundaries and wall/water contours once, without a separate fullscreen cap. It does not change native artwork, icons or Original's white-wall dimming. The corner minimap keeps D2GL's fixed capture opacity. Changing opacity requires no geometry rebuild.
 
 ## Fixed reveal distance
 
@@ -61,4 +61,4 @@ The fixed radius prevents settings-based expansion, but an open-source client ca
 
 ## Validation
 
-The runtime suite checks all thirteen RGB values and the additional Light Blue water default, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.
+The runtime suite checks all seven RGB values and the Cyan/White defaults, independent saving/reload, thickness cycling and stationary rebuilds, legacy color aliases, defaults, failed saves, Back/Escape, layout bounds, native resource ownership and color/state restoration at both zooms. Opacity checks cover independent persistence, all accepted percentages, range limits, retired overrides, list navigation, save failures and unchanged contour geometry. The fixed-distance suite uses legacy INI inputs to confirm the 33-subtile limit, resolution independence, movement, teleport gaps and town history. See [testing](testing.md) for commands and diagnostics.

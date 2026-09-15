@@ -1,6 +1,6 @@
 # Gameplay screenshots
 
-Original-resolution screenshots from earlier beta builds. They show Hybrid terrain and five frontier colors. The current release has a 33-subtile radius, four styles and thirteen wall/boundary colors, with separate campaign and map settings. The older menu image is not a guide to the current layout. FPS counters show individual moments, not sustained benchmarks.
+Original-resolution screenshots from earlier beta builds. They show Hybrid terrain and five frontier colors. The radius, palette and settings have changed since these captures; see the [current settings](../boundary-settings.md). The older menu image is not a guide to the current layout. FPS counters show individual moments, not sustained benchmarks.
 
 Expand an image to view it at full size.
 
